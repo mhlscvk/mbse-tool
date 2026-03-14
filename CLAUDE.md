@@ -1,206 +1,187 @@
-# CLAUDE.md
+# Claude.md — Phase 1 Planning Prompt for a SysML v2 Web Application
+
+You are acting as a **senior solution architect, product planner, and modular systems engineering advisor**.  
+Your task is to help me plan, define, and structure the **first phase** of a web-based SysML v2 application that will later expand in multiple phases.
 
 ## Project Context
 
-This project is a **web-based SysML v2 modeling platform** that will be developed **step by step**.
+I want to build a **web application on systemodel.com** with the following long-term vision:
 
-The platform is intended to support:
-- SysML v2 textual modeling
-- graphical model visualization
+- The application shall **read `.sysml` files** and display them **graphically**
+- It shall allow **SysML v2 coding/editing**
+- It shall provide **SysML v2 graphical representations**
+- It shall be **web-based**
+- It shall allow **user login**
+- It shall support **payments**
+- It shall support **different user types / roles**
+- It shall use **SysML v2 as the core language**
+- It shall be accessible to **artificial intelligence via MCP**
+- It shall be able to help **correct models**
+- It shall be developed **step by step**
+- It shall support future **advanced model views**
+- It shall support future **simulation capabilities**
+- The language fundamentals and modeling/simulation approach should be **updatable in a modular way**
+- Each module should be:
+  - independently developable
+  - easy to debug and fix
+  - low in memory usage
+  - scalable
+  - cleanly separable from other modules
+
+## Important Development Constraint
+
+This application must be developed **using Claude Code as the implementation assistant**, but I do **not** want direct coding in this step.  
+I want **planning, architecture, staged development strategy, module definition, and implementation guidance only**.
+
+Do **not** jump straight into writing source code unless explicitly requested later.
+
+## Main Goal of This Prompt
+
+Help me define the **best practical approach** to set up and develop this website in a **modular, scalable, phased architecture**.
+
+This is **Phase 1 only**.  
+Future phases will be added later.
+
+## What I Want You to Produce
+
+Please create a structured response with the following sections:
+
+### 1. Executive Summary
+Give a concise summary of the recommended approach for building this application.
+
+### 2. Phase-Based Development Roadmap
+Define a **step-by-step development roadmap**, starting with **Phase 1** and briefly showing how later phases could evolve.
+
+Requirements:
+- Clearly state that this is **the first phase of development**
+- Show what belongs in:
+  - **Phase 1: core foundation / MVP**
+  - **Later phases: advanced views, simulation, AI-assisted correction, deeper integrations**
+- Explain why this phased approach is the best fit
+
+### 3. Phase 1 Scope Definition
+Define what should be included in **Phase 1 only**.
+
+Phase 1 should focus on the essential foundation, such as:
+- web platform foundation
 - user authentication
-- payments and user types
-- AI access through MCP
-- AI-assisted model correction
-- advanced model views
-- simulation capabilities
+- user roles/types
+- basic payment readiness or payment integration foundation
+- SysML v2 file ingestion/import
+- basic SysML v2 text editing
+- initial graphical rendering approach
+- modular architecture foundation
+- API/MCP accessibility foundation
+- model validation/correction preparation layer
 
-However, **this document defines only Phase 1** of the development effort.
-Future phases will extend the platform incrementally.
+Also identify what should **not** be included in Phase 1 and should be delayed to later phases.
 
----
+### 4. Recommended Modular Architecture
+Propose a **modular system architecture** for the application.
 
-## Development Approach
+Break the platform into modules such as, if appropriate:
+- frontend web client
+- backend API
+- authentication/authorization
+- payment module
+- SysML v2 parser/import module
+- SysML v2 editor module
+- graphical rendering/viewer module
+- model validation/correction module
+- MCP/AI integration module
+- storage/database layer
+- simulation module for later phases
 
-The application must be designed and implemented using a **modular, scalable, and maintainable architecture**.
+For each module, explain:
+- its purpose
+- why it should be independent
+- how modularity helps updates, debugging, and memory efficiency
+- which modules belong in Phase 1 vs later phases
 
-### Core principles
-- Build the system in **independent modules** with clear responsibilities.
-- Ensure each module can be **developed, tested, fixed, and deployed independently** where practical.
-- Keep coupling low and cohesion high.
-- Design the architecture so that **future phases can be added without major rewrites**.
-- Minimize memory usage by loading only the data and services needed for the current operation.
-- Make it easy to update the SysML v2 language support, modeling approach, and future simulation logic.
+### 5. Scalable Technical Approach
+Recommend the overall technical approach for a web application like this.
 
-### Architectural expectations
-- Use a **modular framework** suitable for long-term growth.
-- Separate frontend, backend, model-processing, and future AI/simulation concerns.
-- Use stable internal interfaces between modules.
-- Prefer small, focused components and services over large tightly coupled code units.
-- Design for extensibility from the beginning.
+Address:
+- frontend/backend separation or monorepo approach
+- plugin/module-oriented design
+- service boundaries
+- API-first design
+- extensibility for future SysML v2 language updates
+- support for future simulation capabilities
+- support for AI/MCP access
+- strategies for keeping memory usage low
+- strategies for maintainability and easier bug fixing
 
----
+### 6. Hosting and Deployment Recommendation
+Answer this practical question:
 
-## Phase Declaration
+**What approach should I take to set up this website, and which hosting service should I use? Is there an integrated system with Claude Code?**
 
-This is **Phase 1** of the product.
+In your answer:
+- Recommend suitable hosting/deployment options for this kind of modular web platform
+- Compare options briefly
+- Consider frontend hosting, backend hosting, database hosting, storage, and scaling
+- Mention whether there is any real “integrated hosting system” with Claude Code, or whether Claude Code should instead be treated as a development assistant in the workflow
+- Be realistic and do not invent nonexistent native integrations
+- If direct Claude Code hosting integration does not exist, propose the best practical workflow
 
-Phase 1 focuses on establishing the **foundation** of the platform.
-It should deliver the minimum architecture and core capabilities required to support future phases.
+### 7. Recommended Development Workflow Using Claude Code
+Explain how I should use **Claude Code step by step** during development without asking it to generate the whole product at once.
 
-All advanced capabilities such as expanded diagram types, AI-driven correction workflows, MCP tooling expansion, and simulation will be implemented in **later phases**.
+Describe a workflow such as:
+- architecture definition
+- module-by-module planning
+- spec writing
+- scaffold generation
+- review cycles
+- debugging support
+- refactoring guidance
+- documentation generation
+- test planning
+- phased expansion
 
-The codebase, folder structure, APIs, and core abstractions created in this phase must therefore be prepared for future extension.
+Make the workflow suitable for a large modular product.
 
----
+### 8. MCP and AI Accessibility Strategy
+Explain how the application should be designed so that:
+- AI systems can access it through **MCP**
+- AI can inspect and help correct models
+- model correction is controlled, traceable, and safe
+- future AI-assisted modeling features can be added cleanly
 
-## Phase 1 Goals
+### 9. Risks and Design Warnings
+List the biggest risks in this project, especially around:
+- SysML v2 complexity
+- parser/editor/view synchronization
+- graphical representation accuracy
+- simulation expansion
+- modular versioning
+- payment/user-role complexity
+- AI correction reliability
+- long-term maintainability
 
-Phase 1 should establish the base platform and core workflow.
+For each risk, provide a practical mitigation strategy.
 
-### In scope for Phase 1
-- Create a **web-based application foundation**.
-- Establish the **modular project structure**.
-- Implement **user authentication and login**.
-- Implement basic **user/account management**.
-- Support creation of projects/workspaces.
-- Support upload, storage, and retrieval of `.sysml` files.
-- Provide a basic **SysML v2 text editor**.
-- Enable saving and reopening models.
-- Prepare an internal structure for **parsing and model processing**.
-- Define the base contracts that future graphical views, AI integration, and simulation modules will use.
+### 10. Concrete Recommendation
+End with a **clear recommended starting approach**:
+- what I should build first
+- what stack style I should adopt
+- what hosting direction is best
+- how to organize the first implementation phase on systemodel.com
 
-### Out of scope for Phase 1
-These items are not the focus of this phase and should be treated as future work:
-- advanced graphical model views
-- rich semantic validation
-- full AI correction workflows
-- broad MCP tool coverage
-- model simulation and execution
-- advanced collaboration features
-- enterprise scaling features
+## Output Style Requirements
 
----
+- Be highly structured
+- Use clear headings
+- Be practical, not vague
+- Think like a real software architect planning a serious product
+- Do not write source code
+- Do not produce placeholder fluff
+- Make reasonable assumptions where needed
+- Explicitly label items as **Phase 1** vs **Later Phase**
+- Emphasize **modularity, scalability, low memory usage, maintainability, and staged development**
+- Keep the recommendations realistic for actual implementation
 
-## Phase 1 Architectural Requirement
+## Final Instruction
 
-Phase 1 must be built on a structure that supports later expansion.
-
-The architecture should already anticipate future modules such as:
-- parser module
-- validation module
-- diagram/view module
-- MCP gateway module
-- AI correction module
-- billing/subscription module
-- simulation module
-- audit/history module
-
-These future modules do not need to be fully implemented in Phase 1, but the architecture should not block them.
-
----
-
-## Suggested High-Level Module Boundaries
-
-Phase 1 should begin with a structure similar to the following:
-
-- `frontend-web`
-  - login pages
-  - dashboard
-  - project pages
-  - SysML editor UI
-
-- `backend-api`
-  - authentication APIs
-  - project APIs
-  - file APIs
-  - user/account APIs
-
-- `model-core`
-  - shared model abstractions
-  - document handling contracts
-  - future parser/validation interfaces
-
-- `storage`
-  - database access
-  - file/object storage access
-
-- `shared`
-  - types
-  - config
-  - utilities
-  - error models
-
-This structure can later be extended with additional modules rather than rewritten.
-
----
-
-## Scalability Requirement
-
-The framework and implementation style must support growth in the following dimensions:
-- more users
-- more projects
-- larger models
-- more graphical views
-- more AI tooling
-- more simulation capability
-- more subscription and enterprise features
-
-Scalability should be achieved through:
-- clean service boundaries
-- stateless APIs where possible
-- efficient storage design
-- lazy loading of heavy features
-- avoiding unnecessary duplication of model data in memory
-
----
-
-## Maintainability Requirement
-
-To keep the code easy to fix and evolve:
-- each module should have a clear purpose
-- interfaces should be explicit
-- errors should be easy to isolate
-- logging and diagnostics should be structured
-- code generation through Claude should target small, well-defined units
-- modules should be testable independently
-
----
-
-## Claude Code Guidance
-
-When using Claude Code for implementation:
-- work **phase by phase**
-- work **module by module**
-- define the objective before generating code
-- generate only the code needed for the current module
-- keep outputs clean, minimal, and maintainable
-- avoid generating tightly coupled all-in-one solutions
-- prefer extensible abstractions over shortcuts
-
-Claude Code should treat this project as a **multi-phase modular platform**, not as a one-shot prototype.
-
----
-
-## Statement for Future Phases
-
-This project will continue beyond Phase 1.
-
-Later phases are expected to introduce:
-- richer SysML v2 parsing and validation
-- graphical model rendering
-- advanced viewpoints
-- AI access through MCP
-- AI-assisted model analysis and correction
-- payment and subscription features
-- simulation and trace capabilities
-
-Phase 1 must therefore be implemented in a way that makes these later phases easier to add.
-
----
-
-## Phase 1 Summary
-
-**This document defines the first phase only.**
-
-The priority in this phase is to create a **modular, scalable, and extensible foundation** for a web-based SysML v2 platform.
-The system must be structured so that future phases can add advanced modeling, AI, MCP, and simulation capabilities without major architectural change.
+Treat this as a **real architecture and development planning task** for the first release of a SysML v2 web platform on **systemodel.com**, designed to grow into a more advanced modeling and simulation environment over time.
