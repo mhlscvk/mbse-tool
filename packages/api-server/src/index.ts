@@ -4,6 +4,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import fileRoutes from './routes/files.js';
+import aiRoutes from './routes/ai.js';
 import { errorHandler } from './middleware/error.js';
 
 const PORT = parseInt(process.env.PORT ?? '3003', 10);
@@ -20,6 +21,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/projects/:projectId/files', fileRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use(errorHandler);
 

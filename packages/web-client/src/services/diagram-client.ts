@@ -1,8 +1,8 @@
-import type { SysMLModel, DiagramMessage, SModelRoot } from '@systemodel/shared-types';
+import type { SysMLModel, DiagramMessage, SModelRoot, DiagramDiagnostic } from '@systemodel/shared-types';
 
 const DIAGRAM_URL = import.meta.env.VITE_DIAGRAM_URL ?? 'ws://localhost:3002/diagram';
 
-type DiagramListener = (model: SModelRoot) => void;
+type DiagramListener = (model: SModelRoot, diagnostics: DiagramDiagnostic[]) => void;
 type ErrorListener = (message: string) => void;
 type ClearListener = () => void;
 
@@ -31,7 +31,7 @@ export class DiagramClient {
       try {
         const msg: DiagramMessage = JSON.parse(event.data as string);
         if (msg.kind === 'model') {
-          this.listeners.forEach((l) => l(msg.model));
+          this.listeners.forEach((l) => l(msg.model, msg.diagnostics ?? []));
         } else if (msg.kind === 'error') {
           this.errorListeners.forEach((l) => l(msg.message));
         } else if (msg.kind === 'clear') {

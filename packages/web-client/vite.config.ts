@@ -17,6 +17,9 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    include: ['elkjs/lib/elk.bundled.js'],
+  },
   build: {
     rollupOptions: {
       output: {

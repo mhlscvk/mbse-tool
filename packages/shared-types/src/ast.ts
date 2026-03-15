@@ -6,10 +6,12 @@ export type SysMLNodeKind =
   | 'PortDefinition'
   | 'ActionDefinition'
   | 'StateDefinition'
+  | 'ItemDefinition'
   | 'PartUsage'
   | 'AttributeUsage'
   | 'ConnectionUsage'
-  | 'PortUsage';
+  | 'PortUsage'
+  | 'ItemUsage';
 
 export interface SysMLNode {
   id: string;
@@ -32,7 +34,7 @@ export interface SysMLConnection {
   id: string;
   sourceId: string;
   targetId: string;
-  kind: 'association' | 'dependency' | 'composition' | 'flow';
+  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'typereference';
   name?: string;
 }
 

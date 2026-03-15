@@ -32,7 +32,22 @@ export interface SLabel {
   position?: { x: number; y: number };
 }
 
+export interface DiagnosticFix {
+  title: string;
+  newText: string;
+}
+
+export interface DiagramDiagnostic {
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  line: number;       // 1-based
+  column: number;     // 1-based
+  endLine?: number;
+  endColumn?: number;
+  fixes?: DiagnosticFix[];
+}
+
 export type DiagramMessage =
-  | { kind: 'model'; model: SModelRoot }
+  | { kind: 'model'; model: SModelRoot; diagnostics: DiagramDiagnostic[] }
   | { kind: 'error'; message: string }
   | { kind: 'clear' };

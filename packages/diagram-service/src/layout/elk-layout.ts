@@ -44,11 +44,12 @@ export async function applyLayout(model: SModelRoot): Promise<SModelRoot> {
       width: n.size?.width ?? 160,
       height: n.size?.height ?? 60,
     })),
-    edges: edges.map((e) => ({
-      id: e.id,
-      sources: [e.sourceId],
-      targets: [e.targetId],
-    })),
+    edges: (() => {
+      const nodeIds = new Set(nodes.map((n) => n.id));
+      return edges
+        .filter((e) => nodeIds.has(e.sourceId) && nodeIds.has(e.targetId))
+        .map((e) => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
+    })(),
   };
 
   const layouted = await elk.layout(elkGraph) as ElkGraph;

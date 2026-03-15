@@ -30,12 +30,13 @@ export function createDiagramWebSocketServer(server: Server): WebSocketServer {
         const request: DiagramRequest = JSON.parse(raw.toString());
 
         let model: SysMLModel;
+        let diagnostics: import('@systemodel/shared-types').DiagramDiagnostic[] = [];
 
         if (request.kind === 'parse') {
-          // Parse SysML text server-side
-          model = parseSysMLText(request.uri, request.content);
+          const result = parseSysMLText(request.uri, request.content);
+          model = result.model;
+          diagnostics = result.diagnostics;
         } else if (request.kind === 'model') {
-          // Accept pre-built model (for future LSP integration)
           model = request.model;
         } else {
           send({ kind: 'error', message: 'Unknown request kind' });
@@ -49,7 +50,7 @@ export function createDiagramWebSocketServer(server: Server): WebSocketServer {
 
         const sModel = transformToBDD(model);
         const laid = await applyLayout(sModel);
-        send({ kind: 'model', model: laid });
+        send({ kind: 'model', model: laid, diagnostics });
 
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
