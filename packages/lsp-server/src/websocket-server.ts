@@ -1,13 +1,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
+import { IncomingMessage, Server } from 'http';
 import { createWebSocketConnection } from 'vscode-ws-jsonrpc';
 import { createConnection } from 'vscode-languageserver/node.js';
 import { spawnLanguageServer } from './lsp-process.js';
 
-export function createLspWebSocketServer(port: number): WebSocketServer {
-  const wss = new WebSocketServer({ port, path: '/lsp' });
+export function createLspWebSocketServer(server: Server): WebSocketServer {
+  const wss = new WebSocketServer({ server, path: '/lsp' });
 
-  console.log(`[LSP WS] WebSocket server listening on ws://localhost:${port}/lsp`);
+  console.log(`[LSP WS] WebSocket server attached on /lsp`);
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress ?? 'unknown';

@@ -15,8 +15,8 @@ app.get('/health', (_req, res) => {
 });
 
 const server = http.createServer(app);
-server.listen(PORT, () => {
-  console.log(`[LSP] HTTP health server running on http://localhost:${PORT}`);
-});
+createLspWebSocketServer(server);
 
-createLspWebSocketServer(PORT + 0); // WS on same conceptual service, different path
+server.listen(PORT, () => {
+  console.log(`[LSP] Service running on http://localhost:${PORT} (WS: ws://localhost:${PORT}/lsp)`);
+});

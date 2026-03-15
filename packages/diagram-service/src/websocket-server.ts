@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
+import { IncomingMessage, Server } from 'http';
 import type { SysMLModel, DiagramMessage } from '@systemodel/shared-types';
 import { transformToBDD } from './transformer/bdd-transformer.js';
 import { applyLayout } from './layout/elk-layout.js';
@@ -10,10 +10,10 @@ type DiagramRequest =
   | { kind: 'parse'; uri: string; content: string }   // text → parse server-side
   | { kind: 'model'; model: SysMLModel };              // pre-built AST (future: from LSP)
 
-export function createDiagramWebSocketServer(port: number): WebSocketServer {
-  const wss = new WebSocketServer({ port, path: '/diagram' });
+export function createDiagramWebSocketServer(server: Server): WebSocketServer {
+  const wss = new WebSocketServer({ server, path: '/diagram' });
 
-  console.log(`[Diagram WS] WebSocket server listening on ws://localhost:${port}/diagram`);
+  console.log(`[Diagram WS] WebSocket server attached on /diagram`);
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress ?? 'unknown';

@@ -15,8 +15,8 @@ app.get('/health', (_req, res) => {
 });
 
 const server = http.createServer(app);
-server.listen(PORT, () => {
-  console.log(`[Diagram] HTTP health server on http://localhost:${PORT}`);
-});
+createDiagramWebSocketServer(server);
 
-createDiagramWebSocketServer(PORT);
+server.listen(PORT, () => {
+  console.log(`[Diagram] Service running on http://localhost:${PORT} (WS: ws://localhost:${PORT}/diagram)`);
+});

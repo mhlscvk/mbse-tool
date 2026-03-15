@@ -1,7 +1,9 @@
-import ELK from 'elkjs';
+import * as ELKModule from 'elkjs';
 import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 
-const elk = new ELK();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ELKConstructor = (ELKModule as any).default ?? ELKModule;
+const elk = new ELKConstructor();
 
 interface ElkNode {
   id: string;
