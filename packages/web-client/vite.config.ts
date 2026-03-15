@@ -1,8 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+// @ts-ignore — vite-plugin-monaco-editor has non-standard exports
+import monacoEditorPlugin from 'vite-plugin-monaco-editor';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    monacoEditorPlugin({ languageWorkers: ['editorWorkerService'] }),
+  ],
   server: {
     port: 5173,
     proxy: {
@@ -12,17 +17,10 @@ export default defineConfig({
       },
     },
   },
-  worker: {
-    format: 'es',
-  },
-  optimizeDeps: {
-    include: ['monaco-editor'],
-  },
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
-          monaco: ['monaco-editor'],
           react: ['react', 'react-dom'],
         },
       },
