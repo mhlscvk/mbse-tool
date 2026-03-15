@@ -22,25 +22,26 @@ export default function EditorPage() {
     diagramClient.connect();
     const unsub = diagramClient.onModel(setDiagram);
     const unsubErr = diagramClient.onError((msg) => console.error('[Diagram]', msg));
-    return () => { unsub(); unsubErr(); diagramClient.disconnect(); };
+    const unsubClear = diagramClient.onClear(() => setDiagram(null));
+    return () => { unsub(); unsubErr(); unsubClear(); diagramClient.disconnect(); };
   }, []);
 
   useEffect(() => {
     if (!projectId || !fileId) return;
     api.files.get(projectId, fileId)
-      .then((f) => { setFile(f); setContent(f.content); })
+      .then((f) => {
+        setFile(f);
+        setContent(f.content);
+        // Generate initial diagram from loaded content
+        diagramClient.sendText(`file://${fileId}`, f.content);
+      })
       .catch((e) => setError(e.message));
   }, [projectId, fileId]);
 
   const handleChange = useCallback((value: string) => {
     setContent(value);
-    // Naive AST: send raw content as placeholder model for diagram service
-    // In a real implementation, this would use the LSP-parsed AST
-    diagramClient.sendModel({
-      uri: `file://${fileId}`,
-      nodes: [],
-      connections: [],
-    });
+    // Send text to diagram-service for server-side parsing → BDD generation
+    diagramClient.sendText(`file://${fileId}`, value);
 
     // Debounced autosave
     clearTimeout(saveTimer.current);

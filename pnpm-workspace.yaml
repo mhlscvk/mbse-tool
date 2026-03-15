@@ -1,2 +1,6 @@
 packages:
-  - 'packages/*'
+  - 'packages/shared-types'
+  - 'packages/lsp-server'
+  - 'packages/diagram-service'
+  - 'packages/api-server'
+  - 'packages/web-client'

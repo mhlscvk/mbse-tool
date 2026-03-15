@@ -8,3 +8,6 @@ build/
 .DS_Store
 prisma/migrations/
 uploads/
+
+# Cloned external repos — set up via: git clone https://github.com/sensmetry/sysml-2ls packages/sysml-language-server
+packages/sysml-language-server/

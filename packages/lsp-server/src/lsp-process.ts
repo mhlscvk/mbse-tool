@@ -7,8 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function spawnLanguageServer(): ChildProcess {
   // Path to the syside-languageserver binary
   // After forking sysml-2ls, this will point to the built server
+  // Default path points to the cloned sysml-language-server binary
   const serverPath = process.env.LSP_SERVER_PATH
-    ?? path.join(__dirname, '../../../node_modules/.bin/syside-languageserver');
+    ?? path.join(__dirname, '../../../sysml-language-server/packages/syside-languageserver/bin/syside-languageserver');
 
   const serverProcess = spawn('node', [serverPath, '--stdio'], {
     stdio: ['pipe', 'pipe', 'pipe'],
