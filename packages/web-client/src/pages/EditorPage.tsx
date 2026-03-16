@@ -81,6 +81,9 @@ export default function EditorPage() {
     });
   }, []);
 
+  // View mode: nested (compound layout) or tree (flat BDD-style)
+  const [viewMode, setViewMode] = useLocalStorage<'nested' | 'tree'>(`${lsPrefix}:viewMode`, 'nested');
+
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
 
@@ -369,6 +372,8 @@ export default function EditorPage() {
               hiddenNodeIds={hiddenNodeIds}
               hiddenEdgeIds={hiddenEdgeIds}
               storageKey={lsPrefix}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               onNodeSelect={(range) => {
                 // range is 0-based (LSP), Monaco is 1-based
                 monacoRef.current?.revealRange(

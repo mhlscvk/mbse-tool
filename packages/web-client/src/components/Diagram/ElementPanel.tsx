@@ -461,7 +461,7 @@ export default function ElementPanel({
         padding: '6px 8px', borderBottom: '1px solid #3c3c3c', background: '#2d2d2d', flexShrink: 0,
       }}>
         <span style={{ color: '#ccc', fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          {tab === 'elements' ? 'Elements' : 'Relationships'}
+          {tab === 'elements' ? 'Elements' : 'Relations'}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
           {tab === 'elements' ? (

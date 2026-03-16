@@ -12,6 +12,8 @@ interface DiagramViewerProps {
   hiddenNodeIds?: Set<string>;
   hiddenEdgeIds?: Set<string>;
   storageKey?: string;
+  viewMode?: 'nested' | 'tree';
+  onViewModeChange?: (mode: 'nested' | 'tree') => void;
   onNodeSelect?: (range: { start: { line: number; character: number }; end: { line: number; character: number } }) => void;
   onHideNode?: (id: string) => void;
   onHideEdge?: (id: string) => void;
@@ -51,12 +53,17 @@ const NODE_COLORS: Record<string, string> = {
 };
 
 // SysML v2 compliant edge styles
+// - Specialization (subclassification): solid line, hollow triangle at supertype
+// - Composition (ownership): solid line, filled diamond at owner, NO arrowhead at target
+// - Association (connection): solid line, open arrowhead at target
+// - Flow (succession): dashed line, open arrowhead at target
+// - Type reference: dashed line, open arrowhead at type
 const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: string; markerStart?: string; labelColor: string }> = {
-  dependency:    { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#tri-hollow)',             labelColor: '#9e9e9e' },
-  composition:   { stroke: '#9cdcfe', dash: undefined, markerEnd: 'url(#arrow-open)', markerStart: 'url(#diamond-comp)', labelColor: '#9cdcfe' },
-  association:   { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-open)',             labelColor: '#777'    },
-  flow:          { stroke: '#4ec9b0', dash: '6,3',     markerEnd: 'url(#arrow-flow)',             labelColor: '#4ec9b0' },
-  typereference: { stroke: '#6a7a8a', dash: '3,3',     markerEnd: 'url(#tri-hollow)',             labelColor: '#6a7a8a' },
+  dependency:    { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#tri-spec)',                                      labelColor: '#9e9e9e' },
+  composition:   { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                markerStart: 'url(#diamond-comp)',  labelColor: '#9cdcfe' },
+  association:   { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-assoc)',                                   labelColor: '#777'    },
+  flow:          { stroke: '#4ec9b0', dash: '6,3',     markerEnd: 'url(#arrow-flow)',                                    labelColor: '#4ec9b0' },
+  typereference: { stroke: '#6a7a8a', dash: '3,3',     markerEnd: 'url(#arrow-typeref)',                                 labelColor: '#6a7a8a' },
 };
 const DEFAULT_EDGE_STYLE = EDGE_STYLES.association;
 
@@ -70,7 +77,7 @@ const isPackage = (cssClass: string) => cssClass === 'package';
 const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 'stdlib' ? 0 : 10;
 
 export default function DiagramViewer({
-  model, hiddenNodeIds, hiddenEdgeIds, storageKey, onNodeSelect, onHideNode, onHideEdge,
+  model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onHideNode, onHideEdge,
 }: DiagramViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -100,6 +107,9 @@ export default function DiagramViewer({
 
   // IBD: container sizes computed by ELK compound layout
   const [layoutSizes, setIbdSizes] = useState(new Map<string, { w: number; h: number }>());
+
+  // ELK-computed edge routes (tree mode): edge id → SVG path string
+  const [elkEdgeRoutes, setElkEdgeRoutes] = useState(new Map<string, string>());
 
   const allNodes = useMemo(
     () => model?.children.filter((c): c is SNode => c.type === 'node') ?? [],
@@ -165,20 +175,47 @@ export default function DiagramViewer({
   const edgesKey = edges.map((e) => `${e.sourceId}→${e.targetId}`).sort().join(',');
 
 
-  // ── ELK compound layout (General View) ──────────────────────────────────
+  // ── ELK layout (General View) ──────────────────────────────────
   useEffect(() => {
     if (nodes.length === 0) return;
     let cancelled = false;
     setLayoutPending(true);
 
-    {
-      // ── General View: compound ELK layout (recursive, respects expand state) ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let elkGraph: any;
+
+    if (viewMode === 'tree') {
+      // ── Tree View: flat layout, all nodes at root, all edges routed by ELK ──
+      const elkChildren = nodes.map(n => {
+        const { w, h } = effectiveSize(n);
+        return { id: n.id, width: w, height: h };
+      });
+
+      const elkEdges = edges.map(e => ({
+        id: e.id,
+        sources: [e.sourceId],
+        targets: [e.targetId],
+      }));
+
+      elkGraph = {
+        id: 'graph',
+        layoutOptions: {
+          'elk.algorithm': 'layered',
+          'elk.direction': 'DOWN',
+          'elk.spacing.nodeNode': '40',
+          'elk.layered.spacing.nodeNodeBetweenLayers': '60',
+          'elk.edgeRouting': 'ORTHOGONAL',
+        },
+        children: elkChildren,
+        edges: elkEdges,
+      };
+    } else {
+      // ── Nested View: compound ELK layout (recursive, respects expand state) ──
       const elkVisibleIds = visibleNodeIds ?? new Set(nodes.map(n => n.id));
 
       const visiting = new Set<string>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       function buildElkNode(nodeId: string): any {
-        // Guard against circular composition
         if (visiting.has(nodeId)) return { id: nodeId, width: 140, height: 50 };
         visiting.add(nodeId);
         const n = nodeMap.get(nodeId);
@@ -210,14 +247,15 @@ export default function DiagramViewer({
         return { id: nodeId, width: w, height: h };
       }
 
-      const topLevel = nodes.filter(n => !parentOf.has(n.id) && elkVisibleIds.has(n.id));
+      // A node is top-level if it has no parent, or its parent is hidden (not visible)
+      const topLevel = nodes.filter(n => {
+        if (!elkVisibleIds.has(n.id)) return false;
+        const pid = parentOf.get(n.id);
+        return !pid || !elkVisibleIds.has(pid);
+      });
       const elkChildren = topLevel.map(n => buildElkNode(n.id));
 
-      // Don't pass edges to ELK in compound mode — cross-hierarchy edges
-      // cause ELK to throw. Edges are drawn as straight lines between node centers.
-      const ibdEdges: never[] = [];
-
-      const elkGraph = {
+      elkGraph = {
         id: 'graph',
         layoutOptions: {
           'elk.algorithm': 'layered',
@@ -226,63 +264,83 @@ export default function DiagramViewer({
           'elk.layered.spacing.nodeNodeBetweenLayers': '80',
         },
         children: elkChildren,
-        edges: ibdEdges,
+        edges: [],
       };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    elk.layout(elkGraph).then((result: any) => {
+      if (cancelled) return;
+
+      const newPositions = new Map<string, { x: number; y: number }>();
+      const newIbdSizes = new Map<string, { w: number; h: number }>();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      elk.layout(elkGraph).then((result: any) => {
-        if (cancelled) return;
+      function collectPos(elkNode: any, ox: number, oy: number) {
+        const ax = (elkNode.x ?? 0) + ox;
+        const ay = (elkNode.y ?? 0) + oy;
+        newPositions.set(elkNode.id, { x: ax, y: ay });
+        if (elkNode.width != null && elkNode.height != null) {
+          newIbdSizes.set(elkNode.id, { w: elkNode.width, h: elkNode.height });
+        }
+        for (const child of elkNode.children ?? []) collectPos(child, ax, ay);
+      }
+      for (const child of result.children ?? []) collectPos(child, 0, 0);
 
-        const newPositions = new Map<string, { x: number; y: number }>();
-        const newIbdSizes = new Map<string, { w: number; h: number }>();
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        function collectPos(elkNode: any, ox: number, oy: number) {
-          const ax = (elkNode.x ?? 0) + ox;
-          const ay = (elkNode.y ?? 0) + oy;
-          newPositions.set(elkNode.id, { x: ax, y: ay });
-          if (elkNode.width != null && elkNode.height != null) {
-            newIbdSizes.set(elkNode.id, { w: elkNode.width, h: elkNode.height });
+      // Collect ELK-computed edge routes (tree mode)
+      const newEdgeRoutes = new Map<string, string>();
+      if (viewMode === 'tree' && result.edges) {
+        for (const elkEdge of result.edges) {
+          if (!elkEdge.sections || elkEdge.sections.length === 0) continue;
+          const pathParts: string[] = [];
+          for (const section of elkEdge.sections) {
+            const start = section.startPoint;
+            pathParts.push(`M ${start.x} ${start.y}`);
+            for (const bp of section.bendPoints ?? []) {
+              pathParts.push(`L ${bp.x} ${bp.y}`);
+            }
+            const end = section.endPoint;
+            pathParts.push(`L ${end.x} ${end.y}`);
           }
-          for (const child of elkNode.children ?? []) collectPos(child, ax, ay);
+          newEdgeRoutes.set(elkEdge.id, pathParts.join(' '));
         }
-        for (const child of result.children ?? []) collectPos(child, 0, 0);
+      }
+      setElkEdgeRoutes(newEdgeRoutes);
 
-        setPositions(newPositions);
-        setIbdSizes(newIbdSizes);
-        setLayoutPending(false);
+      setPositions(newPositions);
+      setIbdSizes(newIbdSizes);
+      setLayoutPending(false);
 
-        // Auto-fit
-        if (!svgRef.current) return;
-        const svgRect = svgRef.current.getBoundingClientRect();
-        if (svgRect.width === 0 || svgRect.height === 0) return;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const [id, pos] of newPositions) {
-          const sz = newIbdSizes.get(id);
-          if (!sz) continue;
-          minX = Math.min(minX, pos.x);
-          minY = Math.min(minY, pos.y);
-          maxX = Math.max(maxX, pos.x + sz.w);
-          maxY = Math.max(maxY, pos.y + sz.h);
-        }
-        const bbW = maxX - minX, bbH = maxY - minY;
-        if (!isFinite(bbW) || !isFinite(bbH) || bbW <= 0 || bbH <= 0) return;
-        const scale = Math.max(0.05, Math.min(
-          (svgRect.width - LAYOUT_PADDING * 2) / bbW,
-          (svgRect.height - LAYOUT_PADDING * 2) / bbH,
-          1.5,
-        ));
-        setTransform({
-          x: svgRect.width / 2 - (minX + bbW / 2) * scale,
-          y: svgRect.height / 2 - (minY + bbH / 2) * scale,
-          scale,
-        });
-      }).catch(() => { if (!cancelled) setLayoutPending(false); });
-    }
+      // Auto-fit
+      if (!svgRef.current) return;
+      const svgRect = svgRef.current.getBoundingClientRect();
+      if (svgRect.width === 0 || svgRect.height === 0) return;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [id, pos] of newPositions) {
+        const sz = newIbdSizes.get(id);
+        if (!sz) continue;
+        minX = Math.min(minX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxX = Math.max(maxX, pos.x + sz.w);
+        maxY = Math.max(maxY, pos.y + sz.h);
+      }
+      const bbW = maxX - minX, bbH = maxY - minY;
+      if (!isFinite(bbW) || !isFinite(bbH) || bbW <= 0 || bbH <= 0) return;
+      const scale = Math.max(0.05, Math.min(
+        (svgRect.width - LAYOUT_PADDING * 2) / bbW,
+        (svgRect.height - LAYOUT_PADDING * 2) / bbH,
+        1.5,
+      ));
+      setTransform({
+        x: svgRect.width / 2 - (minX + bbW / 2) * scale,
+        y: svgRect.height / 2 - (minY + bbH / 2) * scale,
+        scale,
+      });
+    }).catch(() => { if (!cancelled) setLayoutPending(false); });
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleKey, sizesKey, edgesKey, layoutTrigger]);
+  }, [visibleKey, sizesKey, edgesKey, layoutTrigger, viewMode]);
 
   const fitToWindow = useCallback(() => {
     setPositionOverrides(new Map());
@@ -303,10 +361,38 @@ export default function DiagramViewer({
     return { x: pos.x + sz.w / 2, y: pos.y + sz.h / 2 };
   };
 
+  // Compute the point on a node's border closest to a target point
+  const borderPoint = (
+    center: { x: number; y: number },
+    size: { w: number; h: number },
+    target: { x: number; y: number },
+  ) => {
+    const dx = target.x - center.x;
+    const dy = target.y - center.y;
+    if (dx === 0 && dy === 0) return center;
+    const hw = size.w / 2;
+    const hh = size.h / 2;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    // Scale factor to reach the rectangle border
+    const scale = absDy * hw > absDx * hh
+      ? hh / absDy
+      : hw / absDx;
+    return { x: center.x + dx * scale, y: center.y + dy * scale };
+  };
+
   const edgePath = (edge: SEdge): string => {
+    // Use ELK-computed route in tree mode if available
+    const elkRoute = elkEdgeRoutes.get(edge.id);
+    if (elkRoute) return elkRoute;
+    // Fallback: straight line between node border intersection points
     const src = nodeCenter(edge.sourceId);
     const tgt = nodeCenter(edge.targetId);
-    return `M ${src.x} ${src.y} L ${tgt.x} ${tgt.y}`;
+    const srcSz = nodeSz(edge.sourceId);
+    const tgtSz = nodeSz(edge.targetId);
+    const srcPt = borderPoint(src, srcSz, tgt);
+    const tgtPt = borderPoint(tgt, tgtSz, src);
+    return `M ${srcPt.x} ${srcPt.y} L ${tgtPt.x} ${tgtPt.y}`;
   };
 
   const edgeCenter = (edge: SEdge) => {
@@ -376,12 +462,14 @@ export default function DiagramViewer({
     .filter(n => visibleNodeIds.has(n.id))
     .sort((a, b) => (nodeDepth.get(a.id) ?? 0) - (nodeDepth.get(b.id) ?? 0));
 
-  // Hide composition edges (rendered as nesting)
-  const renderEdges = edges.filter(e =>
-    e.cssClasses?.[0] !== 'composition' &&
-    visibleNodeIds.has(e.sourceId) &&
-    visibleNodeIds.has(e.targetId),
-  );
+  // In nested mode, hide composition edges (rendered as nesting); in tree mode, show all
+  const renderEdges = viewMode === 'tree'
+    ? edges.filter(e => visibleNodeIds.has(e.sourceId) && visibleNodeIds.has(e.targetId))
+    : edges.filter(e =>
+        e.cssClasses?.[0] !== 'composition' &&
+        visibleNodeIds.has(e.sourceId) &&
+        visibleNodeIds.has(e.targetId),
+      );
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -397,6 +485,34 @@ export default function DiagramViewer({
             Laying out…
           </div>
         )}
+        <div style={{ display: 'flex', gap: 2 }}>
+          {(['nested', 'tree'] as const).map(mode => {
+            const active = viewMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => {
+                  if (onViewModeChange && mode !== viewMode) {
+                    setPositionOverrides(new Map());
+                    onViewModeChange(mode);
+                  }
+                }}
+                title={mode === 'nested' ? 'Nested containment view' : 'Tree view (flat BDD-style)'}
+                style={{
+                  background: active ? '#007acc' : '#2d2d2d',
+                  border: '1px solid', borderColor: active ? '#007acc' : '#555',
+                  color: active ? '#fff' : '#ccc',
+                  fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
+                  fontWeight: active ? 600 : 400,
+                }}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.background = '#4a4a4a'; } }}
+                onMouseLeave={e => { if (!active) { e.currentTarget.style.background = '#2d2d2d'; } }}
+              >
+                {mode === 'nested' ? '⊞ Nested' : '⊟ Tree'}
+              </button>
+            );
+          })}
+        </div>
         <button
           onClick={fitToWindow}
           title="Fit all visible elements to window"
@@ -422,17 +538,25 @@ export default function DiagramViewer({
         onContextMenu={(e) => e.preventDefault()}
       >
         <defs>
-          <marker id="tri-hollow" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto">
+          {/* Specialization / subclassification: hollow triangle at supertype */}
+          <marker id="tri-spec" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto">
             <polygon points="0 0, 12 5, 0 10" fill="#1e1e1e" stroke="#9e9e9e" strokeWidth="1.5" />
           </marker>
-          <marker id="arrow-open" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+          {/* Composition: filled diamond at owner end */}
+          <marker id="diamond-comp" markerWidth="16" markerHeight="9" refX="1" refY="4.5" orient="auto">
+            <polygon points="1 4.5, 7 1, 13 4.5, 7 8" fill="#9cdcfe" stroke="#9cdcfe" strokeWidth="1" />
+          </marker>
+          {/* Association / connection: open arrowhead */}
+          <marker id="arrow-assoc" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
             <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#777" strokeWidth="1.5" />
           </marker>
+          {/* Flow / succession: open arrowhead */}
           <marker id="arrow-flow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
             <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#4ec9b0" strokeWidth="1.5" />
           </marker>
-          <marker id="diamond-comp" markerWidth="16" markerHeight="9" refX="1" refY="4.5" orient="auto">
-            <polygon points="1 4.5, 7 1, 13 4.5, 7 8" fill="#9cdcfe" stroke="#9cdcfe" strokeWidth="1" />
+          {/* Type reference: open arrowhead */}
+          <marker id="arrow-typeref" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#6a7a8a" strokeWidth="1.5" />
           </marker>
         </defs>
 
@@ -464,8 +588,8 @@ export default function DiagramViewer({
                   strokeWidth={1.5}
                   strokeDasharray={style.dash}
                   fill="none"
-                  markerEnd={style.markerEnd}
-                  markerStart={style.markerStart}
+                  {...(style.markerEnd ? { markerEnd: style.markerEnd } : {})}
+                  {...(style.markerStart ? { markerStart: style.markerStart } : {})}
                 />
                 {label && label.text && c && (
                   <text x={c.x} y={c.y - 6} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
@@ -486,7 +610,9 @@ export default function DiagramViewer({
             const pos        = nodePos(node.id);
             const isHovered   = hoveredNodeId === node.id;
             const isSelected  = selectedNodeId === node.id;
-            const isContainer = (childrenOf.get(node.id)?.length ?? 0) > 0;
+            const hasChildren = (childrenOf.get(node.id)?.length ?? 0) > 0;
+            const isContainer = viewMode === 'nested' && hasChildren;
+            const isPkg = isPackage(cssClass);
 
             const rx = nodeRadius(cssClass);
 
@@ -497,84 +623,97 @@ export default function DiagramViewer({
               setContextMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id, label: nodeName });
             };
 
-            if (isContainer) {
-              const isPkg = isPackage(cssClass);
-              const borderColor = isSelected ? '#f0c040' : isHovered ? '#4d9ad4' : (isPkg ? '#6a6a8a' : '#4a8ab0');
-              const tabW = isPkg ? Math.min(w * 0.4, Math.max(80, (nodeName.length + 2) * 7)) : 0;
-              const tabH = isPkg ? 18 : 0;
+            // ── SysML v2 Package: always tab-rectangle notation ──
+            if (isPkg) {
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#4d9ad4' : '#6a6a8a';
+              const tabW = Math.min(w * 0.4, Math.max(80, (nodeName.length + 2) * 7));
+              const tabH = 18;
 
               return (
                 <g
                   key={node.id}
                   transform={`translate(${pos.x},${pos.y})`}
-
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}
                 >
-                  {isPkg ? (
-                    <>
-                      {/* SysML v2 Package: tab-rectangle notation */}
-                      {/* Tab */}
-                      <rect width={tabW} height={tabH} fill={color} fillOpacity={0.9}
-                        stroke={borderColor} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} />
-                      <text x={tabW / 2} y={tabH - 4} fill="#9a9ac0" fontSize={9} textAnchor="middle" fontStyle="italic">
-                        {kindLabel?.text}
-                      </text>
-                      {/* Main body below tab */}
-                      <rect y={tabH} width={w} height={h - tabH}
-                        fill={color} fillOpacity={0.15}
-                        stroke={borderColor}
-                        strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} />
-                      {/* Package name */}
-                      <text x={12} y={tabH + 20} fill="#d0d0e8" fontSize={13} fontWeight="bold">
-                        {nameLabel?.text}
-                      </text>
-                    </>
-                  ) : (
-                    <>
-                      {/* Container border */}
-                      <rect
-                        width={w} height={h} rx={rx}
-                        fill={color} fillOpacity={0.25}
-                        stroke={borderColor}
-                        strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
-                      />
-                      {/* Title bar background */}
-                      <rect width={w} height={40} rx={rx} fill={color} fillOpacity={0.9} />
-                      {rx === 0
-                        ? <rect y={0} width={w} height={40} fill={color} fillOpacity={0.9} />
-                        : <rect y={4} width={w} height={36} fill={color} fillOpacity={0.9} />
-                      }
-                      {/* Title bar separator */}
-                      <line x1={0} y1={40} x2={w} y2={40} stroke={borderColor} strokeWidth={1.5} />
-                      {/* SysML v2 keyword label */}
-                      {kindLabel && (
-                        <text x={w / 2} y={14} fill="#b0c8e8" fontSize={10} textAnchor="middle" fontStyle="italic">
-                          {kindLabel.text}
-                        </text>
-                      )}
-                      {/* Name label */}
-                      {nameLabel && (
-                        <text x={w / 2} y={30} fill="#e8eef6" fontSize={13} textAnchor="middle" fontWeight="bold">
-                          {nameLabel.text}
-                        </text>
-                      )}
-                    </>
-                  )}
+                  {/* Tab */}
+                  <rect width={tabW} height={tabH} fill={color} fillOpacity={0.9}
+                    stroke={borderColor} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} />
+                  <text x={tabW / 2} y={tabH - 4} fill="#9a9ac0" fontSize={9} textAnchor="middle" fontStyle="italic">
+                    {kindLabel?.text}
+                  </text>
+                  {/* Main body below tab */}
+                  <rect y={tabH} width={w} height={h - tabH}
+                    fill={color} fillOpacity={isContainer ? 0.15 : 0.35}
+                    stroke={borderColor}
+                    strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} />
+                  {/* Package name */}
+                  <text x={12} y={tabH + 20} fill="#d0d0e8" fontSize={13} fontWeight="bold">
+                    {nameLabel?.text}
+                  </text>
                   {isSelected && (
-                    isPkg
-                      ? <><rect width={tabW} height={tabH} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
-                           <rect y={tabH} width={w} height={h - tabH} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} /></>
-                      : <rect width={w} height={h} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
+                    <>
+                      <rect width={tabW} height={tabH} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
+                      <rect y={tabH} width={w} height={h - tabH} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
+                    </>
                   )}
                 </g>
               );
             }
 
-            // Leaf node — SysML v2: sharp corners for defs, rounded for usages
+            // ── Non-package container (nested mode only): title-bar + children area ──
+            if (isContainer) {
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#4d9ad4' : '#4a8ab0';
+
+              return (
+                <g
+                  key={node.id}
+                  transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {/* Container border */}
+                  <rect
+                    width={w} height={h} rx={rx}
+                    fill={color} fillOpacity={0.25}
+                    stroke={borderColor}
+                    strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
+                  />
+                  {/* Title bar background */}
+                  <rect width={w} height={40} rx={rx} fill={color} fillOpacity={0.9} />
+                  {rx === 0
+                    ? <rect y={0} width={w} height={40} fill={color} fillOpacity={0.9} />
+                    : <rect y={4} width={w} height={36} fill={color} fillOpacity={0.9} />
+                  }
+                  {/* Title bar separator */}
+                  <line x1={0} y1={40} x2={w} y2={40} stroke={borderColor} strokeWidth={1.5} />
+                  {/* SysML v2 keyword label */}
+                  {kindLabel && (
+                    <text x={w / 2} y={14} fill="#b0c8e8" fontSize={10} textAnchor="middle" fontStyle="italic">
+                      {kindLabel.text}
+                    </text>
+                  )}
+                  {/* Name label */}
+                  {nameLabel && (
+                    <text x={w / 2} y={30} fill="#e8eef6" fontSize={13} textAnchor="middle" fontWeight="bold">
+                      {nameLabel.text}
+                    </text>
+                  )}
+                  {isSelected && (
+                    <rect width={w} height={h} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
+                  )}
+                </g>
+              );
+            }
+
+            // ── Leaf / tree-mode node: SysML v2 two-compartment box ──
+            // Definitions: sharp corners (rx=0), Usages: rounded corners (rx=10)
             return (
               <g
                 key={node.id}
@@ -637,10 +776,11 @@ export default function DiagramViewer({
           </g>
           {/* Edge legend */}
           {[
-            { label: 'subclassification', color: '#9e9e9e', dash: undefined },
-            { label: 'connection',        color: '#777',    dash: undefined },
-            { label: 'flow',              color: '#4ec9b0', dash: '6,3'     },
-            { label: 'typed by',          color: '#6a7a8a', dash: '3,3'     },
+            ...(viewMode === 'tree' ? [{ label: '◆── composition',    color: '#9cdcfe', dash: undefined }] : []),
+            { label: '◁── specialization',  color: '#9e9e9e', dash: undefined },
+            { label: '──▷ connection',       color: '#777',    dash: undefined },
+            { label: '- -▷ flow',            color: '#4ec9b0', dash: '6,3'     },
+            { label: '- -▷ typed by',        color: '#6a7a8a', dash: '3,3'     },
           ].map(({ label, color, dash }, i) => (
             <g key={label} transform={`translate(0,${54 + i * 16})`}>
               <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />
