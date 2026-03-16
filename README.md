@@ -140,9 +140,8 @@ cd packages/web-client && pnpm dev
 1. **Register** an account at the login page
 2. **Create a project** from the projects page
 3. **Create a `.sysml` file** inside the project
-4. **Edit** — the Block Definition Diagram updates live as you type
-5. Switch to **IBD view** to see the interconnection diagram with nested containment
-6. **AI Assistant** — click **✦ AI Assistant** in the toolbar to open Claude-powered suggestions
+4. **Edit** — the nested containment diagram updates live as you type
+5. **AI Assistant** — click **✦ AI Assistant** in the toolbar to open Claude-powered suggestions
 
 ### Editor features
 
@@ -151,29 +150,24 @@ cd packages/web-client && pnpm dev
 - Click any diagram node to jump to its source in the editor
 - Problems panel (click the status bar error/warning count)
 
-### BDD — Block Definition Diagram
+### General View — Nested Containment Diagram
 
-- Live diagram generated from the SysML v2 source
-- SysML v2 graphical notation: hollow triangle (generalization), filled diamond (composition)
-- Pan, zoom, drag nodes, resize nodes
+The diagram displays all SysML v2 elements in a nested containment hierarchy using ELK compound layout:
+
+- **Packages** rendered as SysML v2 tab-rectangle containers
+- **Definitions** (part def, port def, action def, item def, etc.) shown as sharp-cornered blocks containing their children
+- **Usages** (part, port, action, item, attribute, etc.) shown as rounded-corner blocks nested inside their owner
+- **In/out/inout parameters** displayed as child blocks with direction badges
+- All containment relationships derived from composition edges — every element appears nested inside its parent
+- Supports qualified type names (e.g. `Pkg::SubPkg::TypeName`)
+
+**Interaction:**
+- Pan, zoom, drag nodes
 - **Fit** button to auto-layout and fit all nodes in view
-- **Compartments ON/OFF** toggle to show/hide usage compartments
-- **Elements panel** — toggle visibility of individual nodes or groups
+- **Elements panel** — toggle visibility of individual nodes or groups (nested and by-kind views)
+- Right-click context menu to hide elements
+- Click any node to jump to its source location in the editor
 - ELK auto-layout re-runs when nodes are added/removed or sizes change
-
-### IBD — Internal Block Diagram (Interconnection View)
-
-- Nested containment view: part usages rendered as container blocks showing their internal structure
-- Hierarchical expand/collapse with **+/−** buttons on every container at every depth level
-  - Root-level blocks are expanded by default; deeper levels are collapsed by default
-  - State is persisted per-file in localStorage
-- Action usages show their `in`/`out` parameters as nested child blocks with direction badges
-  - Works for both single-instance and multi-instance action definitions
-- Port nodes rendered as border squares on their parent block
-- Inherited ports shown on usage instances of typed blocks
-- Recursive ELK compound layout — re-runs automatically when expand state changes
-- Drag any block to reposition; all descendants and their ports move with it
-- Resize grip on all container blocks
 
 ### AI Assistant
 
@@ -188,30 +182,28 @@ cd packages/web-client && pnpm dev
 ```sysml
 package VehicleModel {
 
-  part def Vehicle {
-    part engine : Engine;
-    part wheels : Wheel;
-    attribute mass : Real = 1500;
+  item def Fuel;
+
+  port def FuelPort {
+    in item fuelIn : Fuel;
   }
 
   part def Engine {
-    attribute power : Real;
-    attribute type : String;
-  }
-
-  part def Wheel {
-    attribute radius : Real;
+    port fuelPort : FuelPort;
+    action deliver : Drive;
   }
 
   action def Drive {
-    in item throttle : Real;
-    out item speed : Real;
+    in item throttle : Fuel;
+    out item speed : Fuel;
   }
 
-  connection def PowerTransfer {
-    end vehicle : Vehicle;
-    end engine : Engine;
+  part def Vehicle {
+    part engine : Engine;
+    attribute mass : Real = 1500;
   }
+
+  part vehicle : Vehicle;
 }
 ```
 
@@ -224,25 +216,20 @@ package VehicleModel {
 - [x] Project and file management (CRUD)
 - [x] SysML v2 code editor (Monaco) with syntax highlighting and auto-indent
 - [x] Real-time diagnostics with Levenshtein fix suggestions
-- [x] SysML v2 parser: part/attribute/connection/port/action/state/item defs and usages, `in`/`out` parameters
-- [x] Live Block Definition Diagram (BDD) generation
-- [x] SysML v2 BDD graphical notation (hollow triangle, filled diamond, sharp corners)
-- [x] IBD — nested containment view with recursive ELK compound layout
-- [x] IBD — per-element expand/collapse at every depth level (persisted in localStorage)
-- [x] IBD — action `in`/`out` params shown as nested children (single- and multi-instance)
-- [x] IBD — port nodes on block borders; inherited ports on usage instances
-- [x] IBD — drag blocks with descendants; ports move with parent
-- [x] ELK auto-layout (re-runs on node/edge/size/expand changes)
-- [x] SVG diagram: pan, zoom, drag nodes, resize nodes
-- [x] Element panel: group by kind, alphabetical sort, real-time visibility toggles
-- [x] Compartments toggle with proper height enforcement
+- [x] SysML v2 parser: all definition and usage types, `in`/`out`/`inout` parameters, qualified type names (`Pkg::Type`)
+- [x] Parser supports nested definitions, nested usages, and items inside any definition type
+- [x] Live nested containment diagram with ELK compound layout
+- [x] SysML v2 graphical notation (tab-rectangle packages, sharp-corner defs, rounded usages)
+- [x] All elements displayed in nested hierarchy: definitions retain children, usages nested under owners
+- [x] ELK auto-layout (re-runs on node/edge/size changes)
+- [x] SVG diagram: pan, zoom, drag nodes
+- [x] Element panel: nested view, by-kind grouping, alphabetical sort, real-time visibility toggles
 - [x] Standard library nodes shown when referenced
 - [x] AI Assistant: Claude Opus 4.6, SSE streaming, propose_edit tool, Apply button
 - [x] localStorage persistence for all UI state
 - [x] Node click → editor navigation
 - [x] PrismaClient singleton — single shared DB connection pool across all routes
 - [x] Authorization enforced on all project PATCH/DELETE mutations (ownerId in WHERE clause)
-- [x] SysML parser: qualified name indexing prevents usage name collisions across definitions
 - [x] React memory: timer, drag, and resize listeners cleaned up on component unmount
 
 ### Planned
