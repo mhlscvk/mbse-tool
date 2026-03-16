@@ -1,10 +1,9 @@
 import { Router, type IRouter } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
+import { prisma } from '../db.js';
 
 const router: IRouter = Router();
-const prisma = new PrismaClient();
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -50,7 +49,7 @@ router.patch('/:id', async (req: AuthRequest, res, next) => {
     const body = createSchema.partial().parse(req.body);
     const project = await prisma.project.findFirst({ where: { id: req.params.id, ownerId: req.userId } });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    const updated = await prisma.project.update({ where: { id: req.params.id }, data: body });
+    const updated = await prisma.project.update({ where: { id: req.params.id, ownerId: req.userId! }, data: body });
     res.json({ data: updated });
   } catch (err) { next(err); }
 });
@@ -59,7 +58,7 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
     const project = await prisma.project.findFirst({ where: { id: req.params.id, ownerId: req.userId } });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    await prisma.project.delete({ where: { id: req.params.id } });
+    await prisma.project.delete({ where: { id: req.params.id, ownerId: req.userId! } });
     res.status(204).send();
   } catch (err) { next(err); }
 });

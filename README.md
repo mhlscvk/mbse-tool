@@ -177,7 +177,7 @@ cd packages/web-client && pnpm dev
 
 ### AI Assistant
 
-- Powered by Claude claude-opus-4-6 via Anthropic API
+- Powered by Claude Opus 4.6 via Anthropic API
 - Streams explanations and suggestions in real time
 - Proposes precise line/column edits with a diff preview
 - **Apply** button patches the Monaco editor directly
@@ -237,9 +237,13 @@ package VehicleModel {
 - [x] Element panel: group by kind, alphabetical sort, real-time visibility toggles
 - [x] Compartments toggle with proper height enforcement
 - [x] Standard library nodes shown when referenced
-- [x] AI Assistant: Claude claude-opus-4-6, SSE streaming, propose_edit tool, Apply button
+- [x] AI Assistant: Claude Opus 4.6, SSE streaming, propose_edit tool, Apply button
 - [x] localStorage persistence for all UI state
 - [x] Node click → editor navigation
+- [x] PrismaClient singleton — single shared DB connection pool across all routes
+- [x] Authorization enforced on all project PATCH/DELETE mutations (ownerId in WHERE clause)
+- [x] SysML parser: qualified name indexing prevents usage name collisions across definitions
+- [x] React memory: timer, drag, and resize listeners cleaned up on component unmount
 
 ### Planned
 - [ ] LSP autocompletion (syside-languageserver integration)

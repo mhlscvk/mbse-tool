@@ -363,8 +363,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     };
 
     nodes.push(usageNode);
-    // Index by usageName so connect/flow can reference it
-    nodeIndex.set(usageName, usageNode);
+    // Index by qualified name to avoid collisions across definitions;
+    // also register unqualified name only if no prior usage claimed it
+    nodeIndex.set(`${ownerNode.name}.${usageName}`, usageNode);
+    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
 
     // owner ──[composition]──► usage node
     connections.push({

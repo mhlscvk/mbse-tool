@@ -1,9 +1,8 @@
 import { Router, type IRouter } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
+import { prisma } from '../db.js';
 
 const router: IRouter = Router({ mergeParams: true });
-const prisma = new PrismaClient();
 
 router.use(requireAuth);
 

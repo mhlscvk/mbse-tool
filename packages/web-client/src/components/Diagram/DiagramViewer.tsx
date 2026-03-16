@@ -77,6 +77,7 @@ export default function DiagramViewer({
   const resizing = useRef<{ id: string; startX: number; startY: number; startW: number; startH: number } | null>(null);
   const draggingNode = useRef<{ id: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null>(null);
   const wasDragRef = useRef(false);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [routes, setRoutes] = useState<Map<string, { x: number; y: number }[]>>(new Map());
@@ -339,6 +340,9 @@ export default function DiagramViewer({
     setIbdSizes(new Map());
   }, [mode]);
 
+  // Clean up any in-progress drag/resize listeners if the component unmounts mid-drag
+  useEffect(() => () => { dragCleanupRef.current?.(); }, []);
+
   // ── ELK layout — mode-aware ──────────────────────────────────────────────
   useEffect(() => {
     if (nodes.length === 0) return;
@@ -593,7 +597,9 @@ export default function DiagramViewer({
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      dragCleanupRef.current = null;
     };
+    dragCleanupRef.current = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [effectiveSize]);
@@ -653,6 +659,7 @@ export default function DiagramViewer({
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      dragCleanupRef.current = null;
       if (!wasDragRef.current && info) {
         setPositionOverrides((prev) => {
           const next = new Map(prev);
@@ -662,6 +669,7 @@ export default function DiagramViewer({
         });
       }
     };
+    dragCleanupRef.current = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [positions, positionOverrides, mode, ibdChildrenOf]);

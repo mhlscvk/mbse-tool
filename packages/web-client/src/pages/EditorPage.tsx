@@ -54,9 +54,17 @@ export default function EditorPage() {
     });
   }, []);
 
+  const diagramRef = useRef(diagram);
+  useEffect(() => { diagramRef.current = diagram; }, [diagram]);
+
   const toggleAll = useCallback((visible: boolean) => {
-    setHiddenNodeIds(visible ? new Set() : new Set(diagramNodes.map((n) => n.id)));
-  }, [diagramNodes]);
+    if (visible) {
+      setHiddenNodeIds(new Set());
+    } else {
+      const nodes = diagramRef.current?.children.filter((c): c is SNode => c.type === 'node') ?? [];
+      setHiddenNodeIds(new Set(nodes.map((n) => n.id)));
+    }
+  }, []);
 
   const toggleEdge = useCallback((id: string) => {
     setHiddenEdgeIds((prev) => {
@@ -89,6 +97,8 @@ export default function EditorPage() {
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const dividerCleanupRef = useRef<(() => void) | null>(null);
+
   const onDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;
@@ -102,14 +112,17 @@ export default function EditorPage() {
       setSplitPct(Math.min(100 - MIN_PANE_PCT, Math.max(MIN_PANE_PCT, pct)));
     };
 
-    const onMouseUp = () => {
+    const cleanup = () => {
       isDragging.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      dividerCleanupRef.current = null;
     };
+    const onMouseUp = cleanup;
 
+    dividerCleanupRef.current = cleanup;
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   }, []);
@@ -122,7 +135,7 @@ export default function EditorPage() {
       setDiagnostics([{ severity: 'error', message: msg, line: 1, column: 1 }]);
     });
     const unsubClear = diagramClient.onClear(() => setDiagram(null));
-    return () => { unsub(); unsubErr(); unsubClear(); diagramClient.disconnect(); };
+    return () => { unsub(); unsubErr(); unsubClear(); diagramClient.disconnect(); clearTimeout(saveTimer.current); dividerCleanupRef.current?.(); };
   }, []);
 
   useEffect(() => {
