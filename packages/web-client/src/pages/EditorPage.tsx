@@ -33,7 +33,6 @@ export default function EditorPage() {
   // Element visibility
   const [hiddenNodeIds, setHiddenNodeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenNodes`, new Set<string>());
   const [hiddenEdgeIds, setHiddenEdgeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenEdges`, new Set<string>());
-  const [showCompartments, setShowCompartments] = useLocalStorage(`${lsPrefix}:compartments`, true);
 
   const diagramNodes = (diagram?.children.filter((c): c is SNode => c.type === 'node') ?? []);
   const diagramEdges = (diagram?.children.filter((c): c is SEdge => c.type === 'edge') ?? []);
@@ -81,9 +80,6 @@ export default function EditorPage() {
       return next;
     });
   }, []);
-
-  // Diagram mode: BDD (flat) or IBD (nested)
-  const [diagramMode, setDiagramMode] = useLocalStorage<'bdd' | 'ibd'>(`${lsPrefix}:diagramMode`, 'bdd');
 
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
@@ -337,36 +333,8 @@ export default function EditorPage() {
             display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px',
             background: '#2d2d2d', borderBottom: '1px solid #3c3c3c', flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11, color: '#888', marginRight: 4 }}>View:</span>
-            {/* BDD / IBD toggle */}
-            <div style={{ display: 'flex', borderRadius: 3, overflow: 'hidden', border: '1px solid #555' }}>
-              {(['bdd', 'ibd'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setDiagramMode(m)}
-                  style={{
-                    background: diagramMode === m ? '#007acc' : '#3c3c3c',
-                    border: 'none', color: '#fff',
-                    fontSize: 11, padding: '2px 10px', cursor: 'pointer',
-                    fontWeight: diagramMode === m ? 600 : 400,
-                  }}
-                  title={m === 'bdd' ? 'Block Definition Diagram — flat class view' : 'Internal Block Diagram — nested containment view'}
-                >
-                  {m.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowCompartments((v) => !v)}
-              style={{
-                background: showCompartments ? '#007acc' : '#3c3c3c',
-                border: 'none', borderRadius: 3, color: '#fff',
-                fontSize: 11, padding: '2px 8px', cursor: 'pointer',
-              }}
-              title="Toggle usage compartments inside definition blocks"
-            >
-              Compartments {showCompartments ? 'ON' : 'OFF'}
-            </button>
+            <span style={{ fontSize: 11, color: '#ccc', fontWeight: 600, marginRight: 4 }}>General View</span>
+            <span style={{ fontSize: 10, color: '#666' }}>SysML v2</span>
             <span style={{ flex: 1 }} />
             <button
               onClick={() => setAiOpen((v) => !v)}
@@ -400,9 +368,7 @@ export default function EditorPage() {
               model={diagram}
               hiddenNodeIds={hiddenNodeIds}
               hiddenEdgeIds={hiddenEdgeIds}
-              showCompartments={showCompartments}
               storageKey={lsPrefix}
-              mode={diagramMode}
               onNodeSelect={(range) => {
                 // range is 0-based (LSP), Monaco is 1-based
                 monacoRef.current?.revealRange(

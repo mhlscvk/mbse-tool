@@ -1,5 +1,5 @@
 import { Router, type IRouter } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { Anthropic } from '@anthropic-ai/sdk';
 import { requireAuth } from '../middleware/auth.js';
 
 const router: IRouter = Router();
@@ -27,7 +27,7 @@ When suggesting changes, call propose_edit for each code change with exact 1-bas
 Explain briefly what you are doing before each edit.
 If the file is empty, generate a reasonable SysML v2 starting template.`;
 
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: 'propose_edit',
     description: 'Propose a text replacement in the SysML file. Use exact 1-based line/column numbers from the file shown in the context.',
@@ -108,12 +108,12 @@ router.post('/assist', requireAuth, async (req, res) => {
     });
 
     // Stream text deltas in real-time
-    stream.on('text', (text) => {
+    stream.on('text', (text: string) => {
       send('text', { chunk: text });
     });
 
     // Track tool use blocks via raw stream events
-    stream.on('streamEvent', (event) => {
+    stream.on('streamEvent', (event: Anthropic.RawMessageStreamEvent) => {
       if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
         toolUseId  = event.content_block.id;
         toolName   = event.content_block.name;

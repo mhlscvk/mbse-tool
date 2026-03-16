@@ -10,6 +10,7 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<SysMLFile[]>([]);
   const [newProjectName, setNewProjectName] = useState('');
+  const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -19,25 +20,42 @@ export default function ProjectsPage() {
 
   const selectProject = async (project: Project) => {
     setSelectedProject(project);
-    const f = await api.files.list(project.id);
-    setFiles(f);
+    setFiles([]);
+    try {
+      const f = await api.files.list(project.id);
+      setFiles(f);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load files');
+    }
   };
 
   const createProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName.trim()) return;
-    const project = await api.projects.create(newProjectName.trim());
-    setProjects((prev) => [project, ...prev]);
-    setNewProjectName('');
+    if (!newProjectName.trim() || creating) return;
+    setCreating(true);
+    setError('');
+    try {
+      const project = await api.projects.create(newProjectName.trim());
+      setProjects((prev) => [project, ...prev]);
+      setNewProjectName('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create project');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const createFile = async () => {
     if (!selectedProject) return;
     const name = prompt('File name (e.g. vehicle.sysml):');
     if (!name) return;
-    const content = `package ${name.replace('.sysml', '')} {\n  // SysML v2 model\n}\n`;
-    const file = await api.files.create(selectedProject.id, name, content);
-    setFiles((prev) => [...prev, file]);
+    try {
+      const content = `package ${name.replace('.sysml', '')} {\n  // SysML v2 model\n}\n`;
+      const file = await api.files.create(selectedProject.id, name, content);
+      setFiles((prev) => [...prev, file]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create file');
+    }
   };
 
   const openFile = (file: SysMLFile) => {
@@ -57,10 +75,22 @@ export default function ProjectsPage() {
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
                 placeholder="New project name"
+                disabled={creating}
                 style={{ flex: 1, background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 4, padding: '6px 8px', color: '#d4d4d4', fontSize: 12, outline: 'none' }}
               />
-              <button type="submit" style={{ background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: 'pointer', fontSize: 12 }}>+</button>
+              <button
+                type="submit"
+                disabled={creating || !newProjectName.trim()}
+                style={{ background: creating ? '#3c3c3c' : '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: 12 }}
+              >
+                {creating ? '…' : '+'}
+              </button>
             </form>
+            {error && (
+              <div style={{ marginTop: 8, color: '#f48771', fontSize: 11, wordBreak: 'break-word' }}>
+                {error}
+              </div>
+            )}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 16, color: '#666', fontSize: 13 }}>Loading...</div>}

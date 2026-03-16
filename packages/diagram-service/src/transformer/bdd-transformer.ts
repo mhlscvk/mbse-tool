@@ -1,10 +1,13 @@
 import type { SysMLModel, SysMLNode, SModelRoot, SNode, SEdge, SLabel } from '@systemodel/shared-types';
 
+const KEYWORD_VALUES = new Set(['part','attribute','port','action','state','item','in','out']);
+
 function makeLabel(id: string, text: string): SLabel {
   return { type: 'label', id, text };
 }
 
 const KIND_DISPLAY: Record<string, string> = {
+  Package:              '«package»',
   PartDefinition:       '«part def»',
   AttributeDefinition:  '«attribute def»',
   ConnectionDefinition: '«connection def»',
@@ -30,6 +33,11 @@ const IS_USAGE = new Set([
   'PartUsage', 'AttributeUsage', 'ConnectionUsage', 'PortUsage', 'ActionUsage', 'StateUsage', 'ItemUsage',
 ]);
 
+/** Estimate pixel width for a text string at a given font size (monospace ~0.6em). */
+function textWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.62 + 16;
+}
+
 function nodeToSNode(node: SysMLNode): SNode {
   const isStdlib = node.id.startsWith('stdlib__');
   const kindText = isStdlib
@@ -43,11 +51,25 @@ function nodeToSNode(node: SysMLNode): SNode {
     : node.name;
   const nameLabel = makeLabel(`${node.id}__label`, nameText);
 
+  // Package nodes: tab-rectangle container
+  if (node.kind === 'Package') {
+    const width = Math.max(180, textWidth(node.name, 13) + 30);
+    return {
+      type: 'node',
+      id: node.id,
+      position: { x: 0, y: 0 },
+      size: { width, height: 60 },
+      children: [kindLabel, nameLabel],
+      cssClasses: ['package'],
+      data: { range: node.range },
+    };
+  }
+
   if (IS_USAGE.has(node.kind)) {
-    // Action in/out parameters get a special CSS class for border rendering
-    if (node.direction === 'in' || node.direction === 'out') {
-      const cssClass = node.direction === 'in' ? 'actionin' : 'actionout';
-      const width = Math.max(80, Math.min(180, nameText.length * 7 + 24));
+    // Action in/out/inout parameters get a special CSS class
+    if (node.direction === 'in' || node.direction === 'out' || node.direction === 'inout') {
+      const cssClass = node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout';
+      const width = Math.max(80, textWidth(nameText, 11) + 20);
       return {
         type: 'node',
         id: node.id,
@@ -59,7 +81,9 @@ function nodeToSNode(node: SysMLNode): SNode {
       };
     }
     // Regular usage nodes: compact, no compartment
-    const width = Math.max(140, Math.min(240, nameText.length * 7 + 24));
+    const nameW = textWidth(nameText, 13);
+    const kindW = textWidth(kindText, 10);
+    const width = Math.max(120, Math.max(nameW, kindW) + 20);
     return {
       type: 'node',
       id: node.id,
@@ -74,13 +98,13 @@ function nodeToSNode(node: SysMLNode): SNode {
   // Definition nodes: build usage/attribute compartment labels
   const usageLabels: SLabel[] = node.attributes.map((attr, i) => {
     let text: string;
-    if (attr.value && !['part','attribute','port','action','state'].includes(attr.value)) {
+    if (attr.value && !KEYWORD_VALUES.has(attr.value)) {
       text = attr.type
         ? `+ ${attr.name} : ${attr.type} = ${attr.value}`
         : `+ ${attr.name} = ${attr.value}`;
     } else {
       const kw = attr.value ? `${USAGE_KEYWORD_DISPLAY[attr.value] ?? attr.value} ` : '';
-      text = attr.type ? `+ ${kw}${attr.name} : ${attr.type}` : `+ ${kw}${attr.name}`;
+      text = attr.type ? `${kw}${attr.name} : ${attr.type}` : `${kw}${attr.name}`;
     }
     return makeLabel(`${node.id}__usage__${i}`, text);
   });
@@ -88,8 +112,13 @@ function nodeToSNode(node: SysMLNode): SNode {
   const BASE_HEIGHT = 60;
   const USAGE_ROW_HEIGHT = 18;
   const height = BASE_HEIGHT + (usageLabels.length > 0 ? 8 + usageLabels.length * USAGE_ROW_HEIGHT : 0);
-  const maxTextLen = Math.max(node.name.length, ...node.attributes.map((a) => (a.name + (a.type ?? '')).length + 6));
-  const width = Math.max(160, Math.min(280, maxTextLen * 7 + 20));
+  // Width: fit the widest of name, kind label, and all compartment entries
+  const nameW = textWidth(node.name, 13);
+  const kindW = textWidth(kindText, 10);
+  const compartmentW = usageLabels.length > 0
+    ? Math.max(...usageLabels.map(l => textWidth(l.text, 10))) + 8
+    : 0;
+  const width = Math.max(140, nameW + 20, kindW + 20, compartmentW + 16);
 
   return {
     type: 'node',
@@ -123,7 +152,7 @@ export function transformToBDD(model: SysMLModel): SModelRoot {
 
   return {
     type: 'graph',
-    id: `bdd__${model.uri}`,
+    id: `general__${model.uri}`,
     children: [...sNodes, ...sEdges],
   };
 }

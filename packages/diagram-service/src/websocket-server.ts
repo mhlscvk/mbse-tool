@@ -48,9 +48,9 @@ export function createDiagramWebSocketServer(server: Server): WebSocketServer {
           return;
         }
 
+        // Transform AST to diagram model; client handles compound layout
         const sModel = transformToBDD(model);
-        const laid = await applyLayout(sModel);
-        send({ kind: 'model', model: laid, diagnostics });
+        send({ kind: 'model', model: sModel, diagnostics });
 
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

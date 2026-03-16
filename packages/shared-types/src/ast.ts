@@ -1,5 +1,6 @@
 // SysML v2 AST node types produced by the language server
 export type SysMLNodeKind =
+  | 'Package'
   | 'PartDefinition'
   | 'AttributeDefinition'
   | 'ConnectionDefinition'
@@ -20,7 +21,7 @@ export interface SysMLNode {
   kind: SysMLNodeKind;
   name: string;
   qualifiedName?: string;
-  direction?: 'in' | 'out';
+  direction?: 'in' | 'out' | 'inout';
   children: SysMLNode[];
   attributes: SysMLAttribute[];
   connections: SysMLConnection[];

@@ -154,13 +154,20 @@ const STDLIB_PACKAGES: Record<string, Record<string, StdlibEntry>> = {
   },
 };
 
+// ─── Package pattern ────────────────────────────────────────────────────────
+
+const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
+
 // ─── Definition patterns ────────────────────────────────────────────────────
 
-const DEF_PATTERN = /\b(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+specializes\s+(\w+))?\s*[{;]/g;
-const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*(\w+)\s*[;{]/g;
-// in/out parameters inside action definitions: e.g. `in item data : Data;`
-const IN_OUT_PATTERN = /\b(in|out)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*(\w+)\s*[;{]/g;
-const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*(\w+))?\s*=\s*([^;]+);/g;
+const DEF_PATTERN = /\b(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+specializes\s+([\w:]+))?\s*[{;]/g;
+const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
+// Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
+const UNTYPED_USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*[;{]/g;
+// in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
+const IN_OUT_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
+const IN_OUT_UNTYPED_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*[;{]/g;
+const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*([\w:]+))?\s*=\s*([^;]+);/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // import PackageName::*;  or  import PackageName::TypeName;
@@ -245,6 +252,79 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  /** Resolve a type name that may be qualified (e.g. `Pkg::SubPkg::Name` → look up `Name`). */
+  function resolveType(name: string): SysMLNode | undefined {
+    // Try exact match first
+    const exact = nodeIndex.get(name);
+    if (exact) return exact;
+    // For qualified names like `Pkg::SubPkg::TypeName`, try the last segment
+    if (name.includes('::')) {
+      const simple = name.split('::').pop()!;
+      return nodeIndex.get(simple);
+    }
+    return undefined;
+  }
+
+  /** Get the simple (last segment) name from a potentially qualified name. */
+  function simpleName(name: string): string {
+    return name.includes('::') ? name.split('::').pop()! : name;
+  }
+
+  // ── 0c. Parse package declarations ─────────────────────────────────────
+  // Each package becomes a node; elements inside get a composition edge to their package.
+
+  interface PackageRange { id: string; name: string; start: number; end: number; }
+  const packageRanges: PackageRange[] = [];
+
+  PACKAGE_PATTERN.lastIndex = 0;
+  let pkgMatch: RegExpExecArray | null;
+  while ((pkgMatch = PACKAGE_PATTERN.exec(clean)) !== null) {
+    const [, pkgName] = pkgMatch;
+    const pkgId = makeId('pkg', pkgName);
+    const blockEnd = findBlockEnd(clean, pkgMatch.index + pkgMatch[0].length - 1);
+    const { line: pkgLine, column: pkgCol } = lineCol(source, pkgMatch.index);
+    const { line: pkgEndLine, column: pkgEndCol } = lineCol(source, blockEnd);
+
+    const pkgNode: SysMLNode = {
+      id: pkgId,
+      kind: 'Package',
+      name: pkgName,
+      children: [], attributes: [], connections: [],
+      range: {
+        start: { line: pkgLine - 1, character: pkgCol - 1 },
+        end:   { line: pkgEndLine - 1, character: pkgEndCol - 1 },
+      },
+    };
+    nodes.push(pkgNode);
+    nodeIndex.set(`__pkg__${pkgName}`, pkgNode);
+    packageRanges.push({ id: pkgId, name: pkgName, start: pkgMatch.index, end: blockEnd });
+  }
+
+  // Sort packages by start offset descending so inner packages match first
+  packageRanges.sort((a, b) => b.start - a.start);
+
+  // Create composition edges from outer packages to their direct child packages
+  for (const inner of packageRanges) {
+    // Find the smallest enclosing package (first one in the sorted list that contains inner but isn't inner)
+    const outer = packageRanges.find(p =>
+      p.id !== inner.id && inner.start > p.start && inner.end <= p.end
+    );
+    if (outer) {
+      connections.push({
+        id: makeId('pkg-member', `${outer.name}_${inner.name}`),
+        sourceId: outer.id,
+        targetId: inner.id,
+        kind: 'composition',
+        name: '',
+      });
+    }
+  }
+
+  /** Return the innermost package containing the given source offset, or undefined. */
+  function findOwnerPackage(offset: number): PackageRange | undefined {
+    return packageRanges.find(p => offset > p.start && offset < p.end);
+  }
+
   // ── 1. Extract all *Definitions ────────────────────────────────────────
 
   DEF_PATTERN.lastIndex = 0;
@@ -287,13 +367,26 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodes.push(node);
     nodeIndex.set(name, node);
 
+    // Package membership → composition edge from package to this definition
+    const ownerPkg = findOwnerPackage(match.index);
+    if (ownerPkg) {
+      connections.push({
+        id: makeId('pkg-member', `${ownerPkg.name}_${name}`),
+        sourceId: ownerPkg.id,
+        targetId: id,
+        kind: 'composition',
+        name: '',
+      });
+    }
+
     // Specialization → inheritance connection
     if (specializes) {
-      if (!nodeIndex.has(specializes)) {
+      const specSimple = simpleName(specializes);
+      if (!resolveType(specializes)) {
         const specOffset = match.index + match[0].lastIndexOf(specializes);
         const { line, column } = lineCol(source, specOffset);
         const knownNames = [...nodeIndex.keys()].filter((k) => !k.startsWith('stdlib'));
-        const suggestions = suggestSimilar(specializes, knownNames);
+        const suggestions = suggestSimilar(specSimple, knownNames);
         diagnostics.push({
           severity: 'warning',
           message: `Unknown type: '${specializes}' is not defined`,
@@ -302,13 +395,94 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         });
       }
       connections.push({
-        id: makeId('specializes', `${name}_${specializes}`),
+        id: makeId('specializes', `${name}_${specSimple}`),
         sourceId: id,
-        targetId: makeId('def', specializes),
+        targetId: makeId('def', specSimple),
         kind: 'dependency',
         name: '«specializes»',
       });
     }
+  }
+
+  // Pre-built index of all definition positions for fast owner lookup
+  interface DefPosition { name: string; start: number; end: number; }
+  const defPositions: DefPosition[] = [];
+  DEF_PATTERN.lastIndex = 0;
+  while ((match = DEF_PATTERN.exec(clean)) !== null) {
+    const end = findBlockEnd(clean, match.index + match[0].length - 1);
+    defPositions.push({ name: match[2], start: match.index, end });
+  }
+  // Sort by start descending so inner defs match first
+  defPositions.sort((a, b) => b.start - a.start);
+
+  /** Find the innermost definition enclosing the given offset. */
+  function findOwnerDef(offset: number): SysMLNode | undefined {
+    const dp = defPositions.find(d => offset > d.start && offset < d.end);
+    return dp ? nodeIndex.get(dp.name) : undefined;
+  }
+
+  // ── 1b. Nested definitions: add composition edges from enclosing def to inner def ──
+  // This runs after defPositions + findOwnerDef are available.
+  for (const dp of defPositions) {
+    const innerNode = nodeIndex.get(dp.name);
+    if (!innerNode) continue;
+    const ownerDef = findOwnerDef(dp.start);
+    if (ownerDef && ownerDef.name !== dp.name) {
+      // Replace the package→def edge with def→def edge if def is nested inside another def
+      const pkgEdgeIdx = connections.findIndex(
+        c => c.targetId === innerNode.id && c.kind === 'composition' &&
+             c.sourceId.startsWith('pkg__'),
+      );
+      if (pkgEdgeIdx >= 0) connections.splice(pkgEdgeIdx, 1);
+      connections.push({
+        id: makeId('def-member', `${ownerDef.name}_${dp.name}`),
+        sourceId: ownerDef.id,
+        targetId: innerNode.id,
+        kind: 'composition',
+        name: '',
+      });
+    }
+  }
+
+  // Pre-built index of usage positions for fast enclosing-usage lookup
+  // Includes both typed and untyped usages so nested items can find their parent usage
+  interface UsagePosition { name: string; start: number; end: number; }
+  const usagePositions: UsagePosition[] = [];
+  {
+    // Typed usages
+    const usageScanRe = new RegExp(USAGE_PATTERN.source, 'g');
+    let um: RegExpExecArray | null;
+    while ((um = usageScanRe.exec(clean)) !== null) {
+      const end = findBlockEnd(clean, um.index + um[0].length - 1);
+      usagePositions.push({ name: um[2], start: um.index, end });
+    }
+    // Untyped usages (e.g. `item SourceData { ... }`)
+    const untypedScanRe = new RegExp(UNTYPED_USAGE_PATTERN.source, 'g');
+    while ((um = untypedScanRe.exec(clean)) !== null) {
+      // Skip if preceded by 'in', 'out', 'inout', or 'def'
+      const pre = clean.slice(Math.max(0, um.index - 7), um.index);
+      if (/\b(inout|in|out|def)\s+$/.test(pre)) continue;
+      // Skip duplicates already captured by typed pattern
+      const name = um[2];
+      const start = um.index;
+      if (usagePositions.some(up => up.start === start)) continue;
+      const end = findBlockEnd(clean, um.index + um[0].length - 1);
+      usagePositions.push({ name, start, end });
+    }
+    usagePositions.sort((a, b) => b.start - a.start);
+  }
+
+  /** Find the innermost usage enclosing the given offset (excluding self). */
+  function findOwnerUsage(offset: number, selfIndex: number): { node: SysMLNode; start: number } | undefined {
+    for (const up of usagePositions) {
+      if (up.start === selfIndex) continue;
+      if (offset > up.start && offset < up.end) {
+        const parentUsage = nodeIndex.get(up.name) ??
+          nodeIndex.get(`${findOwnerDef(up.start)?.name ?? ''}.${up.name}`);
+        if (parentUsage) return { node: parentUsage, start: up.start };
+      }
+    }
+    return undefined;
   }
 
   // ── 2. Extract usages — create usage nodes + owner→usage + usage→typeDef edges ──
@@ -318,32 +492,36 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
     const [, keyword, usageName, typeName] = match;
 
-    // Skip if preceded by 'in' or 'out' — those are action parameters handled separately
-    const pre = clean.slice(Math.max(0, match.index - 5), match.index);
-    if (/\b(in|out)\s+$/.test(pre)) continue;
+    // Skip if preceded by 'in', 'out', or 'inout' — those are action parameters handled separately
+    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
 
-    // Find the nearest preceding definition block
+    // Find the innermost enclosing definition or usage block that owns this usage
     const usagePos = match.index;
-    let ownerNode: SysMLNode | undefined;
-    let ownerPos = -1;
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)!.start : -1;
 
-    DEF_PATTERN.lastIndex = 0;
-    let defMatch: RegExpExecArray | null;
-    while ((defMatch = DEF_PATTERN.exec(clean)) !== null) {
-      if (defMatch.index < usagePos && defMatch.index > ownerPos) {
-        ownerPos = defMatch.index;
-        ownerNode = nodeIndex.get(defMatch[2]);
-      }
+    // Check enclosing usages (usage-inside-usage composition)
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) {
+      ownerPos = enclosingUsage.start;
+      ownerNode = enclosingUsage.node;
     }
 
-    if (!ownerNode) continue;
+    // Determine the owner name for ID generation: definition, usage, package, or top-level
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
 
-    // Store in owner's attributes for compartment rendering
-    ownerNode.attributes.push({ name: usageName, type: typeName, value: keyword });
+    const typeSimple = simpleName(typeName);
+
+    // Store in owner's attributes for compartment rendering (only for def owners)
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: usageName, type: typeSimple, value: keyword });
+    }
 
     // Build the usage SysMLNode
     const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
-    const usageId = makeId('usage', `${ownerNode.name}_${usageName}`);
+    const usageId = makeId('usage', `${ownerName}_${usageName}`);
 
     const { line: usageLine, column: usageCol } = lineCol(source, usagePos);
     const usageBlockEndIdx = findBlockEnd(clean, match.index + match[0].length - 1);
@@ -352,7 +530,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       id: usageId,
       kind: usageKind,
       name: usageName,
-      qualifiedName: typeName,   // reuse qualifiedName to carry the type name
+      qualifiedName: typeSimple,   // reuse qualifiedName to carry the type name
       children: [],
       attributes: [],
       connections: [],
@@ -365,26 +543,29 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodes.push(usageNode);
     // Index by qualified name to avoid collisions across definitions;
     // also register unqualified name only if no prior usage claimed it
-    nodeIndex.set(`${ownerNode.name}.${usageName}`, usageNode);
+    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
     if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
 
-    // owner ──[composition]──► usage node
-    connections.push({
-      id: makeId('owns', `${ownerNode.name}_${usageName}`),
-      sourceId: ownerNode.id,
-      targetId: usageId,
-      kind: 'composition',
-      name: '',
-    });
+    // owner ──[composition]──► usage node (only if there's an actual owner)
+    if (ownerNode || usagePkg) {
+      const ownerId = ownerNode ? ownerNode.id : usagePkg!.id;
+      connections.push({
+        id: makeId('owns', `${ownerName}_${usageName}`),
+        sourceId: ownerId,
+        targetId: usageId,
+        kind: 'composition',
+        name: '',
+      });
+    }
 
     // usage node ──[typereference]──► type definition (if known)
-    const typeNode = nodeIndex.get(typeName);
+    const typeNode = resolveType(typeName);
     if (!typeNode) {
       // Point the diagnostic at the type name token specifically
       const typeOffset = match.index + match[0].lastIndexOf(typeName);
       const { line, column } = lineCol(source, typeOffset);
       const knownNames = [...nodeIndex.keys()].filter((k) => !k.startsWith('stdlib'));
-      const suggestions = suggestSimilar(typeName, knownNames);
+      const suggestions = suggestSimilar(simpleName(typeName), knownNames);
       diagnostics.push({
         severity: 'warning',
         message: `Unknown type: '${typeName}' is not defined`,
@@ -403,6 +584,83 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // ── 2a. Extract untyped usages (e.g. `action foo;` inside a def) ─────────
+
+  UNTYPED_USAGE_PATTERN.lastIndex = 0;
+
+  while ((match = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
+    const [fullMatch, keyword, usageName] = match;
+
+    // Skip if preceded by 'in', 'out', 'inout', or 'def' — those are handled by other patterns
+    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    if (/\bdef\s+$/.test(pre)) continue;   // skip `part def Foo`
+
+    // Skip if this name was already captured as a typed usage or definition
+    const usagePos = match.index;
+
+    // Check if this exact position was already matched by USAGE_PATTERN (typed usage with `:`)
+    // by checking if there's a `:` after the name before the `;` or `{`
+    const afterName = clean.slice(match.index + fullMatch.length - 1, match.index + fullMatch.length + 20);
+    // Already handled by typed USAGE_PATTERN if original source has `: Type` form
+    const origSlice = clean.slice(match.index, match.index + fullMatch.length + 30);
+    if (/\b\w+\s*(?:\[[\d..*]+\])?\s*:\s*\w+/.test(origSlice.slice(keyword.length + 1))) continue;
+
+    // Find enclosing definition or usage block
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)!.start : -1;
+
+    // Also check enclosing usages
+    const enclosingUsage2 = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage2 && enclosingUsage2.start > ownerPos) {
+      ownerPos = enclosingUsage2.start;
+      ownerNode = enclosingUsage2.node;
+    }
+
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : undefined;
+    if (!ownerName) continue;
+
+    // Skip if already registered (avoid duplicates with typed usages)
+    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: usageName, type: undefined, value: keyword });
+    }
+
+    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const usageId = makeId('usage', `${ownerName}_${usageName}`);
+
+    const { line: usageLine, column: usageCol } = lineCol(source, usagePos);
+    const usageBlockEndIdx = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: usageEndLine, column: usageEndCol } = lineCol(source, usageBlockEndIdx);
+    const usageNode: SysMLNode = {
+      id: usageId,
+      kind: usageKind,
+      name: usageName,
+      children: [], attributes: [], connections: [],
+      range: {
+        start: { line: usageLine - 1, character: usageCol - 1 },
+        end:   { line: usageEndLine - 1, character: usageEndCol - 1 },
+      },
+    };
+
+    nodes.push(usageNode);
+    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+
+    if (ownerNode || usagePkg) {
+      const ownerId = ownerNode ? ownerNode.id : usagePkg!.id;
+      connections.push({
+        id: makeId('owns', `${ownerName}_${usageName}`),
+        sourceId: ownerId,
+        targetId: usageId,
+        kind: 'composition',
+        name: '',
+      });
+    }
+  }
+
   // ── 2b. Extract attribute = value assignments ───────────────────────────
 
   ATTRIBUTE_VALUE_PATTERN.lastIndex = 0;
@@ -411,18 +669,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const [, attrName, attrType, attrValue] = match;
 
     const attrPos = match.index;
-    let ownerNode: SysMLNode | undefined;
-    let ownerPos = -1;
-
-    DEF_PATTERN.lastIndex = 0;
-    let defMatch2: RegExpExecArray | null;
-    while ((defMatch2 = DEF_PATTERN.exec(clean)) !== null) {
-      if (defMatch2.index < attrPos && defMatch2.index > ownerPos) {
-        ownerPos = defMatch2.index;
-        ownerNode = nodeIndex.get(defMatch2[2]);
-      }
-    }
-
+    const ownerNode = findOwnerDef(attrPos);
     if (!ownerNode) continue;
 
     // Avoid duplicating entries already captured by USAGE_PATTERN
@@ -431,31 +678,29 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  // ── 2c. Extract in/out parameters inside action definitions ─────────────
+  // ── 2c. Extract in/out/inout parameters inside any definition or usage ──
 
   IN_OUT_PATTERN.lastIndex = 0;
 
   while ((match = IN_OUT_PATTERN.exec(clean)) !== null) {
     const [, direction, keyword, paramName, typeName] = match;
 
-    // Find the nearest preceding action definition
     const paramPos = match.index;
-    let ownerNode: SysMLNode | undefined;
-    let ownerPos = -1;
-
-    DEF_PATTERN.lastIndex = 0;
-    let defMatchP: RegExpExecArray | null;
-    while ((defMatchP = DEF_PATTERN.exec(clean)) !== null) {
-      if (defMatchP.index < paramPos && defMatchP.index > ownerPos) {
-        ownerPos = defMatchP.index;
-        ownerNode = nodeIndex.get(defMatchP[2]);
-      }
+    // Find enclosing owner: definition or usage
+    let ownerNode: SysMLNode | undefined = findOwnerDef(paramPos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(paramPos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) {
+      ownerNode = enclosingUsage.node;
     }
+    if (!ownerNode) continue;
 
-    if (!ownerNode || ownerNode.kind !== 'ActionDefinition') continue;
+    const typeSimple = simpleName(typeName);
 
-    // Add to owner's attribute compartment
-    ownerNode.attributes.push({ name: paramName, type: typeName, value: direction });
+    // Add to owner's attribute compartment (for definitions)
+    if (ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: paramName, type: typeSimple, value: direction });
+    }
 
     // Create a usage node for the parameter
     const paramKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
@@ -469,8 +714,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       id: paramId,
       kind: paramKind,
       name: paramName,
-      qualifiedName: typeName,
-      direction: direction as 'in' | 'out',
+      qualifiedName: typeSimple,
+      direction: direction as 'in' | 'out' | 'inout',
       children: [],
       attributes: [],
       connections: [],
@@ -484,6 +729,65 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodeIndex.set(`${ownerNode.name}.${paramName}`, paramNode);
 
     // owner ──[composition]──► param node
+    connections.push({
+      id: makeId('param-owns', `${ownerNode.name}_${direction}_${paramName}`),
+      sourceId: ownerNode.id,
+      targetId: paramId,
+      kind: 'composition',
+      name: '',
+    });
+  }
+
+  // ── 2d. Extract untyped in/out parameters (e.g. `in item fuelCmd;`) ─────
+
+  IN_OUT_UNTYPED_PATTERN.lastIndex = 0;
+
+  while ((match = IN_OUT_UNTYPED_PATTERN.exec(clean)) !== null) {
+    const [, direction, keyword, paramName] = match;
+
+    // Skip if already captured by typed IN_OUT_PATTERN (check if `: Type` follows)
+    const afterSlice = clean.slice(match.index, match.index + match[0].length + 30);
+    if (/:\s*\w+/.test(afterSlice.slice(afterSlice.indexOf(paramName) + paramName.length))) continue;
+
+    const paramPos = match.index;
+    // Find enclosing owner: definition or usage
+    let ownerNode: SysMLNode | undefined = findOwnerDef(paramPos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage2 = findOwnerUsage(paramPos, match.index);
+    if (enclosingUsage2 && enclosingUsage2.start > ownerPos) {
+      ownerNode = enclosingUsage2.node;
+    }
+    if (!ownerNode) continue;
+
+    // Skip if already registered
+    if (nodeIndex.has(`${ownerNode.name}.${paramName}`)) continue;
+
+    if (ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: paramName, type: undefined, value: direction });
+    }
+
+    const paramKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const paramId = makeId('param', `${ownerNode.name}_${direction}_${paramName}`);
+
+    const { line: pLine, column: pCol } = lineCol(source, paramPos);
+    const paramBlockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: pEndLine, column: pEndCol } = lineCol(source, paramBlockEnd);
+
+    const paramNode: SysMLNode = {
+      id: paramId,
+      kind: paramKind,
+      name: paramName,
+      direction: direction as 'in' | 'out' | 'inout',
+      children: [], attributes: [], connections: [],
+      range: {
+        start: { line: pLine - 1, character: pCol - 1 },
+        end:   { line: pEndLine - 1, character: pEndCol - 1 },
+      },
+    };
+
+    nodes.push(paramNode);
+    nodeIndex.set(`${ownerNode.name}.${paramName}`, paramNode);
+
     connections.push({
       id: makeId('param-owns', `${ownerNode.name}_${direction}_${paramName}`),
       sourceId: ownerNode.id,
