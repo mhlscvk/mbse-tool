@@ -16,11 +16,14 @@ const KIND_DISPLAY: Record<string, string> = {
   AttributeUsage:       '«attribute»',
   ConnectionUsage:      '«connection»',
   PortUsage:            '«port»',
+  ActionUsage:          '«action»',
+  StateUsage:           '«state»',
   ItemUsage:            '«item»',
 };
 
 const USAGE_KEYWORD_DISPLAY: Record<string, string> = {
   part: 'part', attribute: 'attribute', port: 'port', action: 'action', state: 'state', item: 'item',
+  in: 'in', out: 'out',
 };
 
 const IS_USAGE = new Set([
@@ -41,7 +44,21 @@ function nodeToSNode(node: SysMLNode): SNode {
   const nameLabel = makeLabel(`${node.id}__label`, nameText);
 
   if (IS_USAGE.has(node.kind)) {
-    // Usage nodes: compact, no compartment
+    // Action in/out parameters get a special CSS class for border rendering
+    if (node.direction === 'in' || node.direction === 'out') {
+      const cssClass = node.direction === 'in' ? 'actionin' : 'actionout';
+      const width = Math.max(80, Math.min(180, nameText.length * 7 + 24));
+      return {
+        type: 'node',
+        id: node.id,
+        position: { x: 0, y: 0 },
+        size: { width, height: 50 },
+        children: [kindLabel, nameLabel],
+        cssClasses: [cssClass],
+        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction },
+      };
+    }
+    // Regular usage nodes: compact, no compartment
     const width = Math.max(140, Math.min(240, nameText.length * 7 + 24));
     return {
       type: 'node',

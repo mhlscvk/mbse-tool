@@ -158,6 +158,8 @@ const STDLIB_PACKAGES: Record<string, Record<string, StdlibEntry>> = {
 
 const DEF_PATTERN = /\b(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+specializes\s+(\w+))?\s*[{;]/g;
 const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*(\w+)\s*[;{]/g;
+// in/out parameters inside action definitions: e.g. `in item data : Data;`
+const IN_OUT_PATTERN = /\b(in|out)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*(\w+)\s*[;{]/g;
 const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*(\w+))?\s*=\s*([^;]+);/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
@@ -316,6 +318,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
     const [, keyword, usageName, typeName] = match;
 
+    // Skip if preceded by 'in' or 'out' — those are action parameters handled separately
+    const pre = clean.slice(Math.max(0, match.index - 5), match.index);
+    if (/\b(in|out)\s+$/.test(pre)) continue;
+
     // Find the nearest preceding definition block
     const usagePos = match.index;
     let ownerNode: SysMLNode | undefined;
@@ -421,6 +427,68 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     if (!ownerNode.attributes.some((a) => a.name === attrName)) {
       ownerNode.attributes.push({ name: attrName, type: attrType, value: attrValue.trim() });
     }
+  }
+
+  // ── 2c. Extract in/out parameters inside action definitions ─────────────
+
+  IN_OUT_PATTERN.lastIndex = 0;
+
+  while ((match = IN_OUT_PATTERN.exec(clean)) !== null) {
+    const [, direction, keyword, paramName, typeName] = match;
+
+    // Find the nearest preceding action definition
+    const paramPos = match.index;
+    let ownerNode: SysMLNode | undefined;
+    let ownerPos = -1;
+
+    DEF_PATTERN.lastIndex = 0;
+    let defMatchP: RegExpExecArray | null;
+    while ((defMatchP = DEF_PATTERN.exec(clean)) !== null) {
+      if (defMatchP.index < paramPos && defMatchP.index > ownerPos) {
+        ownerPos = defMatchP.index;
+        ownerNode = nodeIndex.get(defMatchP[2]);
+      }
+    }
+
+    if (!ownerNode || ownerNode.kind !== 'ActionDefinition') continue;
+
+    // Add to owner's attribute compartment
+    ownerNode.attributes.push({ name: paramName, type: typeName, value: direction });
+
+    // Create a usage node for the parameter
+    const paramKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const paramId = makeId('param', `${ownerNode.name}_${direction}_${paramName}`);
+
+    const { line: pLine, column: pCol } = lineCol(source, paramPos);
+    const paramBlockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: pEndLine, column: pEndCol } = lineCol(source, paramBlockEnd);
+
+    const paramNode: SysMLNode = {
+      id: paramId,
+      kind: paramKind,
+      name: paramName,
+      qualifiedName: typeName,
+      direction: direction as 'in' | 'out',
+      children: [],
+      attributes: [],
+      connections: [],
+      range: {
+        start: { line: pLine - 1, character: pCol - 1 },
+        end:   { line: pEndLine - 1, character: pEndCol - 1 },
+      },
+    };
+
+    nodes.push(paramNode);
+    nodeIndex.set(`${ownerNode.name}.${paramName}`, paramNode);
+
+    // owner ──[composition]──► param node
+    connections.push({
+      id: makeId('param-owns', `${ownerNode.name}_${direction}_${paramName}`),
+      sourceId: ownerNode.id,
+      targetId: paramId,
+      kind: 'composition',
+      name: '',
+    });
   }
 
   // ── 3. Extract explicit connect statements ──────────────────────────────

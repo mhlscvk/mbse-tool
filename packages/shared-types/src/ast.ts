@@ -11,6 +11,8 @@ export type SysMLNodeKind =
   | 'AttributeUsage'
   | 'ConnectionUsage'
   | 'PortUsage'
+  | 'ActionUsage'
+  | 'StateUsage'
   | 'ItemUsage';
 
 export interface SysMLNode {
@@ -18,6 +20,7 @@ export interface SysMLNode {
   kind: SysMLNodeKind;
   name: string;
   qualifiedName?: string;
+  direction?: 'in' | 'out';
   children: SysMLNode[];
   attributes: SysMLAttribute[];
   connections: SysMLConnection[];

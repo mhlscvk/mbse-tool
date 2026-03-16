@@ -9,7 +9,7 @@ import ElementPanel from '../components/Diagram/ElementPanel.js';
 import AiAssistant from '../components/AI/AiAssistant.js';
 import Header from '../components/Layout/Header.js';
 import { useLocalStorage } from '../hooks/useLocalStorage.js';
-import type { SysMLFile, SModelRoot, SNode, DiagramDiagnostic } from '@systemodel/shared-types';
+import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic } from '@systemodel/shared-types';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const MIN_PANE_PCT = 15; // minimum pane width as % of container
@@ -32,9 +32,11 @@ export default function EditorPage() {
 
   // Element visibility
   const [hiddenNodeIds, setHiddenNodeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenNodes`, new Set<string>());
+  const [hiddenEdgeIds, setHiddenEdgeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenEdges`, new Set<string>());
   const [showCompartments, setShowCompartments] = useLocalStorage(`${lsPrefix}:compartments`, true);
 
   const diagramNodes = (diagram?.children.filter((c): c is SNode => c.type === 'node') ?? []);
+  const diagramEdges = (diagram?.children.filter((c): c is SEdge => c.type === 'edge') ?? []);
 
   const toggleNode = useCallback((id: string) => {
     setHiddenNodeIds((prev) => {
@@ -55,6 +57,25 @@ export default function EditorPage() {
   const toggleAll = useCallback((visible: boolean) => {
     setHiddenNodeIds(visible ? new Set() : new Set(diagramNodes.map((n) => n.id)));
   }, [diagramNodes]);
+
+  const toggleEdge = useCallback((id: string) => {
+    setHiddenEdgeIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleEdgeGroup = useCallback((ids: string[], visible: boolean) => {
+    setHiddenEdgeIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => visible ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }, []);
+
+  // Diagram mode: BDD (flat) or IBD (nested)
+  const [diagramMode, setDiagramMode] = useLocalStorage<'bdd' | 'ibd'>(`${lsPrefix}:diagramMode`, 'bdd');
 
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
@@ -304,6 +325,24 @@ export default function EditorPage() {
             background: '#2d2d2d', borderBottom: '1px solid #3c3c3c', flexShrink: 0,
           }}>
             <span style={{ fontSize: 11, color: '#888', marginRight: 4 }}>View:</span>
+            {/* BDD / IBD toggle */}
+            <div style={{ display: 'flex', borderRadius: 3, overflow: 'hidden', border: '1px solid #555' }}>
+              {(['bdd', 'ibd'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setDiagramMode(m)}
+                  style={{
+                    background: diagramMode === m ? '#007acc' : '#3c3c3c',
+                    border: 'none', color: '#fff',
+                    fontSize: 11, padding: '2px 10px', cursor: 'pointer',
+                    fontWeight: diagramMode === m ? 600 : 400,
+                  }}
+                  title={m === 'bdd' ? 'Block Definition Diagram — flat class view' : 'Internal Block Diagram — nested containment view'}
+                >
+                  {m.toUpperCase()}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setShowCompartments((v) => !v)}
               style={{
@@ -335,16 +374,22 @@ export default function EditorPage() {
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
             <ElementPanel
               nodes={diagramNodes}
+              edges={diagramEdges}
               hiddenNodeIds={hiddenNodeIds}
+              hiddenEdgeIds={hiddenEdgeIds}
               onToggleNode={toggleNode}
               onToggleGroup={toggleGroup}
               onToggleAll={toggleAll}
+              onToggleEdge={toggleEdge}
+              onToggleEdgeGroup={toggleEdgeGroup}
             />
             <DiagramViewer
               model={diagram}
               hiddenNodeIds={hiddenNodeIds}
+              hiddenEdgeIds={hiddenEdgeIds}
               showCompartments={showCompartments}
               storageKey={lsPrefix}
+              mode={diagramMode}
               onNodeSelect={(range) => {
                 // range is 0-based (LSP), Monaco is 1-based
                 monacoRef.current?.revealRange(

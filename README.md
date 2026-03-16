@@ -10,7 +10,7 @@ A web-based SysML v2 code editor and visualization tool built as a modular monor
 systemodel/
 ├── packages/
 │   ├── shared-types/      # Shared TypeScript interfaces
-│   ├── diagram-service/   # SysML text parser → AST → BDD generator (port 3002)
+│   ├── diagram-service/   # SysML text parser → AST → diagram generator (port 3002)
 │   ├── api-server/        # REST API: auth, projects, files, AI assistant (port 3003)
 │   └── web-client/        # React frontend: Monaco editor + SVG diagram viewer (port 5173)
 ```
@@ -91,12 +91,10 @@ pnpm db:migrate
 cd ../..
 ```
 
-### 6. Build backend packages
+### 6. Build all packages
 
 ```bash
-pnpm --filter @systemodel/shared-types run build
-pnpm --filter @systemodel/api-server run build
-pnpm --filter @systemodel/diagram-service run build
+pnpm run build
 ```
 
 ---
@@ -143,7 +141,8 @@ cd packages/web-client && pnpm dev
 2. **Create a project** from the projects page
 3. **Create a `.sysml` file** inside the project
 4. **Edit** — the Block Definition Diagram updates live as you type
-5. **AI Assistant** — click **✦ AI Assistant** in the diagram toolbar to open Claude-powered suggestions and edits
+5. Switch to **IBD view** to see the interconnection diagram with nested containment
+6. **AI Assistant** — click **✦ AI Assistant** in the toolbar to open Claude-powered suggestions
 
 ### Editor features
 
@@ -152,15 +151,29 @@ cd packages/web-client && pnpm dev
 - Click any diagram node to jump to its source in the editor
 - Problems panel (click the status bar error/warning count)
 
-### Diagram features
+### BDD — Block Definition Diagram
 
-- Live Block Definition Diagram (BDD) with SysML v2 graphical notation
-- Hollow triangle for generalization, filled diamond for composition
+- Live diagram generated from the SysML v2 source
+- SysML v2 graphical notation: hollow triangle (generalization), filled diamond (composition)
 - Pan, zoom, drag nodes, resize nodes
 - **Fit** button to auto-layout and fit all nodes in view
 - **Compartments ON/OFF** toggle to show/hide usage compartments
-- **Elements panel** — toggle visibility of individual nodes or groups; hidden nodes remove their edges immediately
+- **Elements panel** — toggle visibility of individual nodes or groups
 - ELK auto-layout re-runs when nodes are added/removed or sizes change
+
+### IBD — Internal Block Diagram (Interconnection View)
+
+- Nested containment view: part usages rendered as container blocks showing their internal structure
+- Hierarchical expand/collapse with **+/−** buttons on every container at every depth level
+  - Root-level blocks are expanded by default; deeper levels are collapsed by default
+  - State is persisted per-file in localStorage
+- Action usages show their `in`/`out` parameters as nested child blocks with direction badges
+  - Works for both single-instance and multi-instance action definitions
+- Port nodes rendered as border squares on their parent block
+- Inherited ports shown on usage instances of typed blocks
+- Recursive ELK compound layout — re-runs automatically when expand state changes
+- Drag any block to reposition; all descendants and their ports move with it
+- Resize grip on all container blocks
 
 ### AI Assistant
 
@@ -190,6 +203,11 @@ package VehicleModel {
     attribute radius : Real;
   }
 
+  action def Drive {
+    in item throttle : Real;
+    out item speed : Real;
+  }
+
   connection def PowerTransfer {
     end vehicle : Vehicle;
     end engine : Engine;
@@ -206,10 +224,15 @@ package VehicleModel {
 - [x] Project and file management (CRUD)
 - [x] SysML v2 code editor (Monaco) with syntax highlighting and auto-indent
 - [x] Real-time diagnostics with Levenshtein fix suggestions
-- [x] SysML v2 parser: part/attribute/connection/port/action/state/item defs and usages
-- [x] Live Block Definition Diagram generation
+- [x] SysML v2 parser: part/attribute/connection/port/action/state/item defs and usages, `in`/`out` parameters
+- [x] Live Block Definition Diagram (BDD) generation
 - [x] SysML v2 BDD graphical notation (hollow triangle, filled diamond, sharp corners)
-- [x] ELK auto-layout (re-runs on node/edge/size changes)
+- [x] IBD — nested containment view with recursive ELK compound layout
+- [x] IBD — per-element expand/collapse at every depth level (persisted in localStorage)
+- [x] IBD — action `in`/`out` params shown as nested children (single- and multi-instance)
+- [x] IBD — port nodes on block borders; inherited ports on usage instances
+- [x] IBD — drag blocks with descendants; ports move with parent
+- [x] ELK auto-layout (re-runs on node/edge/size/expand changes)
 - [x] SVG diagram: pan, zoom, drag nodes, resize nodes
 - [x] Element panel: group by kind, alphabetical sort, real-time visibility toggles
 - [x] Compartments toggle with proper height enforcement
@@ -220,7 +243,7 @@ package VehicleModel {
 
 ### Planned
 - [ ] LSP autocompletion (syside-languageserver integration)
-- [ ] Multiple diagram types: IBD, Sequence, Activity
+- [ ] Sequence and Activity diagram types
 - [ ] Payment and subscription tiers (Stripe)
 - [ ] User roles and access control
 - [ ] Export to PDF/image
