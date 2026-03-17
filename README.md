@@ -247,15 +247,20 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
 | `:` | — | Typing (defined by) |
 
 **Behavioral / Action flow:**
-- `first start;` / `then terminate;` — start and terminate nodes (filled circle / X-circle)
+- `first start;` / `then terminate;` — start and terminate nodes (filled circle / X-circle), scoped per container
 - `fork` / `join` — thick horizontal bar nodes
 - `merge` / `decide` — diamond nodes
-- `then X;` — succession from previous declaration to X
+- `then X;` — succession from previous declaration to X (open arrowhead)
 - `then fork fork1;` / `then decide decision1;` — combined declaration + succession
 - `first X then Y;` — explicit succession
-- `if guard then action;` — conditional succession with `[guard]` label
-- `perform action` / `exhibit state` — shown in definition compartments
-- All flows visible in nested view inside action/state definitions
+- `if guard then action;` — conditional succession with `[guard]` label (guard must be Boolean — warns if not)
+- `if guard then action1; else action2;` — conditional with else branch, creates `[guard]` and `[else]` edges
+- Dotted guard expressions: `if obj.prop.isActive then ...`
+- `perform action X { ... }` — creates `«perform»` container node with nested flow elements
+- `exhibit state X { ... }` — creates `«exhibit»` container node with nested flow elements
+- Each action container (`action def`, `action`, `perform action`, `action : Type`) gets its own scoped `start`, `terminate`, and control nodes — same names in different containers are separate elements
+- Succession (open arrowhead) is distinct from flow (filled arrowhead) per SysML v2 spec
+- Orthogonal edge routing in nested view — all relationship lines use right-angle paths
 
 **Relationships:**
 - `satisfy` / `verify` / `allocate` / `bind`
@@ -280,10 +285,12 @@ Node shapes per Section 8.2.3 of the spec:
 | Part, Attribute, Item, Port, Connection, Interface, Allocation, Calc, Enum, Requirement, View, Viewpoint, Rendering, Metadata | Square-corner rectangle | Rounded-corner rectangle |
 | State | Rounded-corner rectangle | Rounded-corner rectangle |
 | Package | Tab-rectangle | Tab-rectangle |
+| Perform Action | — | Rounded-corner rectangle (`«perform»`) |
+| Exhibit State | — | Rounded-corner rectangle (`«exhibit»`) |
 | Fork / Join | Thick horizontal bar | — |
 | Merge / Decide | Diamond | — |
-| Start | Filled circle (auto-created from `first start;`) | — |
-| Terminate | X-circle (auto-created from `then terminate;`) | — |
+| Start | Filled circle (auto-created from `first start;`, scoped per container) | — |
+| Terminate | X-circle (auto-created from `then terminate;`, scoped per container) | — |
 
 Edge styles per Section 8.2.3:
 
@@ -427,6 +434,9 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - **Content size limits** — 100KB default JSON body, 10MB for file content, 2MB for AI requests
 - **WebSocket hardening** — 10MB max payload, per-IP connection limits, per-connection rate limiting, input type validation, sanitized error messages
 - **Parser size limit** — 2MB max source input to prevent DoS via parsing
+- **ELK recursion depth limit** — max 50 levels to prevent stack overflow on deeply nested models
+- **Edit distance cap** — O(min(m,n)) space with 100-char string length limit to prevent memory exhaustion
+- **Cached tree traversals** — ancestor/descendant lookups memoized per layout to avoid O(n²) routing
 - **HTTPS enforcement** in production with x-forwarded-proto redirect
 - **Error sanitization** — internal error details and stack traces hidden in production
 
@@ -446,7 +456,12 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 ### Implemented
 - [x] Full SysML v2.0 parser (30+ definition/usage types, all operators, action flow)
 - [x] Action flow diagrams (start, terminate, fork, join, merge, decide, successions, guards)
+- [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as distinct node kinds
+- [x] Scoped containment — each action container gets its own start/terminate/control nodes
+- [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
+- [x] If-then-else parsing with dotted guard expressions (`obj.prop.isActive`)
 - [x] OMG-compliant graphical notation (node shapes, edge styles per spec Section 8.2.3)
+- [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics
@@ -457,7 +472,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] AI Assistant (Claude Opus 4.6, streaming, propose_edit tool)
 - [x] User auth: email/password + Google OAuth + email verification
 - [x] Security hardening: helmet, rate limiting, HTTPS, Zod validation, WebSocket limits, error sanitization
-- [x] Automated tests: 167 vitest tests (parser, transformer, robustness, security)
+- [x] Automated tests: 175 vitest tests (parser, transformer, robustness, security)
 - [x] Project and file CRUD with auto-save
 - [x] Training mode (7 levels, progressive SysML v2 tutorial)
 - [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
@@ -488,7 +503,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (167 tests: parser, transformer, robustness, security) |
+| Testing | Vitest (175 tests: parser, transformer, robustness, security) |
 
 ---
 
@@ -502,9 +517,9 @@ cd packages/diagram-service && pnpm test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 167 tests across 5 test suites:
+**Coverage:** 175 tests across 5 test suites:
 
-- **Parser tests** (58): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics
+- **Parser tests** (66): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
 - **Parser robustness tests** (53): empty/minimal inputs, malformed syntax, special characters, large inputs, comment edge cases, imports, diagnostic quality, source ranges, connection edge cases, rapid parsing, input size limits, control flow
 - **Parser security tests** (13): XSS vectors, DoS resistance, path traversal, input type safety, error message sanitization
 - **Transformer tests** (20): node shapes, keyword display, compartments, edges, empty inputs
