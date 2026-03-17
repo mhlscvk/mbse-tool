@@ -10,6 +10,9 @@ import { prisma } from '../db.js';
 
 const router: IRouter = Router();
 
+// Dummy hash for timing-safe comparisons when user not found
+const DUMMY_HASH = '$2a$12$R9h7cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUm';
+
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -30,6 +33,7 @@ function signToken(userId: string, role: string): string {
   if (!secret) throw new Error('JWT_SECRET not configured');
   return jwt.sign({ userId, role }, secret, {
     expiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+    algorithm: 'HS256',
   } as jwt.SignOptions);
 }
 
@@ -79,6 +83,7 @@ function getGoogleClient() {
 }
 
 // ── Register ───────────────────────────────────────────────────────────
+// Does NOT return an accessToken — user must verify email first
 router.post('/register', async (req, res, next) => {
   try {
     const body = registerSchema.parse(req.body);
@@ -108,8 +113,7 @@ router.post('/register', async (req, res, next) => {
       console.error('[AUTH] Failed to send verification email:', err.message);
     });
 
-    const accessToken = signToken(user.id, user.role);
-    res.status(201).json({ data: { accessToken, user } });
+    res.status(201).json({ data: { user, message: 'Verification email sent. Please check your inbox.' } });
   } catch (err) {
     next(err);
   }
@@ -119,8 +123,8 @@ router.post('/register', async (req, res, next) => {
 router.get('/verify', async (req, res, next) => {
   try {
     const token = req.query.token as string;
-    if (!token) {
-      res.status(400).json({ error: 'BadRequest', message: 'Missing token' });
+    if (!token || !/^[a-f0-9]{64}$/.test(token)) {
+      res.status(400).json({ error: 'BadRequest', message: 'Invalid token' });
       return;
     }
 
@@ -129,7 +133,6 @@ router.get('/verify', async (req, res, next) => {
     });
 
     if (!user || !user.verifyTokenExp || user.verifyTokenExp < new Date()) {
-      // Redirect to login with error
       const baseUrl = process.env.APP_URL ?? 'https://systemodel.com';
       res.redirect(`${baseUrl}/login?verified=expired`);
       return;
@@ -148,11 +151,16 @@ router.get('/verify', async (req, res, next) => {
 });
 
 // ── Resend verification email ──────────────────────────────────────────
-router.post('/resend-verify', requireAuth, async (req: AuthRequest, res, next) => {
+router.post('/resend-verify', async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user) { res.status(404).json({ error: 'Not Found', message: 'User not found' }); return; }
-    if (user.emailVerified) { res.json({ data: { message: 'Email already verified' } }); return; }
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always return success to prevent email enumeration
+    if (!user || user.emailVerified) {
+      res.json({ data: { message: 'If the email exists and is unverified, a verification link has been sent.' } });
+      return;
+    }
 
     const verifyToken = crypto.randomBytes(32).toString('hex');
     const verifyTokenExp = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -162,8 +170,11 @@ router.post('/resend-verify', requireAuth, async (req: AuthRequest, res, next) =
       data: { verifyToken, verifyTokenExp },
     });
 
-    await sendVerificationEmail(user.email, verifyToken);
-    res.json({ data: { message: 'Verification email sent' } });
+    sendVerificationEmail(user.email, verifyToken).catch((err) => {
+      console.error('[AUTH] Failed to send verification email:', err.message);
+    });
+
+    res.json({ data: { message: 'If the email exists and is unverified, a verification link has been sent.' } });
   } catch (err) {
     next(err);
   }
@@ -174,14 +185,22 @@ router.post('/login', async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
-    if (!user || !user.passwordHash || !(await bcrypt.compare(body.password, user.passwordHash))) {
+
+    // Timing-safe: always run bcrypt even if user not found
+    const passwordValid = user?.passwordHash
+      ? await bcrypt.compare(body.password, user.passwordHash)
+      : await bcrypt.compare(body.password, DUMMY_HASH).then(() => false);
+
+    if (!user || !passwordValid) {
       res.status(401).json({ error: 'Unauthorized', message: 'Invalid credentials' });
       return;
     }
+
     if (!user.emailVerified) {
-      res.status(403).json({ error: 'Forbidden', message: 'Please verify your email before logging in' });
+      res.status(403).json({ error: 'Forbidden', message: 'Please verify your email before signing in' });
       return;
     }
+
     const accessToken = signToken(user.id, user.role);
     const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, ...safeUser } = user;
     res.json({ data: { accessToken, user: safeUser } });
@@ -207,6 +226,11 @@ router.post('/google', async (req, res, next) => {
 
     const { sub: googleId, email, name, email_verified } = payload;
 
+    if (!email_verified) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Google email not verified' });
+      return;
+    }
+
     // Find by googleId or email
     let user = await prisma.user.findFirst({
       where: { OR: [{ googleId }, { email }] },
@@ -227,7 +251,7 @@ router.post('/google', async (req, res, next) => {
           email: email!,
           name: name ?? email!,
           googleId,
-          emailVerified: email_verified ?? true,
+          emailVerified: true,
         },
       });
     }

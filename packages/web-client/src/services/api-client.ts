@@ -26,7 +26,7 @@ export const api = {
         method: 'POST', body: JSON.stringify({ email, password }),
       }),
     register: (email: string, password: string, name: string) =>
-      request<{ accessToken: string; user: import('@systemodel/shared-types').User }>('/auth/register', {
+      request<{ user: import('@systemodel/shared-types').User; message: string }>('/auth/register', {
         method: 'POST', body: JSON.stringify({ email, password, name }),
       }),
     me: () => request<import('@systemodel/shared-types').User>('/auth/me'),
@@ -34,7 +34,9 @@ export const api = {
       request<{ accessToken: string; user: import('@systemodel/shared-types').User }>('/auth/google', {
         method: 'POST', body: JSON.stringify({ credential }),
       }),
-    resendVerify: () => request<{ message: string }>('/auth/resend-verify', { method: 'POST' }),
+    resendVerify: (email: string) => request<{ message: string }>('/auth/resend-verify', {
+      method: 'POST', body: JSON.stringify({ email }),
+    }),
   },
   projects: {
     list: () => request<import('@systemodel/shared-types').Project[]>('/projects'),

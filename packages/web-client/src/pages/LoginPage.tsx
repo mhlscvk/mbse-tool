@@ -77,10 +77,13 @@ export default function LoginPage() {
     return () => { script.remove(); };
   }, [handleGoogleResponse]);
 
+  const [showResend, setShowResend] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setInfo('');
+    setShowResend(false);
     setLoading(true);
     try {
       if (mode === 'register') {
@@ -93,9 +96,23 @@ export default function LoginPage() {
         navigate('/projects');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+      const msg = err instanceof Error ? err.message : 'Authentication failed';
+      setError(msg);
+      if (msg.toLowerCase().includes('verify')) setShowResend(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setInfo('');
+    try {
+      await api.auth.resendVerify(form.email);
+      setInfo('Verification email sent. Please check your inbox.');
+      setShowResend(false);
+    } catch {
+      setError('Failed to resend verification email.');
     }
   };
 
@@ -142,6 +159,14 @@ export default function LoginPage() {
             style={inputStyle}
           />
           {error && <div style={{ color: '#f48771', fontSize: 13 }}>{error}</div>}
+          {showResend && form.email && (
+            <button type="button" onClick={handleResend} style={{
+              background: 'none', border: '1px solid #3c3c3c', borderRadius: 4,
+              color: '#569cd6', fontSize: 12, padding: '6px 0', cursor: 'pointer',
+            }}>
+              Resend verification email
+            </button>
+          )}
           {info && <div style={{ color: '#4ec9b0', fontSize: 13 }}>{info}</div>}
           <button type="submit" disabled={loading} style={{
             background: loading ? '#3c3c3c' : '#0e639c', color: '#fff',

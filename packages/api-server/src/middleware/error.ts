@@ -11,14 +11,21 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   const statusCode = err.statusCode ?? 500;
-  const message = statusCode === 500 ? 'Internal server error' : err.message;
+  const isDev = process.env.NODE_ENV !== 'production';
 
+  // Never leak Prisma/DB internals or stack traces in production
+  let message: string;
   if (statusCode === 500) {
     console.error('[API Error]', err);
+    message = isDev ? err.message : 'Internal server error';
+  } else if (err.name === 'ZodError') {
+    message = 'Validation failed';
+  } else {
+    message = isDev ? err.message : 'Request failed';
   }
 
   res.status(statusCode).json({
-    error: err.name ?? 'Error',
+    error: err.name === 'ZodError' ? 'ValidationError' : (err.name ?? 'Error'),
     message,
     statusCode,
   });

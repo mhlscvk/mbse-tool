@@ -18,7 +18,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   if (!secret) throw new Error('JWT_SECRET not configured');
 
   try {
-    const payload = jwt.verify(token, secret) as { userId: string; role: string };
+    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as { userId: string; role: string };
     req.userId = payload.userId;
     req.userRole = payload.role;
     next();
