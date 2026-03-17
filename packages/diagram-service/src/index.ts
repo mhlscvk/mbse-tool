@@ -5,7 +5,10 @@ import http from 'http';
 import { createDiagramWebSocketServer } from './websocket-server.js';
 
 const PORT = parseInt(process.env.PORT ?? '3002', 10);
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173').split(',');
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
+  .split(',')
+  .map(o => o.trim())
+  .filter(o => /^https?:\/\//.test(o));
 
 const app = express();
 app.use(cors({ origin: ALLOWED_ORIGINS }));

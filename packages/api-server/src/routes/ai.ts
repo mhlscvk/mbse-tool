@@ -1,4 +1,5 @@
 import { Router, type IRouter } from 'express';
+import { z } from 'zod';
 import { Anthropic } from '@anthropic-ai/sdk';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -52,16 +53,23 @@ router.post('/assist', requireAuth, async (req, res) => {
     return;
   }
 
-  const { content, instruction, diagnostics = [] } = req.body as {
-    content: string;
-    instruction: string;
-    diagnostics?: Array<{ severity: string; message: string; line: number; column: number }>;
-  };
+  const assistSchema = z.object({
+    content: z.string().max(1_000_000),
+    instruction: z.string().min(1).max(10_000),
+    diagnostics: z.array(z.object({
+      severity: z.string(),
+      message: z.string(),
+      line: z.number().int().positive(),
+      column: z.number().int().positive(),
+    })).max(200).optional().default([]),
+  });
 
-  if (!instruction?.trim()) {
-    res.status(400).json({ error: 'instruction is required' });
+  const parsed = assistSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation failed', message: parsed.error.issues[0]?.message ?? 'Invalid request' });
     return;
   }
+  const { content, instruction, diagnostics } = parsed.data;
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');

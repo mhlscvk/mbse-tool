@@ -79,7 +79,7 @@ const IS_USAGE = new Set([
   'TransitionUsage',
 ]);
 
-const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode']);
+const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'TerminateNode']);
 
 /** Estimate pixel width for a text string at a given font size (monospace ~0.6em). */
 function textWidth(text: string, fontSize: number): number {
@@ -94,9 +94,10 @@ function nodeToSNode(node: SysMLNode): SNode {
   const kindText = node.isAbstract ? `{abstract} ${baseKindText}` : baseKindText;
   const kindLabel = makeLabel(`${node.id}__kind`, kindText);
 
-  // Usage nodes: show "name : Type" in the name label
+  // Usage nodes: show "name[mult] : Type" in the name label
+  const multSuffix = node.multiplicity ?? '';
   const nameText = IS_USAGE.has(node.kind) && node.qualifiedName
-    ? `${node.name} : ${node.qualifiedName}`
+    ? `${node.name}${multSuffix} : ${node.qualifiedName}`
     : node.name;
   const nameLabel = makeLabel(`${node.id}__label`, nameText);
 
@@ -113,11 +114,12 @@ function nodeToSNode(node: SysMLNode): SNode {
     };
   }
 
-  // Control nodes: fork/join (thin bar), merge/decide (diamond)
+  // Control nodes: fork/join (thin bar), merge/decide (diamond), start/terminate (circle)
   if (CONTROL_KINDS.has(node.kind)) {
     const isForkJoin = node.kind === 'ForkNode' || node.kind === 'JoinNode';
-    const width = isForkJoin ? 80 : 40;
-    const height = isForkJoin ? 8 : 40;
+    const isStartTerminate = node.kind === 'StartNode' || node.kind === 'TerminateNode';
+    const width = isStartTerminate ? 24 : isForkJoin ? 80 : 40;
+    const height = isStartTerminate ? 24 : isForkJoin ? 8 : 40;
     return {
       type: 'node', id: node.id,
       position: { x: 0, y: 0 },
@@ -157,7 +159,7 @@ function nodeToSNode(node: SysMLNode): SNode {
   }
 
   // Definition nodes: build usage/attribute compartment labels
-  const usageLabels: SLabel[] = node.attributes
+  const usageLabels: SLabel[] = (node.attributes ?? [])
     .filter(a => a.name !== '__doc__')
     .map((attr, i) => {
       let text: string;

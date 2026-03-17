@@ -1,5 +1,29 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { SNode, SEdge } from '@systemodel/shared-types';
+
+// ─── Saved Views types & helpers ──────────────────────────────────────────────
+
+interface SavedView {
+  name: string;
+  hiddenNodeIds: string[];
+  hiddenEdgeIds: string[];
+  createdAt: number;
+}
+
+function loadSavedViews(storageKey: string): SavedView[] {
+  if (!storageKey) return [];
+  try {
+    const raw = localStorage.getItem(`${storageKey}:savedViews`);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function persistSavedViews(storageKey: string, views: SavedView[]) {
+  if (!storageKey) return;
+  localStorage.setItem(`${storageKey}:savedViews`, JSON.stringify(views));
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ElementPanelProps {
   nodes: SNode[];
@@ -11,6 +35,20 @@ interface ElementPanelProps {
   onToggleAll: (visible: boolean) => void;
   onToggleEdge: (id: string) => void;
   onToggleEdgeGroup: (ids: string[], visible: boolean) => void;
+  /** When true, fills parent width instead of using fixed 220px */
+  fillWidth?: boolean;
+  /** Called when user clicks an element name — passes the node for navigation */
+  onNodeClick?: (node: SNode) => void;
+  /** Called when user clicks a relation label — passes the edge for navigation */
+  onEdgeClick?: (edge: SEdge) => void;
+  /** Storage key for persisting saved views (e.g. "systemodel:proj:file") */
+  viewStorageKey?: string;
+  /** Called to restore a saved view — sets both hidden node and edge ids */
+  onRestoreView?: (hiddenNodes: Set<string>, hiddenEdges: Set<string>) => void;
+  /** Currently selected node id from the diagram (for cross-highlighting) */
+  diagramSelectedNodeId?: string | null;
+  /** Currently selected edge id from the diagram (for cross-highlighting) */
+  diagramSelectedEdgeId?: string | null;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -32,6 +70,8 @@ const KIND_LABELS: Record<string, string> = {
   actionin:             'In Parameter',
   actionout:            'Out Parameter',
   actioninout:          'InOut Parameter',
+  startnode:            'Start Node',
+  terminatenode:        'Terminate Node',
   stdlib:               'Standard Library',
   default:              'Other',
 };
@@ -55,6 +95,8 @@ const KIND_COLORS: Record<string, string> = {
   actionin:             '#082828',
   actionout:            '#1a1008',
   actioninout:          '#1a2828',
+  startnode:            '#222222',
+  terminatenode:        '#3a3a3a',
   stdlib:               '#0a2018',
   default:              '#252525',
 };
@@ -98,12 +140,14 @@ function getEdgeLabel(edge: SEdge, nodeIndex: Map<string, string>): string {
   return `${src} → ${tgt}`;
 }
 
-type Tab = 'elements' | 'relationships';
+type Tab = 'elements' | 'relationships' | 'views';
 type ViewMode = 'nested' | 'tree';
 
 export default function ElementPanel({
   nodes, edges, hiddenNodeIds, hiddenEdgeIds,
   onToggleNode, onToggleGroup, onToggleAll, onToggleEdge, onToggleEdgeGroup,
+  fillWidth, onNodeClick, onEdgeClick, viewStorageKey, onRestoreView,
+  diagramSelectedNodeId, diagramSelectedEdgeId,
 }: ElementPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -111,6 +155,77 @@ export default function ElementPanel({
   const [collapsedTreeGroups, setCollapsedTreeGroups] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('elements');
   const [viewMode, setViewMode] = useState<ViewMode>('nested');
+
+  // ── Saved views state ───────────────────────────────────────────────────────
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews(viewStorageKey ?? ''));
+  const [activeViewName, setActiveViewName] = useState<string | null>(null);
+  const [newViewName, setNewViewName] = useState('');
+  const [renamingIdx, setRenamingIdx] = useState<number | null>(null);
+  const [renameText, setRenameText] = useState('');
+  const [updatedViewName, setUpdatedViewName] = useState<string | null>(null);
+  const updatedTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Reload views when storage key changes
+  useEffect(() => {
+    setSavedViews(loadSavedViews(viewStorageKey ?? ''));
+    setActiveViewName(null);
+  }, [viewStorageKey]);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => { clearTimeout(updatedTimerRef.current); }, []);
+
+  const saveCurrentView = useCallback(() => {
+    const name = newViewName.trim();
+    if (!name || !viewStorageKey) return;
+    const view: SavedView = {
+      name,
+      hiddenNodeIds: [...hiddenNodeIds],
+      hiddenEdgeIds: [...hiddenEdgeIds],
+      createdAt: Date.now(),
+    };
+    const updated = [...savedViews.filter(v => v.name !== name), view];
+    setSavedViews(updated);
+    persistSavedViews(viewStorageKey, updated);
+    setActiveViewName(name);
+    setNewViewName('');
+  }, [newViewName, viewStorageKey, hiddenNodeIds, hiddenEdgeIds, savedViews]);
+
+  const loadView = useCallback((view: SavedView) => {
+    if (onRestoreView) {
+      onRestoreView(new Set(view.hiddenNodeIds), new Set(view.hiddenEdgeIds));
+      setActiveViewName(view.name);
+    }
+  }, [onRestoreView]);
+
+  const deleteView = useCallback((name: string) => {
+    if (!viewStorageKey) return;
+    const updated = savedViews.filter(v => v.name !== name);
+    setSavedViews(updated);
+    persistSavedViews(viewStorageKey, updated);
+    if (activeViewName === name) setActiveViewName(null);
+  }, [viewStorageKey, savedViews, activeViewName]);
+
+  const renameView = useCallback((oldName: string, newName: string) => {
+    if (!viewStorageKey || !newName.trim()) return;
+    const updated = savedViews.map(v => v.name === oldName ? { ...v, name: newName.trim() } : v);
+    setSavedViews(updated);
+    persistSavedViews(viewStorageKey, updated);
+    if (activeViewName === oldName) setActiveViewName(newName.trim());
+    setRenamingIdx(null);
+  }, [viewStorageKey, savedViews, activeViewName]);
+
+  const updateView = useCallback((name: string) => {
+    if (!viewStorageKey) return;
+    const updated = savedViews.map(v => v.name === name
+      ? { ...v, hiddenNodeIds: [...hiddenNodeIds], hiddenEdgeIds: [...hiddenEdgeIds], createdAt: Date.now() }
+      : v,
+    );
+    setSavedViews(updated);
+    persistSavedViews(viewStorageKey, updated);
+    setUpdatedViewName(name);
+    clearTimeout(updatedTimerRef.current);
+    updatedTimerRef.current = setTimeout(() => setUpdatedViewName(null), 1500);
+  }, [viewStorageKey, savedViews, hiddenNodeIds, hiddenEdgeIds]);
 
   const nodeIndex = useMemo(() => new Map<string, string>(nodes.map((n) => [n.id, getNodeName(n)])), [nodes]);
 
@@ -325,6 +440,9 @@ export default function ElementPanel({
     const allIds = collectAllIds(node.id);
     const allVisible = allIds.every(id => !hiddenNodeIds.has(id));
     const allHidden = allIds.every(id => hiddenNodeIds.has(id));
+    const isDiagramSelected = diagramSelectedNodeId === node.id;
+    const defaultBg = isPkg ? (depth === 0 ? '#28283a' : '#24243a') : 'transparent';
+    const rowBg = isDiagramSelected ? '#2a2a10' : defaultBg;
 
     return (
       <div key={node.id}>
@@ -334,17 +452,17 @@ export default function ElementPanel({
             display: 'flex', alignItems: 'center', gap: 5,
             padding: `4px 8px 4px ${padLeft}px`,
             borderBottom: '1px solid #222',
-            background: isPkg ? (depth === 0 ? '#28283a' : '#24243a') : 'transparent',
+            background: rowBg,
             cursor: 'pointer', userSelect: 'none',
             opacity: visible ? 1 : 0.45,
           }}
-          onMouseEnter={e => { if (!isPkg) e.currentTarget.style.background = '#2a3a4a'; }}
-          onMouseLeave={e => { if (!isPkg) e.currentTarget.style.background = 'transparent'; }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#2a3a4a'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
         >
           {/* Collapse toggle — only for nodes with children */}
           {hasChildren ? (
             <span
-              onClick={() => toggleGroupCollapse(node.id)}
+              onClick={(e) => { e.stopPropagation(); toggleGroupCollapse(node.id); }}
               style={{ color: isPkg ? '#9a9ac0' : '#888', fontSize: 10, width: 10, display: 'inline-block', flexShrink: 0 }}
             >{isCollapsed ? '▶' : '▼'}</span>
           ) : (
@@ -383,12 +501,21 @@ export default function ElementPanel({
 
           {/* Name + kind label */}
           <span
-            onClick={() => hasChildren ? toggleGroupCollapse(node.id) : onToggleNode(node.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onNodeClick) {
+                onNodeClick(node);
+              } else if (hasChildren) {
+                toggleGroupCollapse(node.id);
+              } else {
+                onToggleNode(node.id);
+              }
+            }}
             style={{
               flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               fontFamily: 'monospace', fontSize: 11,
-              color: visible ? (isPkg ? '#c0c0e0' : '#ddd') : '#555',
-              fontWeight: hasChildren ? 600 : 400,
+              color: isDiagramSelected ? '#f0c040' : visible ? (isPkg ? '#c0c0e0' : '#ddd') : '#555',
+              fontWeight: hasChildren || isDiagramSelected ? 600 : 400,
             }}
           >
             {name}
@@ -396,7 +523,7 @@ export default function ElementPanel({
 
           {/* Kind badge */}
           <span style={{
-            fontSize: 9, color: '#666', flexShrink: 0,
+            fontSize: 9, color: isDiagramSelected ? '#f0c040' : '#666', flexShrink: 0,
             background: '#1a1a1a', borderRadius: 3, padding: '0 4px',
           }}>
             {kindLabel}
@@ -458,19 +585,22 @@ export default function ElementPanel({
             const name = getNodeName(node);
             const visible = !hiddenNodeIds.has(node.id);
             const path = containmentPaths.get(node.id) ?? '';
+            const isDiagSel = diagramSelectedNodeId === node.id;
+            const treeBg = isDiagSel ? '#2a2a10' : 'transparent';
 
             return (
               <div
                 key={node.id}
-                onClick={() => onToggleNode(node.id)}
+                onClick={() => onNodeClick ? onNodeClick(node) : onToggleNode(node.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '4px 8px 4px 24px', cursor: 'pointer',
                   borderBottom: '1px solid #222',
+                  background: treeBg,
                   opacity: visible ? 1 : 0.45,
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#2a3a4a')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                onMouseLeave={e => (e.currentTarget.style.background = treeBg)}
               >
                 <input
                   type="checkbox" checked={visible}
@@ -481,7 +611,8 @@ export default function ElementPanel({
                 <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
                   <div style={{
                     fontFamily: 'monospace', fontSize: 11,
-                    color: visible ? '#ddd' : '#555',
+                    color: isDiagSel ? '#f0c040' : visible ? '#ddd' : '#555',
+                    fontWeight: isDiagSel ? 600 : 400,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>{name}</div>
                   {path && (
@@ -516,7 +647,10 @@ export default function ElementPanel({
 
   return (
     <div style={{
-      width: 220, flexShrink: 0, background: '#252526', borderRight: '1px solid #3c3c3c',
+      ...(fillWidth
+        ? { flex: 1, minWidth: 0 }
+        : { width: 220, flexShrink: 0, borderRight: '1px solid #3c3c3c' }),
+      background: '#252526',
       display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 12,
     }}>
       {/* Header */}
@@ -525,10 +659,10 @@ export default function ElementPanel({
         padding: '6px 8px', borderBottom: '1px solid #3c3c3c', background: '#2d2d2d', flexShrink: 0,
       }}>
         <span style={{ color: '#ccc', fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          {tab === 'elements' ? 'Elements' : 'Relations'}
+          {tab === 'elements' ? 'Elements' : tab === 'relationships' ? 'Relations' : 'Views'}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
-          {tab === 'elements' ? (
+          {tab === 'elements' && (
             <>
               <button onClick={() => onToggleAll(true)} title="Show all" style={btnStyle}>All</button>
               <button onClick={() => onToggleAll(false)} title="Hide all" style={btnStyle}>None</button>
@@ -545,7 +679,8 @@ export default function ElementPanel({
                 style={{ ...btnStyle, opacity: allGroupsCollapsed ? 0.3 : 1 }}
               >&#9650;</button>
             </>
-          ) : (
+          )}
+          {tab === 'relationships' && (
             <>
               <button onClick={() => toggleAllEdges(true)} title="Show all" style={btnStyle}>All</button>
               <button onClick={() => toggleAllEdges(false)} title="Hide all" style={btnStyle}>None</button>
@@ -564,20 +699,25 @@ export default function ElementPanel({
         </div>
       </div>
 
+
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '1px solid #3c3c3c', flexShrink: 0 }}>
-        {(['elements', 'relationships'] as Tab[]).map(t => (
+        {([
+          { key: 'elements' as Tab, label: `Elements (${nodes.length})` },
+          { key: 'relationships' as Tab, label: `Relations (${edges.length})` },
+          ...(viewStorageKey ? [{ key: 'views' as Tab, label: `Views (${savedViews.length})` }] : []),
+        ]).map(({ key, label }) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={key}
+            onClick={() => setTab(key)}
             style={{
-              flex: 1, background: tab === t ? '#1e1e1e' : '#2d2d2d',
-              border: 'none', borderBottom: tab === t ? '2px solid #007acc' : '2px solid transparent',
-              color: tab === t ? '#fff' : '#888', cursor: 'pointer',
-              fontSize: 11, padding: '5px 4px', fontWeight: tab === t ? 600 : 400,
+              flex: 1, background: tab === key ? '#1e1e1e' : '#2d2d2d',
+              border: 'none', borderBottom: tab === key ? '2px solid #007acc' : '2px solid transparent',
+              color: tab === key ? '#fff' : '#888', cursor: 'pointer',
+              fontSize: 11, padding: '5px 4px', fontWeight: tab === key ? 600 : 400,
             }}
           >
-            {t === 'elements' ? `Elements (${nodes.length})` : `Relations (${edges.length})`}
+            {label}
           </button>
         ))}
       </div>
@@ -668,19 +808,21 @@ export default function ElementPanel({
                       getEdgeLabel(a, nodeIndex).localeCompare(getEdgeLabel(b, nodeIndex))
                     ).map(edge => {
                       const visible = !hiddenEdgeIds.has(edge.id);
+                      const edgeDiagSel = diagramSelectedEdgeId === edge.id;
+                      const edgeBg = edgeDiagSel ? '#2a2a10' : visible ? 'transparent' : '#1a1a1a';
                       return (
                         <div
                           key={edge.id}
-                          onClick={() => onToggleEdge(edge.id)}
+                          onClick={() => onEdgeClick ? onEdgeClick(edge) : onToggleEdge(edge.id)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '4px 8px 4px 24px', cursor: 'pointer',
                             borderBottom: '1px solid #222',
-                            background: visible ? 'transparent' : '#1a1a1a',
+                            background: edgeBg,
                             opacity: visible ? 1 : 0.45,
                           }}
                           onMouseEnter={e => (e.currentTarget.style.background = '#2a3a4a')}
-                          onMouseLeave={e => (e.currentTarget.style.background = visible ? 'transparent' : '#1a1a1a')}
+                          onMouseLeave={e => (e.currentTarget.style.background = edgeBg)}
                         >
                           <input
                             type="checkbox" checked={visible}
@@ -689,7 +831,8 @@ export default function ElementPanel({
                             style={{ cursor: 'pointer', accentColor: color, flexShrink: 0 }}
                           />
                           <span style={{
-                            color: visible ? '#ccc' : '#555',
+                            color: edgeDiagSel ? '#f0c040' : visible ? '#ccc' : '#555',
+                            fontWeight: edgeDiagSel ? 600 : 400,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             fontFamily: 'monospace', fontSize: 11,
                           }}>
@@ -703,6 +846,166 @@ export default function ElementPanel({
               })}
           </div>
         )
+      )}
+
+      {/* Views tab */}
+      {tab === 'views' && viewStorageKey && (
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {/* Save new view */}
+          <div style={{
+            padding: '8px', borderBottom: '1px solid #3c3c3c',
+            display: 'flex', gap: 4, flexShrink: 0,
+          }}>
+            <input
+              type="text"
+              value={newViewName}
+              onChange={(e) => setNewViewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveCurrentView(); }}
+              placeholder="View name..."
+              style={{
+                flex: 1, background: '#1e1e1e', border: '1px solid #444',
+                borderRadius: 3, color: '#ccc', fontSize: 11, padding: '4px 8px',
+                outline: 'none', minWidth: 0,
+              }}
+            />
+            <button
+              onClick={saveCurrentView}
+              disabled={!newViewName.trim()}
+              title="Save current visibility as a named view"
+              style={{
+                ...btnStyle,
+                opacity: newViewName.trim() ? 1 : 0.4,
+                padding: '3px 8px',
+              }}
+            >
+              Save
+            </button>
+          </div>
+
+          {/* Saved views list */}
+          {savedViews.length === 0 ? (
+            <div style={{ padding: 12, color: '#555', fontStyle: 'italic', fontSize: 11 }}>
+              No saved views yet. Configure element/relation visibility, then save it as a view above.
+            </div>
+          ) : (
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {savedViews
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((view, idx) => {
+                  const isActive = activeViewName === view.name;
+                  const isRenaming = renamingIdx === idx;
+                  const hiddenCount = view.hiddenNodeIds.length + view.hiddenEdgeIds.length;
+
+                  return (
+                    <div
+                      key={view.name}
+                      style={{
+                        padding: '6px 8px',
+                        borderBottom: '1px solid #222',
+                        background: isActive ? '#1a3050' : 'transparent',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#2a3a4a'; }}
+                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {isRenaming ? (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <input
+                            autoFocus
+                            type="text"
+                            value={renameText}
+                            onChange={(e) => setRenameText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') renameView(view.name, renameText);
+                              if (e.key === 'Escape') setRenamingIdx(null);
+                            }}
+                            onBlur={() => setRenamingIdx(null)}
+                            style={{
+                              flex: 1, background: '#1e1e1e', border: '1px solid #007acc',
+                              borderRadius: 3, color: '#ccc', fontSize: 11, padding: '2px 6px',
+                              outline: 'none', minWidth: 0,
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            onClick={() => loadView(view)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            {/* Active indicator */}
+                            <span style={{
+                              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                              background: isActive ? '#007acc' : '#444',
+                            }} />
+                            <span style={{
+                              flex: 1, color: isActive ? '#4dc9f6' : '#ccc',
+                              fontSize: 12, fontWeight: isActive ? 600 : 400,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {view.name}
+                            </span>
+                            <span style={{ fontSize: 9, color: '#666', flexShrink: 0 }}>
+                              {hiddenCount > 0 ? `${hiddenCount} hidden` : 'all visible'}
+                            </span>
+                          </div>
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', gap: 2, marginTop: 4, paddingLeft: 12 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); loadView(view); }}
+                              style={{ ...viewBtnStyle, color: '#4dc9f6' }}
+                              title="Load this view"
+                            >Load</button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateView(view.name); }}
+                              style={{
+                                ...viewBtnStyle,
+                                ...(updatedViewName === view.name
+                                  ? { color: '#4ec9b0', borderColor: '#4ec9b0' }
+                                  : {}),
+                              }}
+                              title="Update with current visibility"
+                            >{updatedViewName === view.name ? 'Updated' : 'Update'}</button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingIdx(idx);
+                                setRenameText(view.name);
+                              }}
+                              style={viewBtnStyle}
+                              title="Rename view"
+                            >Rename</button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteView(view.name); }}
+                              style={{ ...viewBtnStyle, color: '#f08070' }}
+                              title="Delete view"
+                            >Delete</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* Show All button at bottom */}
+          <div style={{ padding: '8px', borderTop: '1px solid #3c3c3c', flexShrink: 0 }}>
+            <button
+              onClick={() => {
+                if (onRestoreView) onRestoreView(new Set(), new Set());
+                setActiveViewName(null);
+              }}
+              style={{
+                width: '100%', padding: '5px 8px',
+                background: '#2d2d30', border: '1px solid #444', borderRadius: 3,
+                color: '#aaa', fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              Show All (reset)
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -718,3 +1021,14 @@ const btnStyle: React.CSSProperties = {
   fontSize: 10,
   lineHeight: '14px',
 };
+
+const viewBtnStyle: React.CSSProperties = {
+  background: 'none',
+  border: '1px solid #333',
+  color: '#888',
+  cursor: 'pointer',
+  borderRadius: 3,
+  padding: '2px 6px',
+  fontSize: 9,
+};
+

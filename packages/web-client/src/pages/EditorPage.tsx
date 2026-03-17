@@ -34,6 +34,10 @@ export default function EditorPage() {
   const [hiddenNodeIds, setHiddenNodeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenNodes`, new Set<string>());
   const [hiddenEdgeIds, setHiddenEdgeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenEdges`, new Set<string>());
 
+  // Cross-selection between diagram and element panel
+  const [diagramSelectedNodeId, setDiagramSelectedNodeId] = useState<string | null>(null);
+  const [diagramSelectedEdgeId, setDiagramSelectedEdgeId] = useState<string | null>(null);
+
   const diagramNodes = (diagram?.children.filter((c): c is SNode => c.type === 'node') ?? []);
   const diagramEdges = (diagram?.children.filter((c): c is SEdge => c.type === 'edge') ?? []);
 
@@ -366,6 +370,10 @@ export default function EditorPage() {
               onToggleAll={toggleAll}
               onToggleEdge={toggleEdge}
               onToggleEdgeGroup={toggleEdgeGroup}
+              viewStorageKey={lsPrefix}
+              onRestoreView={(nodes, edges) => { setHiddenNodeIds(nodes); setHiddenEdgeIds(edges); }}
+              diagramSelectedNodeId={diagramSelectedNodeId}
+              diagramSelectedEdgeId={diagramSelectedEdgeId}
             />
             <DiagramViewer
               model={diagram}
@@ -394,6 +402,14 @@ export default function EditorPage() {
                   setEditorOpen(true);
                 }
               }}
+              onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
+              onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
+              onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+              onHideEdges={(ids) => setHiddenEdgeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+              selectedNodeId={diagramSelectedNodeId}
+              selectedEdgeId={diagramSelectedEdgeId}
+              onSelectedNodeChange={setDiagramSelectedNodeId}
+              onSelectedEdgeChange={setDiagramSelectedEdgeId}
             />
             {aiOpen && (
               <AiAssistant

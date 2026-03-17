@@ -15,9 +15,10 @@ function makeId(prefix: string, name: string): string {
 }
 
 function lineCol(source: string, index: number): { line: number; column: number } {
-  const before = source.slice(0, index);
+  const clamped = Math.max(0, Math.min(index, source.length));
+  const before = source.slice(0, clamped);
   const line = (before.match(/\n/g) ?? []).length + 1;
-  const column = index - before.lastIndexOf('\n');
+  const column = clamped - before.lastIndexOf('\n');
   return { line, column };
 }
 
@@ -215,7 +216,18 @@ const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
 
 // ─── Main parser ─────────────────────────────────────────────────────────────
 
+const MAX_SOURCE_LENGTH = 2_000_000; // 2 MB safety limit
+
 export function parseSysMLText(uri: string, source: string): { model: SysMLModel; diagnostics: DiagramDiagnostic[] } {
+  if (!source || source.length === 0) {
+    return { model: { uri, nodes: [], connections: [] }, diagnostics: [] };
+  }
+  if (source.length > MAX_SOURCE_LENGTH) {
+    return {
+      model: { uri, nodes: [], connections: [] },
+      diagnostics: [{ severity: 'error', message: `Source exceeds maximum size (${MAX_SOURCE_LENGTH} characters)`, line: 1, column: 1 }],
+    };
+  }
   const clean = stripComments(source);
 
   const nodes: SysMLNode[] = [];
@@ -573,6 +585,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: usageKind,
       name: usageName,
       qualifiedName: typeSimple,   // reuse qualifiedName to carry the type name
+      ...(multiplicity ? { multiplicity } : {}),
       children: [],
       attributes: [],
       connections: [],
@@ -874,6 +887,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const { line: uEL, column: uEC } = lineCol(source, uEnd);
       const usageNode: SysMLNode = {
         id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
+        ...(mult ? { multiplicity: mult } : {}),
         children: [], attributes: [], connections: [],
         range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
       };
@@ -1023,7 +1037,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   function ensureSpecialNode(name: string, ownerOffset: number): void {
     if (nodeIndex.has(name)) return;
     const kindMap: Record<string, SysMLNodeKind> = {
-      start: 'ForkNode', done: 'JoinNode', terminate: 'DecideNode',
+      start: 'StartNode', done: 'JoinNode', terminate: 'TerminateNode',
     };
     const kind = kindMap[name] ?? 'ForkNode';
     const id = makeId('control', name);

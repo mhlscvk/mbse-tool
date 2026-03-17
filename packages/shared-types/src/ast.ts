@@ -53,7 +53,9 @@ export type SysMLNodeKind =
   | 'ForkNode'
   | 'JoinNode'
   | 'MergeNode'
-  | 'DecideNode';
+  | 'DecideNode'
+  | 'StartNode'
+  | 'TerminateNode';
 
 export interface SysMLNode {
   id: string;
@@ -62,6 +64,8 @@ export interface SysMLNode {
   qualifiedName?: string;
   direction?: 'in' | 'out' | 'inout';
   isAbstract?: boolean;
+  /** Multiplicity text, e.g. "[4]", "[1..*]", "[0..1]" */
+  multiplicity?: string;
   children: SysMLNode[];
   attributes: SysMLAttribute[];
   connections: SysMLConnection[];

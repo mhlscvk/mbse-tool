@@ -18,14 +18,61 @@ interface DiagramViewerProps {
   onEdgeSelect?: (range: { start: { line: number; character: number }; end: { line: number; character: number } }) => void;
   onHideNode?: (id: string) => void;
   onHideEdge?: (id: string) => void;
+  onHideNodes?: (ids: string[]) => void;
+  onHideEdges?: (ids: string[]) => void;
+  /** Controlled selected node id (synced with external panels) */
+  selectedNodeId?: string | null;
+  /** Controlled selected edge id (synced with external panels) */
+  selectedEdgeId?: string | null;
+  /** Called when user clicks a node in the diagram */
+  onSelectedNodeChange?: (id: string | null) => void;
+  /** Called when user clicks an edge in the diagram */
+  onSelectedEdgeChange?: (id: string | null) => void;
 }
 
 interface ContextMenu {
   x: number;
   y: number;
-  type: 'node' | 'edge';
+  type: 'node' | 'edge' | 'multi';
   id: string;
   label: string;
+  nodeIds?: string[];
+  edgeIds?: string[];
+}
+
+interface SelectionRect {
+  x1: number; y1: number;
+  x2: number; y2: number;
+}
+
+function normalizeRect(r: SelectionRect) {
+  return {
+    x: Math.min(r.x1, r.x2),
+    y: Math.min(r.y1, r.y2),
+    w: Math.abs(r.x2 - r.x1),
+    h: Math.abs(r.y2 - r.y1),
+  };
+}
+
+function rectsIntersect(
+  ax: number, ay: number, aw: number, ah: number,
+  bx: number, by: number, bw: number, bh: number,
+) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function SelectionRectOverlay({ rect, scale }: { rect: SelectionRect; scale: number }) {
+  const r = normalizeRect(rect);
+  return (
+    <rect
+      x={r.x} y={r.y} width={r.w} height={r.h}
+      fill="rgba(30,120,220,0.12)"
+      stroke="#4a9eff"
+      strokeWidth={1.5 / scale}
+      strokeDasharray={`${6 / scale},${3 / scale}`}
+      pointerEvents="none"
+    />
+  );
 }
 
 const LAYOUT_PADDING = 48;
@@ -84,6 +131,8 @@ const NODE_COLORS: Record<string, string> = {
   joinnode:                    '#4a4a4a',
   mergenode:                   '#3a3a2a',
   decidenode:                  '#3a3a2a',
+  startnode:                   '#222222',
+  terminatenode:               '#3a3a3a',
   transitionusage:             '#2a2a2a',
   stdlib:               '#0a2018',
   default:              '#252525',
@@ -136,6 +185,9 @@ const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 
 
 export default function DiagramViewer({
   model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onEdgeSelect, onHideNode, onHideEdge,
+  onHideNodes, onHideEdges,
+  selectedNodeId: controlledNodeId, selectedEdgeId: controlledEdgeId,
+  onSelectedNodeChange, onSelectedEdgeChange,
 }: DiagramViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -146,6 +198,13 @@ export default function DiagramViewer({
   const dragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
 
+  // Multi-selection state
+  const [multiSelectedNodeIds, setMultiSelectedNodeIds] = useState<Set<string>>(new Set());
+  const selecting = useRef(false);
+  const selectionBoundsRef = useRef<DOMRect | null>(null);
+  const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
+  const selectionRectRef = useRef<SelectionRect | null>(null);
+
   const [sizeOverrides, setSizeOverrides] = useLocalStorage<Map<string, { w: number; h: number }>>(
     storageKey ? `${storageKey}:sizes` : '',
     new Map(),
@@ -155,7 +214,12 @@ export default function DiagramViewer({
     new Map(),
   );
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [internalSelectedNodeId, setInternalSelectedNodeId] = useState<string | null>(null);
+  const [internalSelectedEdgeId, setInternalSelectedEdgeId] = useState<string | null>(null);
+
+  // Use controlled props if provided, otherwise internal state
+  const selectedNodeId = controlledNodeId !== undefined ? controlledNodeId : internalSelectedNodeId;
+  const selectedEdgeId = controlledEdgeId !== undefined ? controlledEdgeId : internalSelectedEdgeId;
 
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [layoutPending, setLayoutPending] = useState(false);
@@ -197,6 +261,18 @@ export default function DiagramViewer({
     );
   }, [allEdges, nodes, hiddenEdgeIds]);
 
+  // Auto-derive multi-selected edges: edges where both endpoints are multi-selected
+  const multiSelectedEdgeIds = useMemo(() => {
+    if (multiSelectedNodeIds.size === 0) return new Set<string>();
+    const edgeIds = new Set<string>();
+    for (const e of edges) {
+      if (multiSelectedNodeIds.has(e.sourceId) && multiSelectedNodeIds.has(e.targetId)) {
+        edgeIds.add(e.id);
+      }
+    }
+    return edgeIds;
+  }, [multiSelectedNodeIds, edges]);
+
   // Derive parent-child relationships directly from composition edges.
   // Each composition edge means: source owns target (target is nested inside source).
   const parentOf = useMemo(() => {
@@ -221,10 +297,31 @@ export default function DiagramViewer({
 
   const effectiveSize = useCallback((node: SNode) => {
     const override = sizeOverrides.get(node.id);
-    return {
-      w: override ? override.w : node.size.width,
-      h: override ? Math.max(override.h, node.size.height) : node.size.height,
-    };
+    if (override) {
+      return { w: override.w, h: Math.max(override.h, node.size.height) };
+    }
+
+    // Dynamically compute size based on content labels
+    const kindLabel = node.children.find((c) => c.id.endsWith('__kind'));
+    const nameLabel = node.children.find((c) => c.id.endsWith('__label'));
+    const attrLabels = node.children.filter((c) => c.id.includes('__usage__'));
+
+    if (attrLabels.length > 0) {
+      const HEADER_H = 48;
+      const ROW_H = 18;
+      const h = HEADER_H + 6 + attrLabels.length * ROW_H + 4;
+      const nameW = (nameLabel?.text.length ?? 0) * 8 + 24;
+      const kindW = (kindLabel?.text.length ?? 0) * 6.2 + 24;
+      const attrW = Math.max(...attrLabels.map((l) => l.text.length * 6.2 + 24));
+      const w = Math.max(node.size.width, nameW, kindW, attrW);
+      return { w, h };
+    }
+
+    // Non-compartment nodes: fit name and kind text
+    const nameW = (nameLabel?.text.length ?? 0) * 8 + 24;
+    const kindW = (kindLabel?.text.length ?? 0) * 6.2 + 24;
+    const w = Math.max(node.size.width, nameW, kindW);
+    return { w, h: node.size.height };
   }, [sizeOverrides]);
 
 
@@ -271,6 +368,25 @@ export default function DiagramViewer({
       // ── Nested View: compound ELK layout (recursive, respects expand state) ──
       const elkVisibleIds = visibleNodeIds ?? new Set(nodes.map(n => n.id));
 
+      // Behavioural container kinds: use DOWN direction + succession edges for flow ordering
+      const BEHAVIOURAL_KINDS = new Set([
+        'actiondefinition', 'actionusage', 'statedefinition', 'stateusage',
+      ]);
+
+      // Index flow edges by parent container for behavioural containers
+      const flowEdgesByParent = new Map<string, Array<{ id: string; sources: string[]; targets: string[] }>>();
+      for (const e of allEdges) {
+        if (e.cssClasses?.[0] !== 'flow') continue;
+        // Both source and target must share the same parent container
+        const srcParent = parentOf.get(e.sourceId);
+        const tgtParent = parentOf.get(e.targetId);
+        if (srcParent && srcParent === tgtParent && elkVisibleIds.has(e.sourceId) && elkVisibleIds.has(e.targetId)) {
+          const arr = flowEdgesByParent.get(srcParent) ?? [];
+          arr.push({ id: e.id, sources: [e.sourceId], targets: [e.targetId] });
+          flowEdgesByParent.set(srcParent, arr);
+        }
+      }
+
       const visiting = new Set<string>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       function buildElkNode(nodeId: string): any {
@@ -283,20 +399,32 @@ export default function DiagramViewer({
 
         if (childIds.length > 0) {
           const isPkgNode = cssClass === 'package';
+          const isBehavioural = BEHAVIOURAL_KINDS.has(cssClass);
+          // Behavioural containers flow top-to-bottom like activity diagrams
+          const isDownLayout = isPkgNode || isBehavioural;
           const minW = Math.max(w, 140);
           const minH = Math.max(h, isPkgNode ? 80 : 70);
+
+          // Collect internal flow edges for behavioural containers (successions)
+          const internalEdges = isBehavioural ? (flowEdgesByParent.get(nodeId) ?? []) : [];
+
           const result = {
             id: nodeId,
             layoutOptions: {
-              'elk.padding': `[top=${isPkgNode ? 48 : 44},left=${isPkgNode ? 20 : 28},bottom=${isPkgNode ? 20 : 16},right=${isPkgNode ? 20 : 16}]`,
+              'elk.padding': `[top=${isPkgNode ? 48 : 44},left=${isPkgNode ? 20 : isBehavioural ? 24 : 28},bottom=${isPkgNode ? 20 : 16},right=${isPkgNode ? 20 : isBehavioural ? 24 : 16}]`,
               'elk.algorithm': 'layered',
-              'elk.direction': isPkgNode ? 'DOWN' : 'RIGHT',
-              'elk.spacing.nodeNode': isPkgNode ? '30' : '20',
-              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : '20',
+              'elk.direction': isDownLayout ? 'DOWN' : 'RIGHT',
+              'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? '24' : '20',
+              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? '32' : '20',
+              ...(isBehavioural ? {
+                'elk.edgeRouting': 'ORTHOGONAL',
+                'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+              } : {}),
               'elk.nodeSize.constraints': 'MINIMUM_SIZE',
               'elk.nodeSize.minimum': `(${minW},${minH})`,
             },
             children: childIds.map(cId => buildElkNode(cId)),
+            ...(internalEdges.length > 0 ? { edges: internalEdges } : {}),
           };
           visiting.delete(nodeId);
           return result;
@@ -459,19 +587,45 @@ export default function DiagramViewer({
     return { x: (src.x + tgt.x) / 2, y: (src.y + tgt.y) / 2 };
   };
 
+  const clearSelection = useCallback(() => {
+    if (multiSelectedNodeIds.size > 0) setMultiSelectedNodeIds(new Set());
+    setInternalSelectedNodeId(null);
+    setInternalSelectedEdgeId(null);
+    if (onSelectedNodeChange) onSelectedNodeChange(null);
+    if (onSelectedEdgeChange) onSelectedEdgeChange(null);
+  }, [multiSelectedNodeIds.size, onSelectedNodeChange, onSelectedEdgeChange]);
+
   const onNodeClick = useCallback((e: React.MouseEvent, node: SNode) => {
     e.stopPropagation();
-    setSelectedNodeId(node.id);
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd+click: toggle node in/out of multi-selection
+      setMultiSelectedNodeIds(prev => {
+        const next = new Set(prev);
+        if (next.has(node.id)) next.delete(node.id); else next.add(node.id);
+        return next;
+      });
+      return;
+    }
+    if (multiSelectedNodeIds.size > 0) setMultiSelectedNodeIds(new Set());
+    setInternalSelectedNodeId(node.id);
+    setInternalSelectedEdgeId(null);
+    if (onSelectedNodeChange) onSelectedNodeChange(node.id);
+    if (onSelectedEdgeChange) onSelectedEdgeChange(null);
     if (onNodeSelect) {
       const range = node.data?.range as
         | { start: { line: number; character: number }; end: { line: number; character: number } }
         | undefined;
       if (range) onNodeSelect(range);
     }
-  }, [onNodeSelect]);
+  }, [onNodeSelect, onSelectedNodeChange, onSelectedEdgeChange, multiSelectedNodeIds.size]);
 
   const onEdgeClick = useCallback((e: React.MouseEvent, edge: SEdge) => {
     e.stopPropagation();
+    if (multiSelectedNodeIds.size > 0) setMultiSelectedNodeIds(new Set());
+    setInternalSelectedEdgeId(edge.id);
+    setInternalSelectedNodeId(null);
+    if (onSelectedEdgeChange) onSelectedEdgeChange(edge.id);
+    if (onSelectedNodeChange) onSelectedNodeChange(null);
     if (onEdgeSelect) {
       // Try edge's own data range first, then fall back to source node's range
       const edgeRange = (edge as SEdge & { data?: Record<string, unknown> }).data?.range as
@@ -490,18 +644,87 @@ export default function DiagramViewer({
         if (range) onEdgeSelect(range);
       }
     }
-  }, [onEdgeSelect, allNodes]);
+  }, [onEdgeSelect, allNodes, onSelectedEdgeChange, onSelectedNodeChange, multiSelectedNodeIds.size]);
+
+  const screenToDiagram = useCallback((clientX: number, clientY: number) => {
+    const t = transformRef.current;
+    return { x: (clientX - t.x) / t.scale, y: (clientY - t.y) / t.scale };
+  }, []);
 
   const onSvgMouseDown = (e: React.MouseEvent) => {
     setContextMenu(null);
+    // Only handle left mouse button for drag/selection
+    if (e.button !== 0) return;
+    if (e.shiftKey) {
+      // Shift+drag: start rubber-band selection
+      const svg = svgRef.current;
+      if (!svg) return;
+      const bounds = svg.getBoundingClientRect();
+      selectionBoundsRef.current = bounds;
+      const pt = screenToDiagram(e.clientX - bounds.left, e.clientY - bounds.top);
+      selecting.current = true;
+      const selRect = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
+      selectionRectRef.current = selRect;
+      setSelectionRect(selRect);
+      return;
+    }
     dragging.current = true;
     dragStart.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
   };
   const onSvgMouseMove = (e: React.MouseEvent) => {
+    if (selecting.current) {
+      const bounds = selectionBoundsRef.current;
+      if (!bounds) return;
+      const pt = screenToDiagram(e.clientX - bounds.left, e.clientY - bounds.top);
+      setSelectionRect(prev => {
+        if (!prev) return null;
+        const next = { ...prev, x2: pt.x, y2: pt.y };
+        selectionRectRef.current = next;
+        return next;
+      });
+      return;
+    }
     if (!dragging.current) return;
     setTransform((t) => ({ ...t, x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y }));
   };
-  const onSvgMouseUp = () => { dragging.current = false; };
+  const onSvgMouseUp = (e: React.MouseEvent) => {
+    if (selecting.current) {
+      selecting.current = false;
+      selectionBoundsRef.current = null;
+      const finalRect = selectionRectRef.current;
+      if (finalRect) {
+        const sel = normalizeRect(finalRect);
+        // Only count as selection if dragged a meaningful distance
+        if (sel.w > 5 || sel.h > 5) {
+          const hitNodeIds = new Set<string>();
+          for (const node of nodes) {
+            const pos = nodePos(node.id);
+            const sz = nodeSz(node.id);
+            if (rectsIntersect(sel.x, sel.y, sel.w, sel.h, pos.x, pos.y, sz.w, sz.h)) {
+              hitNodeIds.add(node.id);
+            }
+          }
+          setMultiSelectedNodeIds(hitNodeIds);
+          setInternalSelectedNodeId(null);
+          setInternalSelectedEdgeId(null);
+          if (onSelectedNodeChange) onSelectedNodeChange(null);
+          if (onSelectedEdgeChange) onSelectedEdgeChange(null);
+        }
+      }
+      selectionRectRef.current = null;
+      setSelectionRect(null);
+      return;
+    }
+    if (dragging.current) {
+      dragging.current = false;
+      // If it was a plain click (no meaningful drag), clear all selection
+      const dx = Math.abs(e.clientX - (dragStart.current.x + transform.x));
+      const dy = Math.abs(e.clientY - (dragStart.current.y + transform.y));
+      if (dx < 3 && dy < 3) {
+        clearSelection();
+      }
+    }
+  };
   const onWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -609,13 +832,21 @@ export default function DiagramViewer({
       </div>
       <svg
         ref={svgRef}
-        style={{ width: '100%', height: '100%', background: '#1e1e1e', cursor: dragging.current ? 'grabbing' : 'default' }}
+        style={{ width: '100%', height: '100%', background: '#1e1e1e', cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default' }}
         onMouseDown={onSvgMouseDown}
         onMouseMove={onSvgMouseMove}
         onMouseUp={onSvgMouseUp}
-        onMouseLeave={onSvgMouseUp}
+        onMouseLeave={(e) => onSvgMouseUp(e)}
         onWheel={onWheel}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // Right-click on background with multi-selection: show batch hide menu
+          if (multiSelectedNodeIds.size > 0) {
+            const nIds = [...multiSelectedNodeIds];
+            const eIds = [...multiSelectedEdgeIds];
+            setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
+          }
+        }}
       >
         <defs>
           {/* ── Subclassification: hollow triangle at general end ── */}
@@ -668,13 +899,20 @@ export default function DiagramViewer({
             const c = edgeCenter(edge);
             const label = edge.children[0];
             const edgeLabel = label?.text || kind;
+            const isEdgeSelected = selectedEdgeId === edge.id || multiSelectedEdgeIds.has(edge.id);
             return (
               <g key={edge.id}
                 onClick={(e) => onEdgeClick(e, edge)}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
+                  if (multiSelectedEdgeIds.has(edge.id) || multiSelectedNodeIds.size > 0) {
+                    const nIds = [...multiSelectedNodeIds];
+                    const eIds = [...multiSelectedEdgeIds];
+                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
+                  } else {
+                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
+                  }
                 }}>
                 {/* Invisible wide hit area for click and right-click */}
                 <path
@@ -684,10 +922,21 @@ export default function DiagramViewer({
                   fill="none"
                   style={{ cursor: 'pointer' }}
                 />
+                {/* Selection glow */}
+                {isEdgeSelected && (
+                  <path
+                    d={edgePath(edge)}
+                    stroke="#f0c040"
+                    strokeWidth={4}
+                    strokeDasharray={style.dash}
+                    fill="none"
+                    opacity={0.35}
+                  />
+                )}
                 <path
                   d={edgePath(edge)}
-                  stroke={style.stroke}
-                  strokeWidth={1.5}
+                  stroke={isEdgeSelected ? '#f0c040' : style.stroke}
+                  strokeWidth={isEdgeSelected ? 2 : 1.5}
                   strokeDasharray={style.dash}
                   fill="none"
                   {...(style.markerEnd ? { markerEnd: style.markerEnd } : {})}
@@ -711,7 +960,7 @@ export default function DiagramViewer({
             const { w, h }   = nodeSz(node.id);
             const pos        = nodePos(node.id);
             const isHovered   = hoveredNodeId === node.id;
-            const isSelected  = selectedNodeId === node.id;
+            const isSelected  = selectedNodeId === node.id || multiSelectedNodeIds.has(node.id);
             const hasChildren = (childrenOf.get(node.id)?.length ?? 0) > 0;
             const isContainer = viewMode === 'nested' && hasChildren;
             const isPkg = isPackage(cssClass);
@@ -722,7 +971,13 @@ export default function DiagramViewer({
             const onNodeContextMenu = (e: React.MouseEvent) => {
               e.preventDefault();
               e.stopPropagation();
-              setContextMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id, label: nodeName });
+              if (multiSelectedNodeIds.has(node.id)) {
+                const nIds = [...multiSelectedNodeIds];
+                const eIds = [...multiSelectedEdgeIds];
+                setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
+              } else {
+                setContextMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id, label: nodeName });
+              }
             };
 
             // ── SysML v2 Package: always tab-rectangle notation ──
@@ -848,50 +1103,123 @@ export default function DiagramViewer({
               );
             }
 
+            // ── Start node: filled black circle ──
+            if (cssClass === 'startnode') {
+              const r = Math.min(w, h) / 2;
+              const cx = w / 2, cy = h / 2;
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#888';
+              return (
+                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}>
+                  <circle cx={cx} cy={cy} r={r} fill="#ccc" stroke={borderColor} strokeWidth={1.5} />
+                </g>
+              );
+            }
+
+            // ── Terminate node: circle with X cross ──
+            if (cssClass === 'terminatenode') {
+              const r = Math.min(w, h) / 2;
+              const cx = w / 2, cy = h / 2;
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#888';
+              const crossColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#aaa';
+              const d = r * 0.6;
+              return (
+                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke={borderColor} strokeWidth={1.5} />
+                  <line x1={cx - d} y1={cy - d} x2={cx + d} y2={cy + d} stroke={crossColor} strokeWidth={1.5} />
+                  <line x1={cx + d} y1={cy - d} x2={cx - d} y2={cy + d} stroke={crossColor} strokeWidth={1.5} />
+                </g>
+              );
+            }
+
             // ── Leaf / tree-mode node: SysML v2 two-compartment box ──
             // Definitions: sharp corners (rx=0), Usages: rounded corners (rx=10)
-            return (
-              <g
-                key={node.id}
-                transform={`translate(${pos.x},${pos.y})`}
-                onClick={(e) => onNodeClick(e, node)}
-                onContextMenu={onNodeContextMenu}
-                onMouseEnter={() => setHoveredNodeId(node.id)}
-                onMouseLeave={() => setHoveredNodeId(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                {(() => {
-                  const isIn    = cssClass === 'actionin';
-                  const isOut   = cssClass === 'actionout';
-                  const isInOut = cssClass === 'actioninout';
-                  const isParam = isIn || isOut || isInOut;
-                  const borderColor = isSelected ? '#f0c040' : isHovered
-                    ? (isIn ? '#60ffb0' : isOut ? '#ffb060' : isInOut ? '#60b0ff' : '#4d9ad4')
-                    : (isIn ? '#30a060' : isOut ? '#a06020' : isInOut ? '#2060a0' : '#4a5a7a');
-                  return (
+            {
+              const isIn    = cssClass === 'actionin';
+              const isOut   = cssClass === 'actionout';
+              const isInOut = cssClass === 'actioninout';
+              const isParam = isIn || isOut || isInOut;
+              const borderColor = isSelected ? '#f0c040' : isHovered
+                ? (isIn ? '#60ffb0' : isOut ? '#ffb060' : isInOut ? '#60b0ff' : '#4d9ad4')
+                : (isIn ? '#30a060' : isOut ? '#a06020' : isInOut ? '#2060a0' : '#4a5a7a');
+
+              // Compartment labels (attributes/usages inside definitions)
+              const attrLabels = node.children.filter((c) => c.id.includes('__usage__'));
+              const HEADER_H = 48;
+              const ROW_H = 18;
+              const hasCompartment = attrLabels.length > 0;
+              // Dynamically compute height: header + compartment rows
+              const dynamicH = hasCompartment
+                ? HEADER_H + 6 + attrLabels.length * ROW_H + 4
+                : h;
+              // Width: fit longest label
+              const attrTextWidths = attrLabels.map((l) => l.text.length * 6.2 + 24);
+              const nameTextW = (nameLabel?.text.length ?? 0) * 8 + 24;
+              const kindTextW = (kindLabel?.text.length ?? 0) * 6.2 + 24;
+              const dynamicW = hasCompartment
+                ? Math.max(w, nameTextW, kindTextW, ...attrTextWidths)
+                : Math.max(w, nameTextW, kindTextW);
+
+              return (
+                <g
+                  key={node.id}
+                  transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <rect width={dynamicW} height={dynamicH} rx={rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
+                  {isSelected && <rect width={dynamicW} height={dynamicH} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
+                  {/* Header separator */}
+                  <line x1={0} y1={26} x2={dynamicW} y2={26} stroke={borderColor} strokeWidth={0.5} />
+                  {/* Direction badge for action in/out/inout params */}
+                  {isParam && (
+                    <text x={6} y={17} fill={isIn ? '#40c080' : isOut ? '#c07030' : '#4090c0'} fontSize={10} fontWeight="bold">
+                      {isIn ? '▶ in' : isOut ? '◀ out' : '◆ inout'}
+                    </text>
+                  )}
+                  {!isParam && kindLabel && (
+                    <text x={dynamicW / 2} y={17} fill="#b0c0d8" fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
+                  )}
+                  {nameLabel && (
+                    <text x={dynamicW / 2} y={42} fill="#e8eef6" fontSize={13} textAnchor="middle" fontWeight="bold">{nameLabel.text}</text>
+                  )}
+                  {/* Compartment: attribute/usage rows */}
+                  {hasCompartment && (
                     <>
-                      <rect width={w} height={h} rx={rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
-                      {isSelected && <rect width={w} height={h} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
-                      <line x1={0} y1={26} x2={w} y2={26} stroke={borderColor} strokeWidth={0.5} />
-                      {/* Direction badge for action in/out/inout params */}
-                      {isParam && (
-                        <text x={6} y={17} fill={isIn ? '#40c080' : isOut ? '#c07030' : '#4090c0'} fontSize={10} fontWeight="bold">
-                          {isIn ? '▶ in' : isOut ? '◀ out' : '◆ inout'}
+                      <line x1={0} y1={HEADER_H} x2={dynamicW} y2={HEADER_H} stroke={borderColor} strokeWidth={0.5} />
+                      {attrLabels.map((label, i) => (
+                        <text
+                          key={label.id}
+                          x={8}
+                          y={HEADER_H + 6 + (i + 1) * ROW_H - 4}
+                          fill="#b0c8e0"
+                          fontSize={10}
+                          fontFamily="monospace"
+                        >
+                          {label.text}
                         </text>
-                      )}
-                      {!isParam && kindLabel && (
-                        <text x={w / 2} y={17} fill="#b0c0d8" fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
-                      )}
+                      ))}
                     </>
-                  );
-                })()}
-                {nameLabel && (
-                  <text x={w / 2} y={42} fill="#e8eef6" fontSize={13} textAnchor="middle" fontWeight="bold">{nameLabel.text}</text>
-                )}
-              </g>
-            );
+                  )}
+                </g>
+              );
+            }
           })}
 
+          {/* Rubber-band selection rectangle */}
+          {selectionRect && <SelectionRectOverlay rect={selectionRect} scale={transform.scale} />}
         </g>
 
         {/* SysML v2 General View Legend */}
@@ -932,37 +1260,74 @@ export default function DiagramViewer({
         </g>
       </svg>
 
-      {/* Right-click context menu */}
+      {/* Right-click context menu (with backdrop for click-outside dismiss) */}
       {contextMenu && (
-        <div
-          style={{
-            position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 100,
-            background: '#252526', border: '1px solid #454545', borderRadius: 4,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)', padding: '4px 0',
-            minWidth: 160, fontSize: 12, color: '#d4d4d4',
-          }}
-          onMouseLeave={() => setContextMenu(null)}
-        >
-          <div style={{ padding: '4px 12px', color: '#888', fontSize: 10, borderBottom: '1px solid #333', marginBottom: 2 }}>
-            {contextMenu.type === 'node' ? 'Element' : 'Relationship'}: {contextMenu.label}
-          </div>
-          <button
-            onClick={() => {
-              if (contextMenu.type === 'node' && onHideNode) onHideNode(contextMenu.id);
-              if (contextMenu.type === 'edge' && onHideEdge) onHideEdge(contextMenu.id);
-              setContextMenu(null);
-            }}
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+          />
+          <div
             style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              padding: '6px 12px', background: 'none', border: 'none',
-              color: '#d4d4d4', cursor: 'pointer', textAlign: 'left', fontSize: 12,
+              position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 100,
+              background: '#252526', border: '1px solid #454545', borderRadius: 4,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.5)', padding: '4px 0',
+              minWidth: 160, fontSize: 12, color: '#d4d4d4',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#094771')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
           >
-            <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {contextMenu.type === 'node' ? 'element' : 'relationship'}
-          </button>
-        </div>
+            {contextMenu.type === 'multi' ? (
+              <>
+                <div style={{ padding: '4px 12px', color: '#888', fontSize: 10, borderBottom: '1px solid #333', marginBottom: 2 }}>
+                  {(contextMenu.nodeIds?.length ?? 0) + (contextMenu.edgeIds?.length ?? 0)} selected items
+                </div>
+                <button
+                  onClick={() => {
+                    const nIds = contextMenu.nodeIds ?? [];
+                    const eIds = contextMenu.edgeIds ?? [];
+                    setContextMenu(null);
+                    if (nIds.length > 0 && onHideNodes) onHideNodes(nIds);
+                    if (eIds.length > 0 && onHideEdges) onHideEdges(eIds);
+                    setMultiSelectedNodeIds(new Set());
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '6px 12px', background: 'none', border: 'none',
+                    color: '#d4d4d4', cursor: 'pointer', textAlign: 'left', fontSize: 12,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#094771')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {(contextMenu.nodeIds?.length ?? 0) + (contextMenu.edgeIds?.length ?? 0)} selected items
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ padding: '4px 12px', color: '#888', fontSize: 10, borderBottom: '1px solid #333', marginBottom: 2 }}>
+                  {contextMenu.type === 'node' ? 'Element' : 'Relationship'}: {contextMenu.label}
+                </div>
+                <button
+                  onClick={() => {
+                    const id = contextMenu.id;
+                    const type = contextMenu.type;
+                    setContextMenu(null);
+                    if (type === 'node' && onHideNode) onHideNode(id);
+                    if (type === 'edge' && onHideEdge) onHideEdge(id);
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '6px 12px', background: 'none', border: 'none',
+                    color: '#d4d4d4', cursor: 'pointer', textAlign: 'left', fontSize: 12,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#094771')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {contextMenu.type === 'node' ? 'element' : 'relationship'}
+                </button>
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

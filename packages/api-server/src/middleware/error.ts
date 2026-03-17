@@ -15,17 +15,22 @@ export function errorHandler(
 
   // Never leak Prisma/DB internals or stack traces in production
   let message: string;
+  let errorType: string;
+
   if (statusCode === 500) {
     console.error('[API Error]', err);
     message = isDev ? err.message : 'Internal server error';
+    errorType = isDev ? (err.name ?? 'Error') : 'Error';
   } else if (err.name === 'ZodError') {
     message = 'Validation failed';
+    errorType = 'ValidationError';
   } else {
     message = isDev ? err.message : 'Request failed';
+    errorType = isDev ? (err.name ?? 'Error') : 'Error';
   }
 
   res.status(statusCode).json({
-    error: err.name === 'ZodError' ? 'ValidationError' : (err.name ?? 'Error'),
+    error: errorType,
     message,
     statusCode,
   });

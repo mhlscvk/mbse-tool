@@ -1,19 +1,62 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { diagramClient } from '../services/diagram-client.js';
 import MonacoEditor from '../components/Editor/MonacoEditor.js';
+import type { MonacoEditorHandle } from '../components/Editor/MonacoEditor.js';
 import DiagramViewer from '../components/Diagram/DiagramViewer.js';
+import ElementPanel from '../components/Diagram/ElementPanel.js';
 import LegendPanel from '../components/Training/LegendPanel.js';
 import TaskCard from '../components/Training/TaskCard.js';
 import { TRAINING_TASKS, TOTAL_LEVELS, COMPLETED_CODE } from '../training/tasks.js';
-import type { SModelRoot } from '@systemodel/shared-types';
+import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 import type { ValidationResult } from '../training/tasks.js';
 
 const TRAINING_URI = 'training://vehicle';
+const STORAGE_KEY_INDEX = 'training:taskIndex';
+const STORAGE_KEY_COMPLETED = 'training:completedTasks';
+const STORAGE_KEY_CODES = 'training:taskCodes';
+
+type SourceRange = { start: { line: number; character: number }; end: { line: number; character: number } };
+
+// ─── Persistence helpers ──────────────────────────────────────────────────────
+
+function loadProgress(): {
+  taskIndex: number;
+  completedTasks: Set<number>;
+  taskCodes: Record<number, string>;
+} {
+  try {
+    const idx = parseInt(localStorage.getItem(STORAGE_KEY_INDEX) || '0', 10);
+    const taskIndex = Number.isNaN(idx) ? 0 : Math.min(idx, TRAINING_TASKS.length - 1);
+
+    const completedRaw = localStorage.getItem(STORAGE_KEY_COMPLETED);
+    const completedArr: number[] = completedRaw ? JSON.parse(completedRaw) : [];
+    const completedTasks = new Set(completedArr);
+
+    const codesRaw = localStorage.getItem(STORAGE_KEY_CODES);
+    const taskCodes: Record<number, string> = codesRaw ? JSON.parse(codesRaw) : {};
+
+    return { taskIndex, completedTasks, taskCodes };
+  } catch {
+    return { taskIndex: 0, completedTasks: new Set(), taskCodes: {} };
+  }
+}
+
+function saveTaskIndex(index: number) {
+  localStorage.setItem(STORAGE_KEY_INDEX, String(index));
+}
+
+function saveCompletedTasks(completed: Set<number>) {
+  localStorage.setItem(STORAGE_KEY_COMPLETED, JSON.stringify([...completed]));
+}
+
+function saveTaskCodes(codes: Record<number, string>) {
+  localStorage.setItem(STORAGE_KEY_CODES, JSON.stringify(codes));
+}
 
 // ─── Completion screen ────────────────────────────────────────────────────────
 
-function CompletionScreen({ onRestart }: { onRestart: () => void }) {
+function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onReview: () => void }) {
   const navigate = useNavigate();
   return (
     <div style={{
@@ -29,11 +72,24 @@ function CompletionScreen({ onRestart }: { onRestart: () => void }) {
         fontSize: 14, color: '#888', maxWidth: 480,
         textAlign: 'center', lineHeight: 1.7,
       }}>
-        You built a complete SysML v2 General View from scratch — part definitions,
-        attributes, specialization, composition, subsetting, redefinition, ports,
-        and items. These are the foundations of every SysML v2 model.
+        You completed 100 training tasks covering the full SysML v2 language — part definitions,
+        attributes, specialization, composition, subsetting, redefinition, ports, items,
+        enumerations, actions, states, requirements, constraints, calculations, packages,
+        use cases, allocation, views, and viewpoints. You are ready to model any system.
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+        <button
+          onClick={onReview}
+          style={{
+            background: '#3c3c3c', border: '1px solid #555',
+            borderRadius: 4, color: '#ccc',
+            padding: '10px 20px', cursor: 'pointer', fontSize: 13,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#4a4a4a'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c'; }}
+        >
+          Review Tasks
+        </button>
         <button
           onClick={onRestart}
           style={{
@@ -67,74 +123,231 @@ function CompletionScreen({ onRestart }: { onRestart: () => void }) {
 
 export default function TrainingPage() {
   const navigate = useNavigate();
-  const [taskIndex, setTaskIndex] = useState(0);
-  const [code, setCode] = useState(TRAINING_TASKS[0].starterCode);
+  const monacoRef = useRef<MonacoEditorHandle>(null);
+
+  // Load saved progress on mount
+  const saved = useRef(loadProgress());
+
+  const [taskIndex, setTaskIndex] = useState(saved.current.taskIndex);
+  const [completedTasks, setCompletedTasks] = useState<Set<number>>(saved.current.completedTasks);
+  const [taskCodes, setTaskCodes] = useState<Record<number, string>>(saved.current.taskCodes);
+
+  const initialTask = TRAINING_TASKS[saved.current.taskIndex];
+  const initialCode = saved.current.taskCodes[saved.current.taskIndex] ?? initialTask.starterCode;
+
+  const [code, setCode] = useState(initialCode);
   const [diagram, setDiagram] = useState<SModelRoot | null>(null);
   const [lastResult, setLastResult] = useState<ValidationResult | null>(null);
   const [completed, setCompleted] = useState(false);
   const [viewMode, setViewMode] = useState<'nested' | 'tree'>('nested');
 
+  // Visibility toggles for ElementPanel
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const [hiddenEdgeIds, setHiddenEdgeIds] = useState<Set<string>>(new Set());
+
+  // Cross-selection between diagram and element panel
+  const [diagramSelectedNodeId, setDiagramSelectedNodeId] = useState<string | null>(null);
+  const [diagramSelectedEdgeId, setDiagramSelectedEdgeId] = useState<string | null>(null);
+
+  // Left sidebar tab: legend vs elements
+  const [leftTab, setLeftTab] = useState<'task' | 'elements'>('task');
+
   const task = TRAINING_TASKS[Math.min(taskIndex, TRAINING_TASKS.length - 1)];
   const currentLevel = task.level;
+
+  // Extract nodes and edges from diagram model
+  const allNodes = useMemo(
+    () => diagram?.children.filter((c): c is SNode => c.type === 'node') ?? [],
+    [diagram],
+  );
+  const allEdges = useMemo(
+    () => diagram?.children.filter((c): c is SEdge => c.type === 'edge') ?? [],
+    [diagram],
+  );
+
+  // ── Persist progress ────────────────────────────────────────────────────────
+  useEffect(() => {
+    saveTaskIndex(taskIndex);
+  }, [taskIndex]);
+
+  useEffect(() => {
+    saveCompletedTasks(completedTasks);
+  }, [completedTasks]);
+
+  useEffect(() => {
+    saveTaskCodes(taskCodes);
+  }, [taskCodes]);
 
   // ── Diagram service connection ──────────────────────────────────────────────
   useEffect(() => {
     diagramClient.connect();
     const unsub = diagramClient.onModel((model) => setDiagram(model));
     const unsubClear = diagramClient.onClear(() => setDiagram(null));
-    diagramClient.sendText(TRAINING_URI, TRAINING_TASKS[0].starterCode);
+    diagramClient.sendText(TRAINING_URI, initialCode);
     return () => {
       unsub();
       unsubClear();
       diagramClient.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load new task ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (taskIndex === 0) return; // initial code already set above
-    const newCode = TRAINING_TASKS[taskIndex].starterCode;
-    setCode(newCode);
+  // ── Navigate to source range in editor ──────────────────────────────────────
+  const revealRange = useCallback((range: SourceRange) => {
+    monacoRef.current?.revealRange(
+      range.start.line + 1, range.start.character + 1,
+      range.end.line + 1, range.end.character + 1,
+    );
+  }, []);
+
+  // ── Element/edge visibility toggles ─────────────────────────────────────────
+  const handleToggleNode = useCallback((id: string) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleGroup = useCallback((ids: string[], visible: boolean) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        visible ? next.delete(id) : next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleAll = useCallback((visible: boolean) => {
+    if (visible) {
+      setHiddenNodeIds(new Set());
+    } else {
+      setHiddenNodeIds(new Set(allNodes.map((n) => n.id)));
+    }
+  }, [allNodes]);
+
+  const handleToggleEdge = useCallback((id: string) => {
+    setHiddenEdgeIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleEdgeGroup = useCallback((ids: string[], visible: boolean) => {
+    setHiddenEdgeIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        visible ? next.delete(id) : next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Hide-only handlers for context menu (always hide, never toggle back)
+  const handleHideNode = useCallback((id: string) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleHideEdge = useCallback((id: string) => {
+    setHiddenEdgeIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  // ── Navigate to a task (shared logic) ─────────────────────────────────────
+  const goToTask = useCallback((newIndex: number) => {
+    // Save current code before leaving
+    setTaskCodes((prev) => {
+      const next = { ...prev, [taskIndex]: code };
+      saveTaskCodes(next);
+      return next;
+    });
+
+    setTaskIndex(newIndex);
+
+    // Restore saved code or use starter code
+    setTaskCodes((prev) => {
+      const restored = prev[newIndex] ?? TRAINING_TASKS[newIndex].starterCode;
+      setCode(restored);
+      diagramClient.sendText(TRAINING_URI, restored);
+      return prev;
+    });
+
     setLastResult(null);
-    diagramClient.sendText(TRAINING_URI, newCode);
-  }, [taskIndex]);
+  }, [taskIndex, code]);
 
   // ── Editor change ───────────────────────────────────────────────────────────
   const handleCodeChange = useCallback((value: string) => {
     setCode(value);
     diagramClient.sendText(TRAINING_URI, value);
     setLastResult(null);
-  }, []);
+    setTaskCodes((prev) => {
+      const next = { ...prev, [taskIndex]: value };
+      return next;
+    });
+  }, [taskIndex]);
 
   // ── Validate ────────────────────────────────────────────────────────────────
   const handleValidate = useCallback(() => {
     const result = task.validate(code);
     setLastResult(result);
-  }, [task, code]);
+    if (result.passed) {
+      setCompletedTasks((prev) => {
+        const next = new Set(prev);
+        next.add(taskIndex);
+        return next;
+      });
+    }
+  }, [task, code, taskIndex]);
 
   // ── Next task ───────────────────────────────────────────────────────────────
   const handleNext = useCallback(() => {
     if (taskIndex + 1 >= TRAINING_TASKS.length) {
-      // Show completed code in diagram one last time
       diagramClient.sendText(TRAINING_URI, COMPLETED_CODE);
       setCompleted(true);
     } else {
-      setTaskIndex((i) => i + 1);
+      goToTask(taskIndex + 1);
     }
-  }, [taskIndex]);
+  }, [taskIndex, goToTask]);
+
+  // ── Previous task ─────────────────────────────────────────────────────────
+  const handlePrev = useCallback(() => {
+    if (taskIndex > 0) {
+      goToTask(taskIndex - 1);
+    }
+  }, [taskIndex, goToTask]);
 
   // ── Restart ─────────────────────────────────────────────────────────────────
   const handleRestart = useCallback(() => {
     setTaskIndex(0);
     setCompleted(false);
+    setCompletedTasks(new Set());
+    setTaskCodes({});
     const starter = TRAINING_TASKS[0].starterCode;
     setCode(starter);
     setLastResult(null);
     diagramClient.sendText(TRAINING_URI, starter);
+    localStorage.removeItem(STORAGE_KEY_INDEX);
+    localStorage.removeItem(STORAGE_KEY_COMPLETED);
+    localStorage.removeItem(STORAGE_KEY_CODES);
   }, []);
 
+  // ── Review (go back to last task from completion screen) ──────────────────
+  const handleReview = useCallback(() => {
+    setCompleted(false);
+    goToTask(TRAINING_TASKS.length - 1);
+  }, [goToTask]);
+
   if (completed) {
-    return <CompletionScreen onRestart={handleRestart} />;
+    return <CompletionScreen onRestart={handleRestart} onReview={handleReview} />;
   }
 
   // ── Level progress dots ─────────────────────────────────────────────────────
@@ -145,6 +358,11 @@ export default function TrainingPage() {
       state: lvl < currentLevel ? 'done' : lvl === currentLevel ? 'active' : 'future',
     };
   });
+
+  const highestUnlocked = Math.max(
+    taskIndex,
+    ...Array.from(completedTasks).map((i) => i + 1),
+  );
 
   return (
     <div style={{
@@ -193,6 +411,10 @@ export default function TrainingPage() {
           {currentLevel} / {TOTAL_LEVELS}
         </span>
 
+        <span style={{ fontSize: 11, color: '#4ec9b0' }}>
+          {completedTasks.size} / {TRAINING_TASKS.length} done
+        </span>
+
         <div style={{ flex: 1 }} />
 
         <button
@@ -209,34 +431,109 @@ export default function TrainingPage() {
         </button>
       </header>
 
-      {/* ── Body: 3 columns ────────────────────────────────────────────────── */}
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
 
-        {/* Left sidebar: Legend (top) + Task Card (bottom) */}
+        {/* ── Left sidebar: Task/Legend + Elements/Relations ────────────────── */}
         <div style={{
-          width: 244, flexShrink: 0,
+          width: 260, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
           borderRight: '1px solid #2e2e2e', overflow: 'hidden',
         }}>
-          <div style={{
-            flex: '0 0 40%', minHeight: 0,
-            borderBottom: '1px solid #2e2e2e', overflow: 'hidden',
-          }}>
-            <LegendPanel currentLevel={currentLevel} />
+          {/* Sidebar tab bar */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #3c3c3c', flexShrink: 0 }}>
+            {([
+              { key: 'task' as const, label: 'Task' },
+              { key: 'elements' as const, label: `Elements (${allNodes.length})` },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setLeftTab(key)}
+                style={{
+                  flex: 1, background: leftTab === key ? '#1e1e1e' : '#2d2d2d',
+                  border: 'none',
+                  borderBottom: leftTab === key ? '2px solid #007acc' : '2px solid transparent',
+                  color: leftTab === key ? '#fff' : '#888', cursor: 'pointer',
+                  fontSize: 11, padding: '5px 4px', fontWeight: leftTab === key ? 600 : 400,
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            <TaskCard
-              task={task}
-              taskIndex={taskIndex}
-              totalTasks={TRAINING_TASKS.length}
-              onValidate={handleValidate}
-              onNext={handleNext}
-              lastResult={lastResult}
-            />
-          </div>
+
+          {/* Task tab: Legend (top) + TaskCard (bottom) */}
+          {leftTab === 'task' && (
+            <>
+              <div style={{
+                flex: '0 0 35%', minHeight: 0,
+                borderBottom: '1px solid #2e2e2e', overflow: 'hidden',
+              }}>
+                <LegendPanel currentLevel={currentLevel} />
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <TaskCard
+                  task={task}
+                  taskIndex={taskIndex}
+                  totalTasks={TRAINING_TASKS.length}
+                  onValidate={handleValidate}
+                  onNext={handleNext}
+                  onPrev={handlePrev}
+                  lastResult={lastResult}
+                  isCompleted={completedTasks.has(taskIndex)}
+                  canGoNext={taskIndex + 1 <= highestUnlocked || completedTasks.has(taskIndex)}
+                  canGoPrev={taskIndex > 0}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Elements tab: ElementPanel with Elements + Relations */}
+          {leftTab === 'elements' && (
+            <div style={{
+              flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex',
+            }}>
+              {/* Override ElementPanel's fixed width to fill sidebar */}
+              <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}
+                className="training-element-panel"
+              >
+                <ElementPanel
+                  nodes={allNodes}
+                  edges={allEdges}
+                  hiddenNodeIds={hiddenNodeIds}
+                  hiddenEdgeIds={hiddenEdgeIds}
+                  onToggleNode={handleToggleNode}
+                  onToggleGroup={handleToggleGroup}
+                  onToggleAll={handleToggleAll}
+                  onToggleEdge={handleToggleEdge}
+                  onToggleEdgeGroup={handleToggleEdgeGroup}
+                  fillWidth
+                  onNodeClick={(node) => {
+                    const range = node.data?.range as SourceRange | undefined;
+                    if (range) revealRange(range);
+                  }}
+                  onEdgeClick={(edge) => {
+                    const range = edge.data?.range as SourceRange | undefined;
+                    if (range) {
+                      revealRange(range);
+                      return;
+                    }
+                    // Fallback: navigate to source node
+                    const src = allNodes.find((n) => n.id === edge.sourceId);
+                    const srcRange = src?.data?.range as SourceRange | undefined;
+                    if (srcRange) revealRange(srcRange);
+                  }}
+                  viewStorageKey="training"
+                  onRestoreView={(nodes, edges) => { setHiddenNodeIds(nodes); setHiddenEdgeIds(edges); }}
+                  diagramSelectedNodeId={diagramSelectedNodeId}
+                  diagramSelectedEdgeId={diagramSelectedEdgeId}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Center: Diagram (top) + Editor (bottom) */}
+        {/* ── Center: Diagram (top) + Editor (bottom) ──────────────────────── */}
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0,
         }}>
@@ -256,11 +553,21 @@ export default function TrainingPage() {
           <div style={{ flex: 1, minHeight: 0 }}>
             <DiagramViewer
               model={diagram}
-              hiddenNodeIds={new Set()}
-              hiddenEdgeIds={new Set()}
+              hiddenNodeIds={hiddenNodeIds}
+              hiddenEdgeIds={hiddenEdgeIds}
               storageKey="training"
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+              onNodeSelect={revealRange}
+              onEdgeSelect={revealRange}
+              onHideNode={handleHideNode}
+              onHideEdge={handleHideEdge}
+              onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+              onHideEdges={(ids) => setHiddenEdgeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+              selectedNodeId={diagramSelectedNodeId}
+              selectedEdgeId={diagramSelectedEdgeId}
+              onSelectedNodeChange={setDiagramSelectedNodeId}
+              onSelectedEdgeChange={setDiagramSelectedEdgeId}
             />
           </div>
 
@@ -281,12 +588,12 @@ export default function TrainingPage() {
               <span style={{ fontSize: 10, color: '#3c3c3c' }}>— type your model here</span>
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
-              <MonacoEditor value={code} onChange={handleCodeChange} />
+              <MonacoEditor ref={monacoRef} value={code} onChange={handleCodeChange} />
             </div>
           </div>
         </div>
 
-        {/* Right: Notation mirror (read-only reference) */}
+        {/* ── Right: Notation mirror (read-only reference) ─────────────────── */}
         <div style={{
           width: 272, flexShrink: 0,
           display: 'flex', flexDirection: 'column',

@@ -2,7 +2,6 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
 import type { SysMLModel, DiagramMessage } from '@systemodel/shared-types';
 import { transformToBDD } from './transformer/bdd-transformer.js';
-import { applyLayout } from './layout/elk-layout.js';
 import { parseSysMLText } from './parser/sysml-text-parser.js';
 
 // Incoming message from browser
@@ -10,14 +9,36 @@ type DiagramRequest =
   | { kind: 'parse'; uri: string; content: string }   // text → parse server-side
   | { kind: 'model'; model: SysMLModel };              // pre-built AST (future: from LSP)
 
+const MAX_PAYLOAD = 10 * 1024 * 1024; // 10 MB
+const MAX_CONNECTIONS_PER_IP = 5;
+const MAX_MESSAGES_PER_MINUTE = 120;
+
 export function createDiagramWebSocketServer(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: '/diagram' });
+  const wss = new WebSocketServer({
+    server,
+    path: '/diagram',
+    maxPayload: MAX_PAYLOAD,
+  });
+
+  // Track connections per IP for basic abuse prevention
+  const connectionsPerIp = new Map<string, number>();
 
   console.log(`[Diagram WS] WebSocket server attached on /diagram`);
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress ?? 'unknown';
-    console.log(`[Diagram WS] Client connected from ${clientIp}`);
+
+    // Connection-per-IP limit
+    const current = connectionsPerIp.get(clientIp) ?? 0;
+    if (current >= MAX_CONNECTIONS_PER_IP) {
+      ws.close(1008, 'Too many connections');
+      return;
+    }
+    connectionsPerIp.set(clientIp, current + 1);
+
+    // Per-connection rate limiting
+    let messageCount = 0;
+    const rateLimitInterval = setInterval(() => { messageCount = 0; }, 60_000);
 
     const send = (msg: DiagramMessage) => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -26,17 +47,40 @@ export function createDiagramWebSocketServer(server: Server): WebSocketServer {
     };
 
     ws.on('message', async (raw) => {
+      // Rate limit
+      messageCount++;
+      if (messageCount > MAX_MESSAGES_PER_MINUTE) {
+        send({ kind: 'error', message: 'Rate limit exceeded' });
+        return;
+      }
+
       try {
-        const request: DiagramRequest = JSON.parse(raw.toString());
+        const rawStr = raw.toString();
+        // Reject oversized messages that somehow bypass maxPayload
+        if (rawStr.length > MAX_PAYLOAD) {
+          send({ kind: 'error', message: 'Message too large' });
+          return;
+        }
+
+        const request: DiagramRequest = JSON.parse(rawStr);
 
         let model: SysMLModel;
         let diagnostics: import('@systemodel/shared-types').DiagramDiagnostic[] = [];
 
         if (request.kind === 'parse') {
+          // Validate parse request fields
+          if (typeof request.uri !== 'string' || typeof request.content !== 'string') {
+            send({ kind: 'error', message: 'Invalid request: uri and content must be strings' });
+            return;
+          }
           const result = parseSysMLText(request.uri, request.content);
           model = result.model;
           diagnostics = result.diagnostics;
         } else if (request.kind === 'model') {
+          if (!request.model || !Array.isArray(request.model.nodes)) {
+            send({ kind: 'error', message: 'Invalid request: model must have nodes array' });
+            return;
+          }
           model = request.model;
         } else {
           send({ kind: 'error', message: 'Unknown request kind' });
@@ -53,14 +97,22 @@ export function createDiagramWebSocketServer(server: Server): WebSocketServer {
         send({ kind: 'model', model: sModel, diagnostics });
 
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error('[Diagram WS] Error processing request:', message);
-        send({ kind: 'error', message });
+        // Sanitize error — never leak internal details to client
+        const internal = err instanceof Error ? err.message : String(err);
+        console.error('[Diagram WS] Error processing request:', internal);
+        send({ kind: 'error', message: 'Failed to process request' });
       }
     });
 
     ws.on('close', () => {
-      console.log(`[Diagram WS] Client ${clientIp} disconnected`);
+      clearInterval(rateLimitInterval);
+      const count = connectionsPerIp.get(clientIp) ?? 1;
+      if (count <= 1) connectionsPerIp.delete(clientIp);
+      else connectionsPerIp.set(clientIp, count - 1);
+    });
+
+    ws.on('error', () => {
+      clearInterval(rateLimitInterval);
     });
   });
 

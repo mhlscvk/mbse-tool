@@ -16,6 +16,7 @@ systemodel/
 │   ├── shared-types/      # Shared TypeScript interfaces (AST, diagram model, API types)
 │   ├── diagram-service/   # SysML v2 text parser → AST → diagram generator (port 3002)
 │   ├── api-server/        # REST API: auth, projects, files, AI assistant (port 3003)
+│   ├── lsp-server/        # Language Server Protocol bridge (port 3001)
 │   └── web-client/        # React frontend: Monaco editor + SVG diagram viewer (port 5173)
 ```
 
@@ -26,6 +27,7 @@ systemodel/
 | Web Client | http://localhost:5173 | HTTP |
 | API Server | http://localhost:3003 | HTTP/REST |
 | Diagram Service | ws://localhost:3002/diagram | WebSocket |
+| LSP Server | ws://localhost:3001/lsp | WebSocket |
 | PostgreSQL | localhost:5432 | TCP |
 
 ---
@@ -123,21 +125,35 @@ pnpm run build
 
 ## Running
 
-### Start all backends
+### Development (all services)
 
 ```bash
-node packages/api-server/dist/index.js &
-node packages/diagram-service/dist/index.js &
+pnpm run dev
 ```
 
-### Start the web client
+This starts all services concurrently via Turborepo. Alternatively, start individually:
 
 ```bash
-cd packages/web-client
-pnpm dev
+# Terminal 1 — API Server
+cd packages/api-server && npx tsx src/index.ts
+
+# Terminal 2 — Diagram Service
+cd packages/diagram-service && npx tsx src/index.ts
+
+# Terminal 3 — Web Client
+cd packages/web-client && pnpm dev
 ```
 
 Open **http://localhost:5173**
+
+### Production
+
+```bash
+pnpm run build
+node packages/api-server/dist/index.js &
+node packages/diagram-service/dist/index.js &
+cd packages/web-client && pnpm preview
+```
 
 ---
 
@@ -145,9 +161,7 @@ Open **http://localhost:5173**
 
 ```bash
 docker start systemodel-db
-node packages/api-server/dist/index.js &
-node packages/diagram-service/dist/index.js &
-cd packages/web-client && pnpm dev
+pnpm run dev
 ```
 
 ---
@@ -159,8 +173,8 @@ The app is deployed at **https://systemodel.com** on a Hetzner VPS.
 ```
 Internet → Nginx (port 80/443, SSL via Let's Encrypt)
               ├─ systemodel.com         → Vite static build (React SPA)
-              ├─ systemodel.com/api/*    → api-server (port 3003)
-              └─ systemodel.com/diagram  → diagram-service WS (port 3002)
+              ├─ systemodel.com/api/*   → api-server (port 3003)
+              └─ systemodel.com/diagram → diagram-service WS (port 3002)
 ```
 
 ### Deploy new changes
@@ -182,6 +196,33 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
 4. **Create a `.sysml` file** or **upload existing `.sysml` files** (button or drag & drop)
 5. **Edit** — the diagram updates live as you type
 6. **AI Assistant** — click the AI button in the toolbar for Claude-powered suggestions
+
+---
+
+## Diagram Interaction
+
+### Multi-Select & Batch Hide
+
+- **Shift+drag** on the diagram background draws a rubber-band selection rectangle
+- **Ctrl/Cmd+click** on individual nodes to add/remove from the selection
+- **Click** on the background to clear all selection
+- **Right-click** on any selected element (or the background while items are selected) to show "Hide N selected items"
+- Selected nodes and their connecting edges highlight in yellow
+- Edges between selected nodes are auto-selected
+
+### Saved Views
+
+- In the **Views** tab of the Element Panel, save the current visibility state as a named view
+- **Load** restores a saved view's visibility settings
+- **Update** overwrites a saved view with the current state (shows brief "Updated" confirmation)
+- **Rename** or **Delete** views as needed
+- **Show All (reset)** restores full visibility
+
+### View Modes
+
+- **Nested View** (default) — compound ELK layout with visual nesting (packages as containers, composition as containment)
+- **Tree View** — flat BDD-style layout with all edges visible and ELK orthogonal edge routing
+- **Fit** button auto-fits all visible elements to the viewport
 
 ---
 
@@ -343,25 +384,12 @@ package VehicleSystem {
 - **Problems panel** — click the status bar error/warning count
 - **Auto-save** — debounced 1.5s after each edit
 
-### General View — Nested & Tree Modes
-
-**Nested View** (default) — compound ELK layout with visual nesting:
-- Packages as tab-rectangle containers
-- Definitions as sharp-cornered blocks containing their children
-- Usages as rounded blocks nested inside their owner
-- Composition expressed as visual containment
-- Action flows visible inside action definitions (successions, guards, control nodes)
-
-**Tree View** — flat BDD-style layout:
-- All nodes as separate boxes
-- All edges visible including composition diamonds
-- ELK orthogonal edge routing with bend points
-
 ### Element Panel
 
 - **Nested tab**: step-by-step collapse/expand (one depth level per click)
 - **By Kind tab**: elements grouped by type
 - **Relations tab**: edge visibility toggles grouped by relationship type
+- **Views tab**: save, load, update, rename, and delete named visibility presets
 - Show all / Hide all / per-element toggle checkboxes
 
 ### AI Assistant
@@ -384,6 +412,35 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 
 ---
 
+## Security
+
+### Implemented
+
+- **Helmet.js** security headers on all HTTP services
+- **CORS** origin allowlisting with validation on API server, diagram service, and LSP server
+- **Rate limiting** on auth endpoints (10 attempts / 15 min), registration (5 / hour), and API routes (100 / min)
+- **JWT HS256** with explicit algorithm enforcement to prevent algorithm confusion attacks
+- **Timing-safe login** — bcrypt always runs even for non-existent users
+- **File name sanitization** — path separators and null bytes stripped, length limited to 255
+- **Email normalization** — lowercase + trim before lookup
+- **Input validation** — Zod schemas on auth routes, file routes, and AI assistant requests
+- **Content size limits** — 100KB default JSON body, 10MB for file content, 2MB for AI requests
+- **WebSocket hardening** — 10MB max payload, per-IP connection limits, per-connection rate limiting, input type validation, sanitized error messages
+- **Parser size limit** — 2MB max source input to prevent DoS via parsing
+- **HTTPS enforcement** in production with x-forwarded-proto redirect
+- **Error sanitization** — internal error details and stack traces hidden in production
+
+### Security Checklist for Production
+
+- [ ] Generate a strong JWT secret: `openssl rand -hex 32`
+- [ ] Use unique database credentials (not default `password`)
+- [ ] Store secrets via environment injection (not `.env` files in deployment)
+- [ ] Use `wss://` and `https://` for all service URLs
+- [ ] Set `ALLOWED_ORIGINS` to your production domain only
+- [ ] Configure `trust proxy` if behind a reverse proxy
+
+---
+
 ## Features
 
 ### Implemented
@@ -393,13 +450,14 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] Nested containment view with ELK compound layout
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics
-- [x] Element panel with step-by-step collapse, visibility toggles
+- [x] Element panel with step-by-step collapse, visibility toggles, saved views
+- [x] Multi-select (shift+drag rubber-band, ctrl+click) with batch hide via right-click
 - [x] Edge click navigation to source code
 - [x] .sysml file upload (button + drag & drop)
 - [x] AI Assistant (Claude Opus 4.6, streaming, propose_edit tool)
 - [x] User auth: email/password + Google OAuth + email verification
-- [x] Security: helmet, rate limiting, HTTPS, timing-safe login, JWT HS256, file name sanitization, email normalization
-- [x] Automated tests: 78 vitest tests (parser + transformer) with edge case coverage
+- [x] Security hardening: helmet, rate limiting, HTTPS, Zod validation, WebSocket limits, error sanitization
+- [x] Automated tests: 167 vitest tests (parser, transformer, robustness, security)
 - [x] Project and file CRUD with auto-save
 - [x] Training mode (7 levels, progressive SysML v2 tutorial)
 - [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
@@ -423,14 +481,14 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Editor | Monaco Editor |
 | Diagram | Custom SVG renderer + elkjs (Eclipse Layout Kernel) |
 | AI | Anthropic Claude API (@anthropic-ai/sdk) |
-| Backend | Node.js, Express |
-| Security | Helmet, express-rate-limit, bcrypt |
+| Backend | Node.js, Express, tsx |
+| Security | Helmet, express-rate-limit, bcrypt, Zod |
 | Auth | JWT + bcrypt + email verification + Google OAuth |
 | Database | PostgreSQL 16 + Prisma ORM |
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (78 tests: parser, transformer, edge cases) |
+| Testing | Vitest (167 tests: parser, transformer, robustness, security) |
 
 ---
 
@@ -444,9 +502,13 @@ cd packages/diagram-service && pnpm test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 78 tests across 2 test suites:
-- **Parser tests** (58): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, edge cases (empty input, malformed syntax, XSS payloads, large models, rapid parsing)
+**Coverage:** 167 tests across 5 test suites:
+
+- **Parser tests** (58): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics
+- **Parser robustness tests** (53): empty/minimal inputs, malformed syntax, special characters, large inputs, comment edge cases, imports, diagnostic quality, source ranges, connection edge cases, rapid parsing, input size limits, control flow
+- **Parser security tests** (13): XSS vectors, DoS resistance, path traversal, input type safety, error message sanitization
 - **Transformer tests** (20): node shapes, keyword display, compartments, edges, empty inputs
+- **Transformer robustness tests** (23): empty/minimal models, node structure validation, labels, edge CSS classes, compartments, control nodes, performance, full pipeline integration
 
 ---
 

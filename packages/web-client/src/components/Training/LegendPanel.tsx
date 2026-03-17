@@ -84,6 +84,83 @@ function ShapePreview({ shapeType }: { shapeType: LegendShapeType }) {
           </svg>
         </div>
       );
+    case 'enum':
+      return (
+        <div style={{ ...base, border: '1.5px solid #dcdcaa', background: '#2a2a08', color: '#dcdcaa' }}>
+          enum
+        </div>
+      );
+    case 'action':
+      return (
+        <div style={{ ...base, border: '1.5px solid #4fc1ff', background: '#0a2040', color: '#4fc1ff', borderRadius: 8 }}>
+          act
+        </div>
+      );
+    case 'state':
+      return (
+        <div style={{ ...base, border: '1.5px solid #c586c0', background: '#2a0a2a', color: '#c586c0', borderRadius: 10 }}>
+          state
+        </div>
+      );
+    case 'requirement':
+      return (
+        <div style={{ ...base, border: '1.5px solid #f48771', background: '#2a0e0e', color: '#f48771' }}>
+          req
+        </div>
+      );
+    case 'constraint':
+      return (
+        <div style={{ ...base, border: '1.5px solid #b5cea8', background: '#1a2a1a', color: '#b5cea8' }}>
+          cst
+        </div>
+      );
+    case 'connection':
+      return (
+        <div style={{ width: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="40" height="22" viewBox="0 0 40 22">
+            <line x1="4" y1="11" x2="36" y2="11" stroke="#569cd6" strokeWidth="1.5" />
+            <circle cx="4" cy="11" r="3" fill="#569cd6" />
+            <circle cx="36" cy="11" r="3" fill="#569cd6" />
+          </svg>
+        </div>
+      );
+    case 'package':
+      return (
+        <div style={{ ...base, border: '1.5px solid #888', background: '#1e1e1e', color: '#888', height: 22, position: 'relative' as const }}>
+          <div style={{ position: 'absolute', top: -4, left: 2, fontSize: 6, background: '#1e1e1e', padding: '0 2px', border: '1px solid #888', borderRadius: 1 }}>pkg</div>
+          <span style={{ fontSize: 8 }}>{ }</span>
+        </div>
+      );
+    case 'usecase':
+      return (
+        <div style={{ ...base, border: '1.5px solid #d7ba7d', background: '#2a2008', color: '#d7ba7d', borderRadius: 11 }}>
+          uc
+        </div>
+      );
+    case 'view':
+      return (
+        <div style={{ ...base, border: '1.5px dashed #888', background: '#1e1e1e', color: '#999' }}>
+          view
+        </div>
+      );
+    case 'edge-succession':
+      return (
+        <div style={{ width: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="40" height="22" viewBox="0 0 40 22">
+            <line x1="4" y1="11" x2="30" y2="11" stroke="#4fc1ff" strokeWidth="1.5" />
+            <polygon points="30,7 38,11 30,15" fill="#4fc1ff" />
+          </svg>
+        </div>
+      );
+    case 'edge-satisfy':
+      return (
+        <div style={{ width: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="40" height="22" viewBox="0 0 40 22">
+            <line x1="4" y1="11" x2="30" y2="11" stroke="#f48771" strokeWidth="1.5" strokeDasharray="4 2" />
+            <polygon points="30,7 38,11 30,15" fill="#f48771" />
+          </svg>
+        </div>
+      );
     default:
       return <div style={{ width: 40, flexShrink: 0 }} />;
   }

@@ -46,6 +46,26 @@ function renderText(text: string): React.ReactNode[] {
   return nodes;
 }
 
+// ─── Nav button style helper ─────────────────────────────────────────────────
+
+const navBtnBase: React.CSSProperties = {
+  background: '#2d2d30',
+  border: '1px solid #444',
+  borderRadius: 4,
+  color: '#999',
+  fontSize: 12,
+  padding: '5px 10px',
+  cursor: 'pointer',
+  flex: 1,
+  textAlign: 'center',
+};
+
+const navBtnDisabled: React.CSSProperties = {
+  ...navBtnBase,
+  opacity: 0.35,
+  cursor: 'default',
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface TaskCardProps {
@@ -54,11 +74,16 @@ interface TaskCardProps {
   totalTasks: number;
   onValidate: () => void;
   onNext: () => void;
+  onPrev: () => void;
   lastResult: ValidationResult | null;
+  isCompleted: boolean;
+  canGoNext: boolean;
+  canGoPrev: boolean;
 }
 
 export default function TaskCard({
-  task, taskIndex, totalTasks, onValidate, onNext, lastResult,
+  task, taskIndex, totalTasks, onValidate, onNext, onPrev, lastResult,
+  isCompleted, canGoNext, canGoPrev,
 }: TaskCardProps) {
   const [showHint, setShowHint] = useState(false);
 
@@ -75,14 +100,56 @@ export default function TaskCard({
       height: '100%', padding: '12px 12px 14px',
       gap: 10, overflowY: 'auto',
     }}>
-      {/* Task header */}
+      {/* Task header with nav */}
       <div>
-        <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>
-          Task {taskIndex + 1} / {totalTasks}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 3,
+        }}>
+          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Task {taskIndex + 1} / {totalTasks}
+          </div>
+          {isCompleted && (
+            <div style={{
+              fontSize: 9, color: '#4ec9b0', background: '#0a2e18',
+              border: '1px solid #0a6e37', borderRadius: 3,
+              padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5,
+            }}>
+              Completed
+            </div>
+          )}
         </div>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', lineHeight: 1.3 }}>
           {task.title}
         </div>
+      </div>
+
+      {/* Prev / Next navigation */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={canGoPrev ? onPrev : undefined}
+          style={canGoPrev ? navBtnBase : navBtnDisabled}
+          onMouseEnter={(e) => {
+            if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c';
+          }}
+          onMouseLeave={(e) => {
+            if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = '#2d2d30';
+          }}
+        >
+          ← Prev
+        </button>
+        <button
+          onClick={canGoNext ? onNext : undefined}
+          style={canGoNext ? navBtnBase : navBtnDisabled}
+          onMouseEnter={(e) => {
+            if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c';
+          }}
+          onMouseLeave={(e) => {
+            if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = '#2d2d30';
+          }}
+        >
+          Next →
+        </button>
       </div>
 
       {/* Instruction */}
