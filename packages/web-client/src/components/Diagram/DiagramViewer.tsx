@@ -90,8 +90,10 @@ const NODE_COLORS: Record<string, string> = {
   attributeusage:       '#102810',
   connectionusage:      '#2a1408',
   portusage:            '#1e0a30',
-  actionusage:          '#082828',
-  stateusage:           '#202008',
+  actionusage:                '#082828',
+  performactionusage:         '#082828',
+  stateusage:                 '#202008',
+  exhibitstateusage:          '#202008',
   itemusage:            '#201408',
   actionin:             '#082828',
   actionout:            '#1a1008',
@@ -159,6 +161,7 @@ const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: st
   composition:         { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                  markerStart: 'url(#diamond-comp)',labelColor: '#9cdcfe' },
   association:         { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-assoc)',                                   labelColor: '#777'    },
   flow:                { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-flow-filled)',                             labelColor: '#4ec9b0' },
+  succession:          { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#4ec9b0' },
   typereference:       { stroke: '#6a7a8a', dash: '4,3',     markerEnd: 'url(#tri-typeref)',                                   labelColor: '#6a7a8a' },
   referencesubsetting: { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
   satisfy:             { stroke: '#e06060', dash: '6,3',     markerEnd: 'url(#arrow-satisfy)',                                 labelColor: '#e06060' },
@@ -295,10 +298,18 @@ export default function DiagramViewer({
 
   const visibleNodeIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
 
+  const CONTROL_NODE_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
+
   const effectiveSize = useCallback((node: SNode) => {
     const override = sizeOverrides.get(node.id);
     if (override) {
       return { w: override.w, h: Math.max(override.h, node.size.height) };
+    }
+
+    // Control nodes keep their fixed sizes (bar, diamond, circle)
+    const css = node.cssClasses?.[0];
+    if (css && CONTROL_NODE_CSS.has(css)) {
+      return { w: node.size.width, h: node.size.height };
     }
 
     // Dynamically compute size based on content labels
@@ -328,6 +339,14 @@ export default function DiagramViewer({
   const visibleKey = nodes.map((n) => n.id).sort().join(',');
   const sizesKey = nodes.map((n) => { const s = effectiveSize(n); return `${n.id}:${s.w}x${s.h}`; }).join(',');
   const edgesKey = edges.map((e) => `${e.sourceId}→${e.targetId}`).sort().join(',');
+  // Stable string key for positions — avoids Map reference changes triggering recomputation
+  const positionsKey = useMemo(() => {
+    const parts: string[] = [];
+    for (const [id, p] of positions) parts.push(`${id}:${Math.round(p.x)},${Math.round(p.y)}`);
+    for (const [id, p] of positionOverrides) parts.push(`o${id}:${Math.round(p.x)},${Math.round(p.y)}`);
+    for (const [id, s] of layoutSizes) parts.push(`s${id}:${s.w},${s.h}`);
+    return parts.join('|');
+  }, [positions, layoutSizes, positionOverrides]);
 
 
   // ── ELK layout (General View) ──────────────────────────────────
@@ -370,13 +389,15 @@ export default function DiagramViewer({
 
       // Behavioural container kinds: use DOWN direction + succession edges for flow ordering
       const BEHAVIOURAL_KINDS = new Set([
-        'actiondefinition', 'actionusage', 'statedefinition', 'stateusage',
+        'actiondefinition', 'actionusage', 'performactionusage',
+        'statedefinition', 'stateusage', 'exhibitstateusage',
       ]);
 
       // Index flow edges by parent container for behavioural containers
       const flowEdgesByParent = new Map<string, Array<{ id: string; sources: string[]; targets: string[] }>>();
       for (const e of allEdges) {
-        if (e.cssClasses?.[0] !== 'flow') continue;
+        const ek = e.cssClasses?.[0];
+        if (ek !== 'flow' && ek !== 'succession') continue;
         // Both source and target must share the same parent container
         const srcParent = parentOf.get(e.sourceId);
         const tgtParent = parentOf.get(e.targetId);
@@ -388,9 +409,10 @@ export default function DiagramViewer({
       }
 
       const visiting = new Set<string>();
+      const MAX_ELK_DEPTH = 50;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      function buildElkNode(nodeId: string): any {
-        if (visiting.has(nodeId)) return { id: nodeId, width: 140, height: 50 };
+      function buildElkNode(nodeId: string, depth = 0): any {
+        if (depth > MAX_ELK_DEPTH || visiting.has(nodeId)) return { id: nodeId, width: 140, height: 50 };
         visiting.add(nodeId);
         const n = nodeMap.get(nodeId);
         const { w, h } = n ? effectiveSize(n) : { w: 140, h: 50 };
@@ -400,8 +422,9 @@ export default function DiagramViewer({
         if (childIds.length > 0) {
           const isPkgNode = cssClass === 'package';
           const isBehavioural = BEHAVIOURAL_KINDS.has(cssClass);
-          // Behavioural containers flow top-to-bottom like activity diagrams
-          const isDownLayout = isPkgNode || isBehavioural;
+          // Use DOWN layout for packages, behavioural, and containers with 3+ children
+          // (RIGHT direction causes horizontal cramming with many children)
+          const isDownLayout = isPkgNode || isBehavioural || childIds.length >= 3;
           const minW = Math.max(w, 140);
           const minH = Math.max(h, isPkgNode ? 80 : 70);
 
@@ -411,19 +434,17 @@ export default function DiagramViewer({
           const result = {
             id: nodeId,
             layoutOptions: {
-              'elk.padding': `[top=${isPkgNode ? 48 : 44},left=${isPkgNode ? 20 : isBehavioural ? 24 : 28},bottom=${isPkgNode ? 20 : 16},right=${isPkgNode ? 20 : isBehavioural ? 24 : 16}]`,
+              'elk.padding': `[top=${isPkgNode ? 48 : isBehavioural ? 50 : 52},left=${isPkgNode ? 20 : isBehavioural ? 24 : 20},bottom=${isPkgNode ? 20 : 20},right=${isPkgNode ? 20 : isBehavioural ? 24 : 20}]`,
               'elk.algorithm': 'layered',
               'elk.direction': isDownLayout ? 'DOWN' : 'RIGHT',
-              'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? '24' : '20',
-              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? '32' : '20',
-              ...(isBehavioural ? {
-                'elk.edgeRouting': 'ORTHOGONAL',
-                'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-              } : {}),
+              'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? '24' : '24',
+              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? '32' : '30',
+              'elk.edgeRouting': 'ORTHOGONAL',
+              'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
               'elk.nodeSize.constraints': 'MINIMUM_SIZE',
               'elk.nodeSize.minimum': `(${minW},${minH})`,
             },
-            children: childIds.map(cId => buildElkNode(cId)),
+            children: childIds.map(cId => buildElkNode(cId, depth + 1)),
             ...(internalEdges.length > 0 ? { edges: internalEdges } : {}),
           };
           visiting.delete(nodeId);
@@ -440,17 +461,48 @@ export default function DiagramViewer({
         return !pid || !elkVisibleIds.has(pid);
       });
       const elkChildren = topLevel.map(n => buildElkNode(n.id));
+      const topLevelIds = new Set(topLevel.map(n => n.id));
 
+      // Build map: nodeId → top-level ancestor id
+      function topAncestor(id: string): string | undefined {
+        let cur = id;
+        while (cur) {
+          if (topLevelIds.has(cur)) return cur;
+          const p = parentOf.get(cur);
+          if (!p) return undefined;
+          cur = p;
+        }
+        return undefined;
+      }
+
+      // Collect cross-container edges (non-composition, non-flow, endpoints in different top-level trees)
+      const crossEdgePairs = new Set<string>();
+      const crossElkEdges: Array<{ id: string; sources: string[]; targets: string[] }> = [];
+      for (const e of edges) {
+        const ek3 = e.cssClasses?.[0];
+        if (ek3 === 'composition' || ek3 === 'flow' || ek3 === 'succession') continue;
+        const srcTop = topAncestor(e.sourceId);
+        const tgtTop = topAncestor(e.targetId);
+        if (!srcTop || !tgtTop || srcTop === tgtTop) continue;
+        // Deduplicate: one ELK edge per pair of top-level containers
+        const pairKey = srcTop < tgtTop ? `${srcTop}|${tgtTop}` : `${tgtTop}|${srcTop}`;
+        if (crossEdgePairs.has(pairKey)) continue;
+        crossEdgePairs.add(pairKey);
+        crossElkEdges.push({ id: `cross_${pairKey}`, sources: [srcTop], targets: [tgtTop] });
+      }
+
+      const hasCrossEdges = crossElkEdges.length > 0;
       elkGraph = {
         id: 'graph',
         layoutOptions: {
           'elk.algorithm': 'layered',
           'elk.direction': 'DOWN',
-          'elk.spacing.nodeNode': '60',
-          'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+          'elk.spacing.nodeNode': hasCrossEdges ? '100' : '60',
+          'elk.layered.spacing.nodeNodeBetweenLayers': hasCrossEdges ? '120' : '80',
+          ...(hasCrossEdges ? { 'elk.spacing.edgeNode': '30' } : {}),
         },
         children: elkChildren,
-        edges: [],
+        edges: crossElkEdges,
       };
     }
 
@@ -567,24 +619,426 @@ export default function DiagramViewer({
     return { x: center.x + dx * scale, y: center.y + dy * scale };
   };
 
+  // Index parallel edges: edges sharing the same node pair get spread apart via curves
+  const CURVE_SPACING = 30; // perpendicular offset between parallel edges
+  const edgeCurveOffset = useMemo(() => {
+    const pairMap = new Map<string, string[]>();
+    for (const e of edges) {
+      if (e.cssClasses?.[0] === 'composition') continue;
+      const a = e.sourceId < e.targetId ? e.sourceId : e.targetId;
+      const b = e.sourceId < e.targetId ? e.targetId : e.sourceId;
+      const key = `${a}|${b}`;
+      const arr = pairMap.get(key) ?? [];
+      arr.push(e.id);
+      pairMap.set(key, arr);
+    }
+    const offsets = new Map<string, number>();
+    for (const [, ids] of pairMap) {
+      if (ids.length === 1) { offsets.set(ids[0], 0); continue; }
+      for (let i = 0; i < ids.length; i++) {
+        // Center the fan: offsets are ..., -1, 0, 1, ... multiplied by spacing
+        offsets.set(ids[i], (i - (ids.length - 1) / 2) * CURVE_SPACING);
+      }
+    }
+    return offsets;
+  }, [edges]);
+
+  // ── Orthogonal edge routing for nested mode ──────────────────────────
+  // Cached ancestor/descendant lookups — computed once per layout, not per edge
+  const ancestorCache = useMemo(() => {
+    const cache = new Map<string, Set<string>>();
+    function get(id: string): Set<string> {
+      const cached = cache.get(id);
+      if (cached) return cached;
+      const anc = new Set<string>();
+      let cur = parentOf.get(id);
+      while (cur) { anc.add(cur); cur = parentOf.get(cur); }
+      cache.set(id, anc);
+      return anc;
+    }
+    return get;
+  }, [parentOf]);
+  const ancestorsOf = ancestorCache;
+
+  const descendantCache = useMemo(() => {
+    const cache = new Map<string, Set<string>>();
+    function get(id: string): Set<string> {
+      const cached = cache.get(id);
+      if (cached) return cached;
+      const desc = new Set<string>();
+      const stack = [...(childrenOf.get(id) ?? [])];
+      while (stack.length > 0) {
+        const c = stack.pop()!;
+        desc.add(c);
+        for (const gc of childrenOf.get(c) ?? []) stack.push(gc);
+      }
+      cache.set(id, desc);
+      return desc;
+    }
+    return get;
+  }, [childrenOf]);
+  const descendantsOf = descendantCache;
+
+  // Check if an axis-aligned segment intersects a rectangle (with margin)
+  const OBSTACLE_MARGIN = 18;
+  const segmentHitsRect = (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+    rx: number, ry: number, rw: number, rh: number,
+  ): boolean => {
+    const m = OBSTACLE_MARGIN;
+    const left = rx - m, right = rx + rw + m, top = ry - m, bottom = ry + rh + m;
+    // Horizontal segment
+    if (Math.abs(p1.y - p2.y) < 1) {
+      const y = p1.y;
+      if (y < top || y > bottom) return false;
+      const minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+      return maxX > left && minX < right;
+    }
+    // Vertical segment
+    if (Math.abs(p1.x - p2.x) < 1) {
+      const x = p1.x;
+      if (x < left || x > right) return false;
+      const minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
+      return maxY > top && minY < bottom;
+    }
+    // Fallback for non-axis-aligned (shouldn't happen in orthogonal routing)
+    return false;
+  };
+
+  type OrthoObstacle = { x: number; y: number; w: number; h: number };
+
+  // Check if an orthogonal path (array of waypoints) is free of obstacle collisions
+  const pathClear = (wp: { x: number; y: number }[], obstacles: OrthoObstacle[]): boolean => {
+    for (let i = 0; i < wp.length - 1; i++) {
+      for (const obs of obstacles) {
+        if (segmentHitsRect(wp[i], wp[i + 1], obs.x, obs.y, obs.w, obs.h)) return false;
+      }
+    }
+    return true;
+  };
+
+  // Compute the total length of an orthogonal path
+  const pathLength = (wp: { x: number; y: number }[]): number => {
+    let len = 0;
+    for (let i = 1; i < wp.length; i++) {
+      len += Math.abs(wp[i].x - wp[i - 1].x) + Math.abs(wp[i].y - wp[i - 1].y);
+    }
+    return len;
+  };
+
+  // Side-aware border point for orthogonal routing: exits from the center of a side
+  const sideBorderPoint = (
+    center: { x: number; y: number },
+    size: { w: number; h: number },
+    side: 'top' | 'bottom' | 'left' | 'right',
+  ): { x: number; y: number } => {
+    switch (side) {
+      case 'top': return { x: center.x, y: center.y - size.h / 2 };
+      case 'bottom': return { x: center.x, y: center.y + size.h / 2 };
+      case 'left': return { x: center.x - size.w / 2, y: center.y };
+      case 'right': return { x: center.x + size.w / 2, y: center.y };
+    }
+  };
+
+  // Determine the best exit/entry sides for an orthogonal connection
+  const chooseSides = (
+    srcCenter: { x: number; y: number }, srcSz: { w: number; h: number },
+    tgtCenter: { x: number; y: number }, tgtSz: { w: number; h: number },
+  ): { srcSide: 'top' | 'bottom' | 'left' | 'right'; tgtSide: 'top' | 'bottom' | 'left' | 'right' } => {
+    const dx = tgtCenter.x - srcCenter.x;
+    const dy = tgtCenter.y - srcCenter.y;
+    // Use aspect-ratio-aware direction detection
+    if (Math.abs(dx) / (srcSz.w / 2 + tgtSz.w / 2) > Math.abs(dy) / (srcSz.h / 2 + tgtSz.h / 2)) {
+      // Primarily horizontal
+      return dx > 0
+        ? { srcSide: 'right', tgtSide: 'left' }
+        : { srcSide: 'left', tgtSide: 'right' };
+    } else {
+      // Primarily vertical
+      return dy > 0
+        ? { srcSide: 'bottom', tgtSide: 'top' }
+        : { srcSide: 'top', tgtSide: 'bottom' };
+    }
+  };
+
+  // Route an edge orthogonally around obstacle nodes
+  const routeOrthogonal = useCallback((
+    srcId: string,
+    tgtId: string,
+  ): { x: number; y: number }[] | null => {
+    if (viewMode === 'tree') return null;
+
+    const srcCenter = nodeCenter(srcId);
+    const tgtCenter = nodeCenter(tgtId);
+    const srcSz = nodeSz(srcId);
+    const tgtSz = nodeSz(tgtId);
+
+    // Determine exit/entry sides and compute border points
+    const { srcSide, tgtSide } = chooseSides(srcCenter, srcSz, tgtCenter, tgtSz);
+    const srcPt = sideBorderPoint(srcCenter, srcSz, srcSide);
+    const tgtPt = sideBorderPoint(tgtCenter, tgtSz, tgtSide);
+
+    // Collect ids to exclude: source, target, their ancestors + all descendants
+    // of those ancestors (the edge must pass freely through ancestor containers),
+    // plus descendants of source and target themselves.
+    const excludeIds = new Set<string>([srcId, tgtId]);
+    for (const a of ancestorsOf(srcId)) {
+      excludeIds.add(a);
+      for (const d of descendantsOf(a)) excludeIds.add(d);
+    }
+    for (const a of ancestorsOf(tgtId)) {
+      excludeIds.add(a);
+      for (const d of descendantsOf(a)) excludeIds.add(d);
+    }
+    for (const d of descendantsOf(srcId)) excludeIds.add(d);
+    for (const d of descendantsOf(tgtId)) excludeIds.add(d);
+
+    // Build obstacle list from visible nodes
+    const obstacles: OrthoObstacle[] = [];
+    for (const n of nodes) {
+      if (excludeIds.has(n.id)) continue;
+      if (!visibleNodeIds.has(n.id)) continue;
+      const pos = nodePos(n.id);
+      const sz = nodeSz(n.id);
+      obstacles.push({ x: pos.x, y: pos.y, w: sz.w, h: sz.h });
+    }
+
+    const isHorizontal = srcSide === 'left' || srcSide === 'right';
+    const m = OBSTACLE_MARGIN;
+    const GAP = 12; // extra gap when routing past a node edge
+
+    // Generate candidate orthogonal paths and pick the shortest clear one
+    const candidates: { x: number; y: number }[][] = [];
+
+    if (isHorizontal) {
+      // Sides exit horizontally — use a vertical channel between src and tgt
+      // Z-shape: src -> (channelX, srcPt.y) -> (channelX, tgtPt.y) -> tgt
+      const midX = (srcPt.x + tgtPt.x) / 2;
+      candidates.push([srcPt, { x: midX, y: srcPt.y }, { x: midX, y: tgtPt.y }, tgtPt]);
+
+      // If src and tgt at same Y, the Z collapses to a straight line
+      if (Math.abs(srcPt.y - tgtPt.y) < 2) {
+        candidates.push([srcPt, tgtPt]);
+      }
+
+      // Try channels at obstacle boundaries (left/right edges + margin)
+      const channelXs = new Set<number>([midX]);
+      for (const obs of obstacles) {
+        channelXs.add(obs.x - m - GAP);
+        channelXs.add(obs.x + obs.w + m + GAP);
+      }
+      for (const cx of channelXs) {
+        // Only consider channels between src and tgt (or slightly outside)
+        const minX = Math.min(srcPt.x, tgtPt.x) - 100;
+        const maxX = Math.max(srcPt.x, tgtPt.x) + 100;
+        if (cx < minX || cx > maxX) continue;
+        candidates.push([srcPt, { x: cx, y: srcPt.y }, { x: cx, y: tgtPt.y }, tgtPt]);
+      }
+
+      // U-shape: route above or below all obstacles
+      const allMinY = Math.min(srcPt.y, tgtPt.y, ...obstacles.map(o => o.y)) - m - GAP;
+      const allMaxY = Math.max(srcPt.y, tgtPt.y, ...obstacles.map(o => o.y + o.h)) + m + GAP;
+      // U-shape going above
+      candidates.push([
+        srcPt,
+        { x: srcPt.x, y: allMinY },
+        { x: tgtPt.x, y: allMinY },
+        tgtPt,
+      ]);
+      // U-shape going below
+      candidates.push([
+        srcPt,
+        { x: srcPt.x, y: allMaxY },
+        { x: tgtPt.x, y: allMaxY },
+        tgtPt,
+      ]);
+    } else {
+      // Sides exit vertically — use a horizontal channel between src and tgt
+      // Z-shape: src -> (srcPt.x, channelY) -> (tgtPt.x, channelY) -> tgt
+      const midY = (srcPt.y + tgtPt.y) / 2;
+      candidates.push([srcPt, { x: srcPt.x, y: midY }, { x: tgtPt.x, y: midY }, tgtPt]);
+
+      // If src and tgt at same X, the Z collapses to a straight line
+      if (Math.abs(srcPt.x - tgtPt.x) < 2) {
+        candidates.push([srcPt, tgtPt]);
+      }
+
+      // Try channels at obstacle boundaries (top/bottom edges + margin)
+      const channelYs = new Set<number>([midY]);
+      for (const obs of obstacles) {
+        channelYs.add(obs.y - m - GAP);
+        channelYs.add(obs.y + obs.h + m + GAP);
+      }
+      for (const cy of channelYs) {
+        const minY = Math.min(srcPt.y, tgtPt.y) - 100;
+        const maxY = Math.max(srcPt.y, tgtPt.y) + 100;
+        if (cy < minY || cy > maxY) continue;
+        candidates.push([srcPt, { x: srcPt.x, y: cy }, { x: tgtPt.x, y: cy }, tgtPt]);
+      }
+
+      // U-shape: route left or right of all obstacles
+      const allMinX = Math.min(srcPt.x, tgtPt.x, ...obstacles.map(o => o.x)) - m - GAP;
+      const allMaxX = Math.max(srcPt.x, tgtPt.x, ...obstacles.map(o => o.x + o.w)) + m + GAP;
+      candidates.push([
+        srcPt,
+        { x: allMinX, y: srcPt.y },
+        { x: allMinX, y: tgtPt.y },
+        tgtPt,
+      ]);
+      candidates.push([
+        srcPt,
+        { x: allMaxX, y: srcPt.y },
+        { x: allMaxX, y: tgtPt.y },
+        tgtPt,
+      ]);
+    }
+
+    // Pick the shortest obstacle-free candidate
+    let bestPath: { x: number; y: number }[] | null = null;
+    let bestLen = Infinity;
+    for (const cand of candidates) {
+      if (!pathClear(cand, obstacles)) continue;
+      const len = pathLength(cand);
+      if (len < bestLen) { bestLen = len; bestPath = cand; }
+    }
+
+    // Fallback: return the default Z-shape even if blocked
+    if (!bestPath) {
+      if (isHorizontal) {
+        const midX = (srcPt.x + tgtPt.x) / 2;
+        bestPath = [srcPt, { x: midX, y: srcPt.y }, { x: midX, y: tgtPt.y }, tgtPt];
+      } else {
+        const midY = (srcPt.y + tgtPt.y) / 2;
+        bestPath = [srcPt, { x: srcPt.x, y: midY }, { x: tgtPt.x, y: midY }, tgtPt];
+      }
+    }
+
+    // Remove redundant collinear waypoints
+    const cleaned: { x: number; y: number }[] = [bestPath[0]];
+    for (let i = 1; i < bestPath.length - 1; i++) {
+      const prev = cleaned[cleaned.length - 1];
+      const cur = bestPath[i];
+      const next = bestPath[i + 1];
+      // Skip if all three are on the same horizontal or vertical line
+      const sameX = Math.abs(prev.x - cur.x) < 1 && Math.abs(cur.x - next.x) < 1;
+      const sameY = Math.abs(prev.y - cur.y) < 1 && Math.abs(cur.y - next.y) < 1;
+      if (!sameX && !sameY) cleaned.push(cur);
+    }
+    cleaned.push(bestPath[bestPath.length - 1]);
+
+    return cleaned.length >= 2 ? cleaned : null;
+  }, [viewMode, nodes, visibleNodeIds, nodePos, nodeSz, ancestorCache, descendantCache, parentOf, childrenOf]);
+
+  // Cache routed paths for nested mode
+  const routedEdgePaths = useMemo(() => {
+    if (viewMode === 'tree') return new Map<string, { x: number; y: number }[]>();
+    const cache = new Map<string, { x: number; y: number }[]>();
+    for (const e of edges) {
+      const ek2 = e.cssClasses?.[0];
+      if (ek2 === 'composition' || ek2 === 'flow' || ek2 === 'succession') continue;
+      const path = routeOrthogonal(e.sourceId, e.targetId);
+      if (path && path.length >= 2) {
+        cache.set(e.id, path);
+      }
+    }
+    return cache;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edges, viewMode, positionsKey]);
+
   const edgePath = (edge: SEdge): string => {
     // Use ELK-computed route in tree mode if available
     const elkRoute = elkEdgeRoutes.get(edge.id);
     if (elkRoute) return elkRoute;
-    // Fallback: straight line between node border intersection points
+
+    // Use orthogonal-routed path if available (nested mode)
+    const routed = routedEdgePaths.get(edge.id);
+    if (routed && routed.length >= 2) {
+      const parts = [`M ${routed[0].x} ${routed[0].y}`];
+      for (let i = 1; i < routed.length; i++) {
+        parts.push(`L ${routed[i].x} ${routed[i].y}`);
+      }
+      return parts.join(' ');
+    }
+
     const src = nodeCenter(edge.sourceId);
     const tgt = nodeCenter(edge.targetId);
+    const offset = edgeCurveOffset.get(edge.id) ?? 0;
+
+    if (offset === 0) {
+      // Single edge between this pair — straight line
+      const srcSz = nodeSz(edge.sourceId);
+      const tgtSz = nodeSz(edge.targetId);
+      const srcPt = borderPoint(src, srcSz, tgt);
+      const tgtPt = borderPoint(tgt, tgtSz, src);
+      return `M ${srcPt.x} ${srcPt.y} L ${tgtPt.x} ${tgtPt.y}`;
+    }
+
+    // Curved edge: offset the control point perpendicular to the src→tgt line
+    const dx = tgt.x - src.x;
+    const dy = tgt.y - src.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    // Perpendicular unit vector (rotated 90°)
+    const px = -dy / len;
+    const py = dx / len;
+    const mx = (src.x + tgt.x) / 2 + px * offset;
+    const my = (src.y + tgt.y) / 2 + py * offset;
+
+    // Compute border points aiming at the control point for a natural curve exit
     const srcSz = nodeSz(edge.sourceId);
     const tgtSz = nodeSz(edge.targetId);
-    const srcPt = borderPoint(src, srcSz, tgt);
-    const tgtPt = borderPoint(tgt, tgtSz, src);
-    return `M ${srcPt.x} ${srcPt.y} L ${tgtPt.x} ${tgtPt.y}`;
+    const srcPt = borderPoint(src, srcSz, { x: mx, y: my });
+    const tgtPt = borderPoint(tgt, tgtSz, { x: mx, y: my });
+    return `M ${srcPt.x} ${srcPt.y} Q ${mx} ${my} ${tgtPt.x} ${tgtPt.y}`;
   };
 
   const edgeCenter = (edge: SEdge) => {
+    // Use routed path midpoint if available
+    const routed = routedEdgePaths.get(edge.id);
+    if (routed && routed.length >= 2) {
+      // Find the midpoint along the polyline
+      let totalLen = 0;
+      const segLens: number[] = [];
+      for (let i = 1; i < routed.length; i++) {
+        const sl = Math.hypot(routed[i].x - routed[i - 1].x, routed[i].y - routed[i - 1].y);
+        segLens.push(sl);
+        totalLen += sl;
+      }
+      let half = totalLen / 2;
+      for (let i = 0; i < segLens.length; i++) {
+        if (half <= segLens[i]) {
+          const t = segLens[i] > 0 ? half / segLens[i] : 0;
+          return {
+            x: routed[i].x + (routed[i + 1].x - routed[i].x) * t,
+            y: routed[i].y + (routed[i + 1].y - routed[i].y) * t,
+          };
+        }
+        half -= segLens[i];
+      }
+      // Fallback
+      const mid = Math.floor(routed.length / 2);
+      return routed[mid];
+    }
+
     const src = nodeCenter(edge.sourceId);
     const tgt = nodeCenter(edge.targetId);
-    return { x: (src.x + tgt.x) / 2, y: (src.y + tgt.y) / 2 };
+    const offset = edgeCurveOffset.get(edge.id) ?? 0;
+    if (offset === 0) {
+      return { x: (src.x + tgt.x) / 2, y: (src.y + tgt.y) / 2 };
+    }
+    // For curved edges, the label sits at the quadratic bezier midpoint (t=0.5)
+    // Q bezier at t=0.5: P = 0.25*P0 + 0.5*CP + 0.25*P2
+    const dx = tgt.x - src.x;
+    const dy = tgt.y - src.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const px = -dy / len;
+    const py = dx / len;
+    const mx = (src.x + tgt.x) / 2 + px * offset;
+    const my = (src.y + tgt.y) / 2 + py * offset;
+    return {
+      x: 0.25 * src.x + 0.5 * mx + 0.25 * tgt.x,
+      y: 0.25 * src.y + 0.5 * my + 0.25 * tgt.y,
+    };
   };
 
   const clearSelection = useCallback(() => {
@@ -892,66 +1346,7 @@ export default function DiagramViewer({
         </defs>
 
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-          {/* Edges */}
-          {renderEdges.map((edge) => {
-            const kind = edge.cssClasses?.[0] ?? 'association';
-            const style = EDGE_STYLES[kind] ?? DEFAULT_EDGE_STYLE;
-            const c = edgeCenter(edge);
-            const label = edge.children[0];
-            const edgeLabel = label?.text || kind;
-            const isEdgeSelected = selectedEdgeId === edge.id || multiSelectedEdgeIds.has(edge.id);
-            return (
-              <g key={edge.id}
-                onClick={(e) => onEdgeClick(e, edge)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (multiSelectedEdgeIds.has(edge.id) || multiSelectedNodeIds.size > 0) {
-                    const nIds = [...multiSelectedNodeIds];
-                    const eIds = [...multiSelectedEdgeIds];
-                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
-                  } else {
-                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
-                  }
-                }}>
-                {/* Invisible wide hit area for click and right-click */}
-                <path
-                  d={edgePath(edge)}
-                  stroke="transparent"
-                  strokeWidth={12}
-                  fill="none"
-                  style={{ cursor: 'pointer' }}
-                />
-                {/* Selection glow */}
-                {isEdgeSelected && (
-                  <path
-                    d={edgePath(edge)}
-                    stroke="#f0c040"
-                    strokeWidth={4}
-                    strokeDasharray={style.dash}
-                    fill="none"
-                    opacity={0.35}
-                  />
-                )}
-                <path
-                  d={edgePath(edge)}
-                  stroke={isEdgeSelected ? '#f0c040' : style.stroke}
-                  strokeWidth={isEdgeSelected ? 2 : 1.5}
-                  strokeDasharray={style.dash}
-                  fill="none"
-                  {...(style.markerEnd ? { markerEnd: style.markerEnd } : {})}
-                  {...(style.markerStart ? { markerStart: style.markerStart } : {})}
-                />
-                {label && label.text && c && (
-                  <text x={c.x} y={c.y - 6} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
-                    {label.text}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-
-          {/* Nodes */}
+          {/* Nodes (rendered first so edges paint on top) */}
           {renderNodes.map((node) => {
             const cssClass = node.cssClasses?.[0] ?? 'default';
             const color = NODE_COLORS[cssClass] ?? NODE_COLORS.default;
@@ -1022,7 +1417,9 @@ export default function DiagramViewer({
             }
 
             // ── Non-package container (nested mode only): title-bar + children area ──
-            if (isContainer) {
+            // Control nodes (fork/join/merge/decide) should never render as containers
+            const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
+            if (isContainer && !CONTROL_CSS.has(cssClass)) {
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#4d9ad4' : '#4a8ab0';
 
               return (
@@ -1216,6 +1613,84 @@ export default function DiagramViewer({
                 </g>
               );
             }
+          })}
+
+          {/* Edges (rendered after nodes so lines are visible on top) */}
+          {renderEdges.map((edge) => {
+            const kind = edge.cssClasses?.[0] ?? 'association';
+            const style = EDGE_STYLES[kind] ?? DEFAULT_EDGE_STYLE;
+            const c = edgeCenter(edge);
+            const label = edge.children[0];
+            const edgeLabel = label?.text || kind;
+            const isEdgeSelected = selectedEdgeId === edge.id || multiSelectedEdgeIds.has(edge.id);
+            return (
+              <g key={edge.id}
+                onClick={(e) => onEdgeClick(e, edge)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (multiSelectedEdgeIds.has(edge.id) || multiSelectedNodeIds.size > 0) {
+                    const nIds = [...multiSelectedNodeIds];
+                    const eIds = [...multiSelectedEdgeIds];
+                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
+                  } else {
+                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
+                  }
+                }}>
+                {/* Invisible wide hit area for click and right-click */}
+                <path
+                  d={edgePath(edge)}
+                  stroke="transparent"
+                  strokeWidth={12}
+                  fill="none"
+                  style={{ cursor: 'pointer' }}
+                />
+                {/* Dark outline behind edge for contrast against node backgrounds */}
+                <path
+                  d={edgePath(edge)}
+                  stroke="#1e1e1e"
+                  strokeWidth={4}
+                  fill="none"
+                  opacity={0.6}
+                />
+                {/* Selection glow */}
+                {isEdgeSelected && (
+                  <path
+                    d={edgePath(edge)}
+                    stroke="#f0c040"
+                    strokeWidth={4}
+                    strokeDasharray={style.dash}
+                    fill="none"
+                    opacity={0.35}
+                  />
+                )}
+                <path
+                  d={edgePath(edge)}
+                  stroke={isEdgeSelected ? '#f0c040' : style.stroke}
+                  strokeWidth={isEdgeSelected ? 2 : 1.5}
+                  strokeDasharray={style.dash}
+                  fill="none"
+                  {...(style.markerEnd ? { markerEnd: style.markerEnd } : {})}
+                  {...(style.markerStart ? { markerStart: style.markerStart } : {})}
+                />
+                {label && label.text && c && (
+                  <>
+                    <rect
+                      x={c.x - (label.text.length * 3.2 + 4)}
+                      y={c.y - 15}
+                      width={label.text.length * 6.4 + 8}
+                      height={14}
+                      rx={2}
+                      fill="#1e1e1e"
+                      fillOpacity={0.85}
+                    />
+                    <text x={c.x} y={c.y - 4} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
+                      {label.text}
+                    </text>
+                  </>
+                )}
+              </g>
+            );
           })}
 
           {/* Rubber-band selection rectangle */}

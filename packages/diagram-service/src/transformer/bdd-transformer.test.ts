@@ -134,9 +134,9 @@ describe('Transformer: edges', () => {
     expect(edges.some(e => e.cssClasses?.[0] === 'typereference')).toBe(true);
   });
 
-  it('flow edges get flow cssClass', () => {
+  it('succession edges get succession cssClass', () => {
     const { edges } = pipeline('action def A { action x; action y; first x then y; }');
-    expect(edges.some(e => e.cssClasses?.[0] === 'flow')).toBe(true);
+    expect(edges.some(e => e.cssClasses?.[0] === 'succession')).toBe(true);
   });
 });
 

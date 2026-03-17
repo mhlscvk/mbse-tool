@@ -49,6 +49,8 @@ export type SysMLNodeKind =
   | 'RenderingUsage'
   | 'OccurrenceUsage'
   // ── Behavioral / control ──
+  | 'PerformActionUsage'
+  | 'ExhibitStateUsage'
   | 'TransitionUsage'
   | 'ForkNode'
   | 'JoinNode'
@@ -82,7 +84,7 @@ export interface SysMLConnection {
   id: string;
   sourceId: string;
   targetId: string;
-  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'typereference'
+  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'succession' | 'typereference'
       | 'subsetting' | 'redefinition' | 'referencesubsetting'
       | 'satisfy' | 'verify' | 'allocate' | 'bind';
   name?: string;

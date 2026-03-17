@@ -404,7 +404,7 @@ describe('Control flow parsing', () => {
     expect(kinds).toContain('DecideNode');
   });
 
-  it('succession creates flow edge', () => {
+  it('succession creates succession edge', () => {
     const code = `
       action def Seq {
         action step1;
@@ -413,7 +413,7 @@ describe('Control flow parsing', () => {
       }
     `;
     const { model } = parse(code);
-    const flows = model.connections.filter(c => c.kind === 'flow');
-    expect(flows.length).toBeGreaterThanOrEqual(1);
+    const successions = model.connections.filter(c => c.kind === 'succession');
+    expect(successions.length).toBeGreaterThanOrEqual(1);
   });
 });

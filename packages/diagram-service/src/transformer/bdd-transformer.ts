@@ -59,6 +59,8 @@ const KIND_DISPLAY: Record<string, string> = {
   JoinNode:                    '«join»',
   MergeNode:                   '«merge»',
   DecideNode:                  '«decide»',
+  PerformActionUsage:          '«perform»',
+  ExhibitStateUsage:           '«exhibit»',
   TransitionUsage:             '«transition»',
 };
 
@@ -77,6 +79,7 @@ const IS_USAGE = new Set([
   'AllocationUsage', 'UseCaseUsage', 'AnalysisCaseUsage', 'VerificationCaseUsage',
   'ConcernUsage', 'ViewUsage', 'ViewpointUsage', 'RenderingUsage', 'OccurrenceUsage',
   'TransitionUsage',
+  'PerformActionUsage', 'ExhibitStateUsage',
 ]);
 
 const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'TerminateNode']);

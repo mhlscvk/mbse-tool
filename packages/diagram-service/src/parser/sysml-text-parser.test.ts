@@ -296,14 +296,14 @@ describe('Action flow', () => {
 
   it('parses explicit succession: first X then Y;', () => {
     const code = `action def A { action x; action y; first x then y; }`;
-    const flows = parse(code).model.connections.filter(c => c.kind === 'flow');
-    expect(flows.length).toBeGreaterThan(0);
+    const successions = parse(code).model.connections.filter(c => c.kind === 'succession');
+    expect(successions.length).toBeGreaterThan(0);
   });
 
   it('parses inline then successions', () => {
     const code = `action def A { action a1; then a2; action a2; }`;
-    const flows = parse(code).model.connections.filter(c => c.kind === 'flow');
-    expect(flows.some(f => f.sourceId.includes('a1') && f.targetId.includes('a2'))).toBe(true);
+    const successions = parse(code).model.connections.filter(c => c.kind === 'succession');
+    expect(successions.some(f => f.sourceId.includes('a1') && f.targetId.includes('a2'))).toBe(true);
   });
 
   it('parses conditional succession: if guard then action;', () => {
@@ -311,6 +311,33 @@ describe('Action flow', () => {
     const guards = parse(code).model.connections.filter(c => c.name?.includes('['));
     expect(guards.length).toBe(1);
     expect(guards[0].name).toBe('[ready]');
+  });
+
+  it('parses dotted guard expression: if a.b.c then action;', () => {
+    const code = `action def A { decide d1; if ping.response.isActive then act1; action act1; }`;
+    const guards = parse(code).model.connections.filter(c => c.name?.includes('['));
+    expect(guards.length).toBe(1);
+    expect(guards[0].name).toBe('[ping.response.isActive]');
+  });
+
+  it('parses if-then-else with both branches', () => {
+    const code = `action def A { action a1; action a2; decide d1; if ready then a1; else a2; }`;
+    const guards = parse(code).model.connections.filter(c => c.name?.includes('['));
+    expect(guards.length).toBe(2);
+    expect(guards.some(g => g.name === '[ready]')).toBe(true);
+    expect(guards.some(g => g.name === '[else]')).toBe(true);
+  });
+
+  it('warns when if-guard is not a Boolean expression', () => {
+    const code = `action def A { decide d1; if notDefined then act1; action act1; }`;
+    const { diagnostics } = parse(code);
+    expect(diagnostics.some(d => d.message.includes('notDefined') && d.message.includes('Boolean'))).toBe(true);
+  });
+
+  it('no warning when if-guard is a Boolean attribute', () => {
+    const code = `action def A { attribute isReady : Boolean; decide d1; if isReady then act1; action act1; }`;
+    const { diagnostics } = parse(code);
+    expect(diagnostics.filter(d => d.message.includes('isReady') && d.message.includes('Boolean')).length).toBe(0);
   });
 
   it('parses full action flow matching the reference diagram', () => {
@@ -332,11 +359,11 @@ describe('Action flow', () => {
       }
     `;
     const { model } = parse(code);
-    const flows = model.connections.filter(c => c.kind === 'flow');
+    const successions = model.connections.filter(c => c.kind === 'succession');
     // start→fork1, fork1→a1, fork1→a2, a1→join1, a2→join1,
     // join1→decision1, d→a3[g2], d→a4[g1], a3→merge1, a4→merge1, merge1→terminate
-    expect(flows.length).toBe(11);
-    expect(flows.filter(f => f.name?.includes('[')).length).toBe(2);
+    expect(successions.length).toBe(11);
+    expect(successions.filter(f => f.name?.includes('[')).length).toBe(2);
   });
 });
 
@@ -357,12 +384,124 @@ describe('Relationships', () => {
     expect(flow).toBeDefined();
   });
 
-  it('parses perform and exhibit in compartments', () => {
+  it('parses perform and exhibit as child nodes', () => {
     const code = `part def V { perform providePower; exhibit vehicleStates; }`;
     const { model } = parse(code);
     const v = model.nodes.find(n => n.name === 'V');
-    expect(v!.attributes.some(a => a.value === 'perform')).toBe(true);
-    expect(v!.attributes.some(a => a.value === 'exhibit')).toBe(true);
+    expect(v).toBeDefined();
+    // perform and exhibit create proper child nodes with composition edges
+    const performNode = model.nodes.find(n => n.name === 'providePower');
+    const exhibitNode = model.nodes.find(n => n.name === 'vehicleStates');
+    expect(performNode).toBeDefined();
+    expect(performNode!.kind).toBe('PerformActionUsage');
+    expect(exhibitNode).toBeDefined();
+    expect(exhibitNode!.kind).toBe('ExhibitStateUsage');
+    // Composition edges from V to perform/exhibit nodes
+    expect(model.connections.some(c => c.kind === 'composition' && c.sourceId === v!.id && c.targetId === performNode!.id)).toBe(true);
+    expect(model.connections.some(c => c.kind === 'composition' && c.sourceId === v!.id && c.targetId === exhibitNode!.id)).toBe(true);
+  });
+
+  it('nests actions and control nodes inside perform action block', () => {
+    const code = `
+      perform action Deneme {
+        action action1;
+        action action2;
+        fork fork1;
+        join join1;
+        decide decision1;
+        merge merge1;
+        first start;
+        then terminate;
+      }
+    `;
+    const { model } = parse(code);
+    const deneme = model.nodes.find(n => n.name === 'Deneme');
+    expect(deneme).toBeDefined();
+    expect(deneme!.kind).toBe('PerformActionUsage');
+    // All inner elements should have composition edges FROM Deneme
+    const childNames = ['action1', 'action2', 'fork1', 'join1', 'decision1', 'merge1', 'start', 'terminate'];
+    for (const name of childNames) {
+      const child = model.nodes.find(n => n.name === name);
+      expect(child).toBeDefined();
+      const hasComp = model.connections.some(c => c.kind === 'composition' && c.sourceId === deneme!.id && c.targetId === child!.id);
+      expect(hasComp).toBe(true);
+    }
+  });
+
+  it('creates separate start/terminate for each action container', () => {
+    const code = `
+      perform action A { first start; then terminate; }
+      action def B { first start; then terminate; }
+    `;
+    const { model } = parse(code);
+    const a = model.nodes.find(n => n.name === 'A');
+    const b = model.nodes.find(n => n.name === 'B');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    // Each should have its own start and terminate
+    const starts = model.nodes.filter(n => n.name === 'start');
+    const terminates = model.nodes.filter(n => n.name === 'terminate');
+    expect(starts.length).toBe(2);
+    expect(terminates.length).toBe(2);
+    // A owns one start and one terminate
+    expect(model.connections.filter(c => c.kind === 'composition' && c.sourceId === a!.id && starts.some(s => s.id === c.targetId)).length).toBe(1);
+    expect(model.connections.filter(c => c.kind === 'composition' && c.sourceId === a!.id && terminates.some(s => s.id === c.targetId)).length).toBe(1);
+    // B owns one start and one terminate
+    expect(model.connections.filter(c => c.kind === 'composition' && c.sourceId === b!.id && starts.some(s => s.id === c.targetId)).length).toBe(1);
+    expect(model.connections.filter(c => c.kind === 'composition' && c.sourceId === b!.id && terminates.some(s => s.id === c.targetId)).length).toBe(1);
+  });
+
+  it('same-named elements in different containers are separate nodes', () => {
+    const code = `
+      perform action A {
+        action x;
+        action y;
+        first x then y;
+      }
+      action def B {
+        action x;
+        action y;
+        first x then y;
+      }
+    `;
+    const { model } = parse(code);
+    const a = model.nodes.find(n => n.name === 'A');
+    const b = model.nodes.find(n => n.name === 'B');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    // Each container should have its own x and y
+    const xNodes = model.nodes.filter(n => n.name === 'x');
+    const yNodes = model.nodes.filter(n => n.name === 'y');
+    expect(xNodes.length).toBe(2);
+    expect(yNodes.length).toBe(2);
+    // A's x is different from B's x
+    expect(xNodes[0].id).not.toBe(xNodes[1].id);
+    expect(yNodes[0].id).not.toBe(yNodes[1].id);
+    // Each has a succession edge connecting its own x→y
+    const aX = xNodes.find(n => model.connections.some(c => c.kind === 'composition' && c.sourceId === a!.id && c.targetId === n.id));
+    const aY = yNodes.find(n => model.connections.some(c => c.kind === 'composition' && c.sourceId === a!.id && c.targetId === n.id));
+    expect(aX).toBeDefined();
+    expect(aY).toBeDefined();
+    expect(model.connections.some(c => c.kind === 'succession' && c.sourceId === aX!.id && c.targetId === aY!.id)).toBe(true);
+  });
+
+  it('all action forms create separate containers with own children', () => {
+    const code = `
+      action def ActionDef { action x; first start; then x; then terminate; }
+      action untypedUsage { action x; first start; then x; then terminate; }
+      perform action performAct { action x; first start; then x; then terminate; }
+      action typedUsage : ActionDef { action x; first start; then x; then terminate; }
+    `;
+    const { model } = parse(code);
+    // All four containers exist
+    expect(model.nodes.find(n => n.name === 'ActionDef')).toBeDefined();
+    expect(model.nodes.find(n => n.name === 'untypedUsage')).toBeDefined();
+    expect(model.nodes.find(n => n.name === 'performAct')).toBeDefined();
+    expect(model.nodes.find(n => n.name === 'typedUsage')).toBeDefined();
+    // 4 separate 'x' nodes, 4 separate 'start' nodes, 4 separate 'terminate' nodes
+    expect(model.nodes.filter(n => n.name === 'x').length).toBe(4);
+    expect(model.nodes.filter(n => n.name === 'start').length).toBe(4);
+    expect(model.nodes.filter(n => n.name === 'terminate').length).toBe(4);
   });
 });
 

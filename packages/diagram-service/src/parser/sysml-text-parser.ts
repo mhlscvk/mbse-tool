@@ -25,14 +25,22 @@ function lineCol(source: string, index: number): { line: number; column: number 
 /** Levenshtein edit distance between two strings (case-insensitive). */
 function editDistance(a: string, b: string): number {
   const A = a.toLowerCase(), B = b.toLowerCase();
-  const dp: number[][] = Array.from({ length: A.length + 1 }, (_, i) =>
-    Array.from({ length: B.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
-  );
-  for (let i = 1; i <= A.length; i++)
-    for (let j = 1; j <= B.length; j++)
-      dp[i][j] = A[i - 1] === B[j - 1] ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-  return dp[A.length][B.length];
+  // Cap string lengths to avoid excessive memory allocation
+  if (A.length > 100 || B.length > 100) return Math.abs(A.length - B.length);
+  // Use O(min(m,n)) space — only two rows instead of full matrix
+  const short = A.length <= B.length ? A : B;
+  const long = A.length <= B.length ? B : A;
+  let prev = Array.from({ length: short.length + 1 }, (_, j) => j);
+  let curr = new Array<number>(short.length + 1);
+  for (let i = 1; i <= long.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= short.length; j++) {
+      curr[j] = long[i - 1] === short[j - 1] ? prev[j - 1]
+        : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[short.length];
 }
 
 /** Return up to `max` candidates closest to `name`, within a distance threshold. */
@@ -193,8 +201,9 @@ const SUCCESSION_PATTERN = /\bfirst\s+(\w+)\s+then\s+(\w+)\s*;/g;
 // Inline "then Y;" or "then fork Y;" after declarations
 // Optionally skips a keyword (fork/join/merge/decide/action/state) before the target name
 const INLINE_THEN_PATTERN = /\bthen\s+(?:(?:fork|join|merge|decide|action|state)\s+)?(\w+)\s*;/g;
-// Conditional succession: "if guard then action;"
-const IF_THEN_PATTERN = /\bif\s+(\w+)\s+then\s+(\w+)\s*;/g;
+// Conditional succession: "if guard then action;" or "if guard then action; else action2;"
+const IF_THEN_ELSE_PATTERN = /\bif\s+([\w.]+)\s+then\s+(\w+)\s*;\s*else\s+(\w+)\s*;/g;
+const IF_THEN_PATTERN = /\bif\s+([\w.]+)\s+then\s+(\w+)\s*;/g;
 // Control nodes (including start and terminate)
 const CONTROL_NODE_PATTERN = /\b(fork|join|merge|decide)\s+(\w+)\s*;/g;
 // Relationships
@@ -522,6 +531,17 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
       usagePositions.push({ name, start, end });
     }
+    // Also scan perform/exhibit blocks so nested items can find them as parents
+    const performScanRe = new RegExp(PERFORM_PATTERN.source, 'g');
+    while ((um = performScanRe.exec(clean)) !== null) {
+      const end = findBlockEnd(clean, um.index + um[0].length - 1);
+      usagePositions.push({ name: um[1], start: um.index, end });
+    }
+    const exhibitScanRe = new RegExp(EXHIBIT_PATTERN.source, 'g');
+    while ((um = exhibitScanRe.exec(clean)) !== null) {
+      const end = findBlockEnd(clean, um.index + um[0].length - 1);
+      usagePositions.push({ name: um[1], start: um.index, end });
+    }
     usagePositions.sort((a, b) => b.start - a.start);
   }
 
@@ -538,6 +558,83 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     return undefined;
   }
 
+  // ── 2-pre. Create perform/exhibit nodes BEFORE usage parsing ──────────────
+  // These must be in nodeIndex before inner usages are parsed so findOwnerUsage works.
+  {
+    PERFORM_PATTERN.lastIndex = 0;
+    let pm: RegExpExecArray | null;
+    while ((pm = PERFORM_PATTERN.exec(clean)) !== null) {
+      const [, actionName, typeName] = pm;
+      const usagePos = pm.index;
+      const blockEnd = findBlockEnd(clean, usagePos + pm[0].length - 1);
+      const id = makeId('usage', actionName);
+      const { line: uL, column: uC } = lineCol(source, usagePos);
+      const { line: uEL, column: uEC } = lineCol(source, blockEnd);
+      const performNode: SysMLNode = {
+        id, kind: 'PerformActionUsage', name: actionName,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(performNode);
+      nodeIndex.set(actionName, performNode);
+
+      // Composition: owner → perform node
+      let ownerNode = findOwnerDef(usagePos);
+      const enclosingUsage = findOwnerUsage(usagePos, usagePos);
+      if (enclosingUsage && (!ownerNode || enclosingUsage.start > (defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1))) {
+        ownerNode = enclosingUsage.node;
+      }
+      const usagePkg = findOwnerPackage(usagePos);
+      if (ownerNode) {
+        connections.push({ id: makeId('owns', `${ownerNode.name}_${actionName}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+      } else if (usagePkg) {
+        connections.push({ id: makeId('owns', `${usagePkg.name}_${actionName}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      if (typeName) {
+        const typeNode = resolveType(simpleName(typeName));
+        if (typeNode) {
+          connections.push({ id: makeId('typeref', `${actionName}_${simpleName(typeName)}`), sourceId: id, targetId: typeNode.id, kind: 'typereference', name: '' });
+        }
+      }
+    }
+
+    EXHIBIT_PATTERN.lastIndex = 0;
+    let em: RegExpExecArray | null;
+    while ((em = EXHIBIT_PATTERN.exec(clean)) !== null) {
+      const [, stateName, typeName] = em;
+      const usagePos = em.index;
+      const blockEnd = findBlockEnd(clean, usagePos + em[0].length - 1);
+      const id = makeId('usage', stateName);
+      const { line: uL, column: uC } = lineCol(source, usagePos);
+      const { line: uEL, column: uEC } = lineCol(source, blockEnd);
+      const exhibitNode: SysMLNode = {
+        id, kind: 'ExhibitStateUsage', name: stateName,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(exhibitNode);
+      nodeIndex.set(stateName, exhibitNode);
+
+      let ownerNode = findOwnerDef(usagePos);
+      const enclosingUsage = findOwnerUsage(usagePos, usagePos);
+      if (enclosingUsage && (!ownerNode || enclosingUsage.start > (defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1))) {
+        ownerNode = enclosingUsage.node;
+      }
+      const usagePkg = findOwnerPackage(usagePos);
+      if (ownerNode) {
+        connections.push({ id: makeId('owns', `${ownerNode.name}_${stateName}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+      } else if (usagePkg) {
+        connections.push({ id: makeId('owns', `${usagePkg.name}_${stateName}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      if (typeName) {
+        const typeNode = resolveType(simpleName(typeName));
+        if (typeNode) {
+          connections.push({ id: makeId('typeref', `${stateName}_${simpleName(typeName)}`), sourceId: id, targetId: typeNode.id, kind: 'typereference', name: '' });
+        }
+      }
+    }
+  }
+
   // ── 2. Extract usages — create usage nodes + owner→usage + usage→typeDef edges ──
 
   USAGE_PATTERN.lastIndex = 0;
@@ -545,9 +642,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
     const [, keyword, usageName, multiplicity, typeName] = match;
 
-    // Skip if preceded by 'in', 'out', or 'inout' — those are action parameters handled separately
-    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
-    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    // Skip if preceded by 'in', 'out', 'inout', 'perform', or 'exhibit' — handled separately
+    const pre = clean.slice(Math.max(0, match.index - 9), match.index);
+    if (/\b(inout|in|out|perform|exhibit)\s+$/.test(pre)) continue;
 
     // Find the innermost enclosing definition or usage block that owns this usage
     const usagePos = match.index;
@@ -646,9 +743,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
     const [fullMatch, keyword, usageName] = match;
 
-    // Skip if preceded by 'in', 'out', 'inout', or 'def' — those are handled by other patterns
-    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
-    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', or 'exhibit'
+    const pre = clean.slice(Math.max(0, match.index - 9), match.index);
+    if (/\b(inout|in|out|perform|exhibit)\s+$/.test(pre)) continue;
     if (/\bdef\s+$/.test(pre)) continue;   // skip `part def Foo`
 
     // Skip if this name was already captured as a typed usage or definition
@@ -673,8 +770,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
 
     const usagePkg = findOwnerPackage(usagePos);
-    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : undefined;
-    if (!ownerName) continue;
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
 
     // Skip if already registered (avoid duplicates with typed usages)
     if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
@@ -979,25 +1075,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   }
   defPositions.sort((a, b) => b.start - a.start);
 
-  // ── 2i. Behavioral: perform, exhibit, successions, control nodes ───────────
-
-  PERFORM_PATTERN.lastIndex = 0;
-  while ((match = PERFORM_PATTERN.exec(clean)) !== null) {
-    const [, actionName, typeName] = match;
-    const ownerNode = findOwnerDef(match.index);
-    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: actionName, type: typeName ? simpleName(typeName) : undefined, value: 'perform' });
-    }
-  }
-
-  EXHIBIT_PATTERN.lastIndex = 0;
-  while ((match = EXHIBIT_PATTERN.exec(clean)) !== null) {
-    const [, stateName, typeName] = match;
-    const ownerNode = findOwnerDef(match.index);
-    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: stateName, type: typeName ? simpleName(typeName) : undefined, value: 'exhibit' });
-    }
-  }
+  // ── 2i. Behavioral: successions, control nodes ─────────────────────────────
+  // (perform/exhibit nodes already created in section 2-pre above)
 
   // ── 2j. Control nodes: fork, join, merge, decide ────────────────────────────
 
@@ -1009,8 +1088,17 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     };
     const kind = kindMap[nodeType];
     if (!kind) continue;
-    const id = makeId('control', nodeName);
     const usagePos = match.index;
+    // Find owner to scope the control node
+    let ownerNode = findOwnerDef(usagePos);
+    const ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) {
+      ownerNode = enclosingUsage.node;
+    }
+    const usagePkg = findOwnerPackage(usagePos);
+    const ctrlOwnerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    const id = makeId('control', `${ctrlOwnerName}_${nodeName}`);
     const { line: cL, column: cC } = lineCol(source, usagePos);
     const cEnd = findBlockEnd(clean, match.index + match[0].length - 1);
     const { line: cEL, column: cEC } = lineCol(source, cEnd);
@@ -1020,10 +1108,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       range: { start: { line: cL - 1, character: cC - 1 }, end: { line: cEL - 1, character: cEC - 1 } },
     };
     nodes.push(controlNode);
-    nodeIndex.set(nodeName, controlNode);
+    // Index under scoped key (owner.name) so same-named nodes in different containers don't collide
+    nodeIndex.set(`${ctrlOwnerName}.${nodeName}`, controlNode);
+    if (!nodeIndex.has(nodeName)) nodeIndex.set(nodeName, controlNode);
     // Add composition to enclosing owner
-    const ownerNode = findOwnerDef(usagePos);
-    const usagePkg = findOwnerPackage(usagePos);
     if (ownerNode) {
       connections.push({ id: makeId('owns', `${ownerNode.name}_${nodeName}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
     } else if (usagePkg) {
@@ -1033,14 +1121,28 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   // ── 2k. Create start/terminate nodes when referenced ────────────────────────
 
-  // Helper: ensure a special node exists (start, done, terminate)
+  // Helper: ensure a special node exists (start, done, terminate) scoped to its container.
+  // Each action container gets its own start/terminate nodes.
   function ensureSpecialNode(name: string, ownerOffset: number): void {
-    if (nodeIndex.has(name)) return;
+    // Find the enclosing container to scope the special node
+    let ownerNode = findOwnerDef(ownerOffset);
+    const ownerDefPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(ownerOffset, ownerOffset);
+    if (enclosingUsage && enclosingUsage.start > ownerDefPos) {
+      ownerNode = enclosingUsage.node;
+    }
+    const usagePkg = findOwnerPackage(ownerOffset);
+
+    // Scope the node name to the container so each action gets its own start/terminate
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    const scopedKey = `${ownerName}__${name}`;
+    if (nodeIndex.has(scopedKey)) return;
+
     const kindMap: Record<string, SysMLNodeKind> = {
       start: 'StartNode', done: 'JoinNode', terminate: 'TerminateNode',
     };
     const kind = kindMap[name] ?? 'ForkNode';
-    const id = makeId('control', name);
+    const id = makeId('control', `${ownerName}_${name}`);
     const { line: sL, column: sC } = lineCol(source, ownerOffset);
     const specialNode: SysMLNode = {
       id, kind, name,
@@ -1048,14 +1150,34 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       range: { start: { line: sL - 1, character: sC - 1 }, end: { line: sL - 1, character: sC - 1 } },
     };
     nodes.push(specialNode);
-    nodeIndex.set(name, specialNode);
-    const ownerNode = findOwnerDef(ownerOffset);
-    const usagePkg = findOwnerPackage(ownerOffset);
+    // Register under scoped key (per-container) AND under plain name scoped to offset
+    nodeIndex.set(scopedKey, specialNode);
     if (ownerNode) {
       connections.push({ id: makeId('owns', `${ownerNode.name}_${name}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
     } else if (usagePkg) {
       connections.push({ id: makeId('owns', `${usagePkg.name}_${name}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
     }
+  }
+
+  // Resolve a node name at a given offset — tries container-scoped lookup first,
+  // then falls back to global lookup.
+  const SPECIAL_NAMES = new Set(['start', 'done', 'terminate']);
+  function findOwnerNameAtOffset(offset: number): string {
+    let owner = findOwnerDef(offset);
+    const ownerDefPos = owner ? defPositions.find(d => d.name === owner!.name)?.start ?? -1 : -1;
+    const enc = findOwnerUsage(offset, offset);
+    if (enc && enc.start > ownerDefPos) owner = enc.node;
+    const pkg = findOwnerPackage(offset);
+    return owner ? owner.name : pkg ? pkg.name : '_top';
+  }
+  function resolveNodeAtOffset(name: string, offset: number): SysMLNode | undefined {
+    const ownerName = findOwnerNameAtOffset(offset);
+    // Special nodes (start/done/terminate) are stored with __ separator
+    if (SPECIAL_NAMES.has(name)) {
+      return nodeIndex.get(`${ownerName}__${name}`);
+    }
+    // Regular nodes: try scoped name first (owner.name), then global fallback
+    return nodeIndex.get(`${ownerName}.${name}`) ?? nodeIndex.get(name);
   }
 
   // ── 2l. Successions ───────────────────────────────────────────────────────
@@ -1064,15 +1186,15 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   SUCCESSION_PATTERN.lastIndex = 0;
   while ((match = SUCCESSION_PATTERN.exec(clean)) !== null) {
     const [, fromName, toName] = match;
-    if (fromName === 'start' || fromName === 'done' || fromName === 'terminate') ensureSpecialNode(fromName, match.index);
-    if (toName === 'start' || toName === 'done' || toName === 'terminate') ensureSpecialNode(toName, match.index);
-    const fromNode = nodeIndex.get(fromName);
-    const toNode = nodeIndex.get(toName);
+    if (SPECIAL_NAMES.has(fromName)) ensureSpecialNode(fromName, match.index);
+    if (SPECIAL_NAMES.has(toName)) ensureSpecialNode(toName, match.index);
+    const fromNode = resolveNodeAtOffset(fromName, match.index);
+    const toNode = resolveNodeAtOffset(toName, match.index);
     if (fromNode && toNode) {
       connections.push({
         id: makeId('succession', `${fromName}_${toName}_${match.index}`),
         sourceId: fromNode.id, targetId: toNode.id,
-        kind: 'flow', name: '',
+        kind: 'succession', name: '',
       });
     }
   }
@@ -1103,6 +1225,13 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const endPos = dm.index + dm[0].length;
       declPositions.push({ name: dm[1], end: endPos });
     }
+    // perform/exhibit declarations also count for succession resolution
+    const performDeclRe = /\b(?:perform|exhibit)\s+(?:action\s+|state\s+)?(\w+)(?:\s*:\s*[\w:]+)?\s*[;{]/g;
+    performDeclRe.lastIndex = 0;
+    let pdm: RegExpExecArray | null;
+    while ((pdm = performDeclRe.exec(clean)) !== null) {
+      declPositions.push({ name: pdm[1], end: pdm.index + pdm[0].length });
+    }
     // Also "first start;" counts as a declaration of start
     const firstRe = /\bfirst\s+(\w+)\s*;/g;
     firstRe.lastIndex = 0;
@@ -1127,12 +1256,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     if (handledThenPositions.has(match.index)) continue;
     // Check if preceded by "if guard" — those are handled separately
     const preThen = clean.slice(Math.max(0, match.index - 30), match.index);
-    if (/\bif\s+\w+\s+$/.test(preThen)) continue;
+    if (/\bif\s+[\w.]+\s+$/.test(preThen)) continue;
     // Skip "then" inside "first ... then ..."
     if (/\bfirst\s+\w+\s+$/.test(preThen)) continue;
 
     const toName = match[1];
-    if (toName === 'start' || toName === 'done' || toName === 'terminate') ensureSpecialNode(toName, match.index);
+    if (SPECIAL_NAMES.has(toName)) ensureSpecialNode(toName, match.index);
 
     // Find the nearest preceding declaration
     const pos = match.index;
@@ -1144,24 +1273,107 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       }
     }
     if (!fromName) continue;
-    if (fromName === 'start' || fromName === 'done' || fromName === 'terminate') ensureSpecialNode(fromName, match.index);
+    if (SPECIAL_NAMES.has(fromName)) ensureSpecialNode(fromName, match.index);
 
-    const fromNode = nodeIndex.get(fromName);
-    const toNode = nodeIndex.get(toName);
+    const fromNode = resolveNodeAtOffset(fromName, match.index);
+    const toNode = resolveNodeAtOffset(toName, match.index);
     if (fromNode && toNode) {
       connections.push({
         id: makeId('then', `${fromName}_${toName}_${match.index}`),
         sourceId: fromNode.id, targetId: toNode.id,
-        kind: 'flow', name: '',
+        kind: 'succession', name: '',
       });
     }
   }
 
-  // "if guard then action;" — conditional succession from nearest preceding decide/node
-  IF_THEN_PATTERN.lastIndex = 0;
-  while ((match = IF_THEN_PATTERN.exec(clean)) !== null) {
-    const [, guard, toName] = match;
+  // Validate that an if-guard expression resolves to a Boolean feature.
+  // Emits a warning diagnostic if the guard is not found or not typed as Boolean.
+  function validateGuardBoolean(guard: string, matchIndex: number): void {
+    // Locate the guard token position within the "if guard then" match
+    const ifStr = clean.slice(matchIndex, matchIndex + 3 + guard.length + 10);
+    const guardLocalOffset = ifStr.indexOf(guard);
+    const guardOffset = matchIndex + (guardLocalOffset >= 0 ? guardLocalOffset : 3);
+    const { line, column } = lineCol(source, guardOffset);
+
+    // For dotted expressions (e.g. ping.response.isActive), resolve step by step
+    const parts = guard.split('.');
+    let currentNode: SysMLNode | undefined;
+
+    // Resolve first part in scope
+    const firstName = parts[0];
+    currentNode = resolveNodeAtOffset(firstName, matchIndex) ?? nodeIndex.get(firstName);
+
+    if (!currentNode) {
+      diagnostics.push({
+        severity: 'warning',
+        message: `Guard '${guard}' is not defined — 'if' condition must be a Boolean expression`,
+        line, column, endLine: line, endColumn: column + guard.length,
+      });
+      return;
+    }
+
+    // Walk dotted path: for each subsequent part, look for an attribute or child with that name
+    for (let i = 1; i < parts.length; i++) {
+      if (!currentNode) break;
+      const part = parts[i];
+      // Check attributes of current node
+      const foundAttr = currentNode.attributes.find(a => a.name === part) as { name: string; type?: string } | undefined;
+      if (foundAttr) {
+        // If the attribute has a type, check it at the end
+        if (i === parts.length - 1) {
+          if (foundAttr.type && foundAttr.type !== 'Boolean') {
+            diagnostics.push({
+              severity: 'warning',
+              message: `Guard '${guard}' has type '${foundAttr.type}' — 'if' condition must be a Boolean expression`,
+              line, column, endLine: line, endColumn: column + guard.length,
+            });
+          }
+          return;
+        }
+        // Try to resolve the attribute's type to continue walking
+        const attrTypeNode: SysMLNode | undefined = foundAttr.type ? nodeIndex.get(foundAttr.type) : undefined;
+        if (attrTypeNode) { currentNode = attrTypeNode; continue; }
+      }
+      // Check child nodes
+      const childNode: SysMLNode | undefined = nodeIndex.get(`${currentNode.name}.${part}`) ?? nodeIndex.get(part);
+      if (childNode) { currentNode = childNode; continue; }
+      // Can't resolve further — emit warning
+      diagnostics.push({
+        severity: 'warning',
+        message: `Guard '${guard}': cannot resolve '${part}' — 'if' condition must be a Boolean expression`,
+        line, column, endLine: line, endColumn: column + guard.length,
+      });
+      return;
+    }
+
+    // Final resolved node: check its type (qualifiedName carries the type for usage nodes)
+    if (currentNode.qualifiedName && currentNode.qualifiedName !== 'Boolean'
+        && !currentNode.qualifiedName.endsWith('::Boolean')) {
+      diagnostics.push({
+        severity: 'warning',
+        message: `Guard '${guard}' has type '${currentNode.qualifiedName}' — 'if' condition must be a Boolean expression`,
+        line, column, endLine: line, endColumn: column + guard.length,
+      });
+    } else if (!currentNode.qualifiedName && currentNode.kind !== 'AttributeDefinition') {
+      // No type info and not a definition — likely not a boolean
+      diagnostics.push({
+        severity: 'warning',
+        message: `Guard '${guard}' is not typed as Boolean — 'if' condition must be a Boolean expression`,
+        line, column, endLine: line, endColumn: column + guard.length,
+      });
+    }
+  }
+
+  // Track positions handled by if-then-else to avoid double-matching
+  const handledIfPositions = new Set<number>();
+
+  // "if guard then action; else action2;" — conditional succession with else branch
+  IF_THEN_ELSE_PATTERN.lastIndex = 0;
+  while ((match = IF_THEN_ELSE_PATTERN.exec(clean)) !== null) {
+    const [, guard, thenName, elseName] = match;
     const pos = match.index;
+    handledIfPositions.add(pos);
+    validateGuardBoolean(guard, pos);
     // Find the nearest preceding declaration as the source
     let fromName: string | undefined;
     for (let i = declPositions.length - 1; i >= 0; i--) {
@@ -1171,13 +1383,49 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       }
     }
     if (!fromName) continue;
-    const fromNode = nodeIndex.get(fromName);
-    const toNode = nodeIndex.get(toName);
+    const fromNode = resolveNodeAtOffset(fromName, pos);
+    const thenNode = resolveNodeAtOffset(thenName, pos);
+    const elseNode = resolveNodeAtOffset(elseName, pos);
+    if (fromNode && thenNode) {
+      connections.push({
+        id: makeId('guard', `${fromName}_${thenName}_${match.index}`),
+        sourceId: fromNode.id, targetId: thenNode.id,
+        kind: 'succession', name: `[${guard}]`,
+      });
+    }
+    if (fromNode && elseNode) {
+      connections.push({
+        id: makeId('guard', `${fromName}_${elseName}_${match.index}`),
+        sourceId: fromNode.id, targetId: elseNode.id,
+        kind: 'succession', name: '[else]',
+      });
+    }
+  }
+
+  // "if guard then action;" — conditional succession from nearest preceding decide/node
+  IF_THEN_PATTERN.lastIndex = 0;
+  while ((match = IF_THEN_PATTERN.exec(clean)) !== null) {
+    // Skip if already handled by IF_THEN_ELSE_PATTERN
+    if (handledIfPositions.has(match.index)) continue;
+    const [, guard, toName] = match;
+    const pos = match.index;
+    validateGuardBoolean(guard, pos);
+    // Find the nearest preceding declaration as the source
+    let fromName: string | undefined;
+    for (let i = declPositions.length - 1; i >= 0; i--) {
+      if (declPositions[i].end <= pos) {
+        fromName = declPositions[i].name;
+        break;
+      }
+    }
+    if (!fromName) continue;
+    const fromNode = resolveNodeAtOffset(fromName, pos);
+    const toNode = resolveNodeAtOffset(toName, pos);
     if (fromNode && toNode) {
       connections.push({
         id: makeId('guard', `${fromName}_${toName}_${match.index}`),
         sourceId: fromNode.id, targetId: toNode.id,
-        kind: 'flow', name: `[${guard}]`,
+        kind: 'succession', name: `[${guard}]`,
       });
     }
   }
