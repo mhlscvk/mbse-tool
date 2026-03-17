@@ -33,8 +33,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
     if (!name || !content) {
       res.status(400).json({ error: 'Bad Request', message: 'name and content are required' }); return;
     }
+    // Sanitize filename: strip path separators, null bytes, limit length
+    const safeName = name.replace(/[\\/\0]/g, '').slice(0, 255);
+    if (!safeName) {
+      res.status(400).json({ error: 'Bad Request', message: 'Invalid file name' }); return;
+    }
     const file = await prisma.sysMLFile.create({
-      data: { name, content, size: Buffer.byteLength(content, 'utf8'), projectId: req.params.projectId },
+      data: { name: safeName, content, size: Buffer.byteLength(content, 'utf8'), projectId: req.params.projectId },
     });
     res.status(201).json({ data: file });
   } catch (err) { next(err); }

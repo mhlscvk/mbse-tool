@@ -87,6 +87,7 @@ function getGoogleClient() {
 router.post('/register', async (req, res, next) => {
   try {
     const body = registerSchema.parse(req.body);
+    body.email = body.email.toLowerCase().trim();
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) {
       res.status(409).json({ error: 'Conflict', message: 'Email already registered' });
@@ -190,6 +191,7 @@ router.post('/resend-verify', async (req, res, next) => {
 router.post('/login', async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
+    body.email = body.email.toLowerCase().trim();
     const user = await prisma.user.findUnique({ where: { email: body.email } });
 
     // Timing-safe: always run bcrypt even if user not found

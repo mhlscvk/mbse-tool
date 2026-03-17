@@ -398,7 +398,8 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] .sysml file upload (button + drag & drop)
 - [x] AI Assistant (Claude Opus 4.6, streaming, propose_edit tool)
 - [x] User auth: email/password + Google OAuth + email verification
-- [x] Security: helmet, rate limiting, HTTPS, timing-safe login, JWT HS256
+- [x] Security: helmet, rate limiting, HTTPS, timing-safe login, JWT HS256, file name sanitization, email normalization
+- [x] Automated tests: 78 vitest tests (parser + transformer) with edge case coverage
 - [x] Project and file CRUD with auto-save
 - [x] Training mode (7 levels, progressive SysML v2 tutorial)
 - [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
@@ -429,6 +430,23 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
+| Testing | Vitest (78 tests: parser, transformer, edge cases) |
+
+---
+
+## Testing
+
+```bash
+# Run all tests
+cd packages/diagram-service && pnpm test
+
+# Watch mode
+cd packages/diagram-service && pnpm test:watch
+```
+
+**Coverage:** 78 tests across 2 test suites:
+- **Parser tests** (58): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, edge cases (empty input, malformed syntax, XSS payloads, large models, rapid parsing)
+- **Transformer tests** (20): node shapes, keyword display, compartments, edges, empty inputs
 
 ---
 

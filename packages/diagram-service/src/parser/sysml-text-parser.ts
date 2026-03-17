@@ -186,7 +186,7 @@ const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)
 const VERIFICATION_CASE_DEF_PATTERN = /\b(abstract\s+)?verification\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 // Behavioral
 const PERFORM_PATTERN = /\bperform\s+(?:action\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
-const EXHIBIT_PATTERN = /\bexhibit\s+state\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const EXHIBIT_PATTERN = /\bexhibit\s+(?:state\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 // Successions: "first X then Y;" standalone
 const SUCCESSION_PATTERN = /\bfirst\s+(\w+)\s+then\s+(\w+)\s*;/g;
 // Inline "then Y;" or "then fork Y;" after declarations
@@ -839,152 +839,111 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     });
   }
 
-  // ── 2e. Extract subsetting usages (:> on usages) ──────────────────────────
+  // ── 2e. Specialization operators on usages: :> (subsets), :>> (redefines), ::> (references) ──
 
-  SUBSETTING_PATTERN.lastIndex = 0;
-  while ((match = SUBSETTING_PATTERN.exec(clean)) !== null) {
-    const [, keyword, usageName, mult, targetName] = match;
-    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
-    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
-    const usagePos = match.index;
-    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
-    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
-    const enclosingUsage = findOwnerUsage(usagePos, match.index);
-    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
-    const usagePkg = findOwnerPackage(usagePos);
-    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
-    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
-    const targetSimple = simpleName(targetName);
-    const displayName = mult ? `${usageName}${mult}` : usageName;
-    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} :>` });
-    }
-    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
-    const usageId = makeId('usage', `${ownerName}_${usageName}`);
-    const { line: uL, column: uC } = lineCol(source, usagePos);
-    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
-    const { line: uEL, column: uEC } = lineCol(source, uEnd);
-    const usageNode: SysMLNode = {
-      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
-      children: [], attributes: [], connections: [],
-      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
-    };
-    nodes.push(usageNode);
-    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
-    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
-    if (ownerNode || usagePkg) {
-      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
-    }
-    const targetNode = resolveType(targetName);
-    if (targetNode) {
-      connections.push({ id: makeId('subsets', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'subsetting', name: '«subsets»' });
+  type SpecOpKind = 'subsetting' | 'redefinition' | 'referencesubsetting';
+  const specOpSpecs: [RegExp, string, SpecOpKind, string][] = [
+    [SUBSETTING_PATTERN,          ':>',  'subsetting',          '«subsets»'],
+    [REDEFINITION_PATTERN,        ':>>', 'redefinition',        '«redefines»'],
+    [REFERENCE_SUBSETTING_PATTERN,'::>', 'referencesubsetting', '«references»'],
+  ];
+
+  for (const [pattern, op, connKind, label] of specOpSpecs) {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(clean)) !== null) {
+      const [, keyword, usageName, mult, targetName] = match;
+      const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+      if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+      const usagePos = match.index;
+      let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+      let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+      const enclosingUsage = findOwnerUsage(usagePos, match.index);
+      if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
+      const usagePkg = findOwnerPackage(usagePos);
+      const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+      if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+      const targetSimple = simpleName(targetName);
+      const displayName = mult ? `${usageName}${mult}` : usageName;
+      if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+        ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} ${op}` });
+      }
+      const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+      const usageId = makeId('usage', `${ownerName}_${usageName}`);
+      const { line: uL, column: uC } = lineCol(source, usagePos);
+      const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+      const { line: uEL, column: uEC } = lineCol(source, uEnd);
+      const usageNode: SysMLNode = {
+        id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(usageNode);
+      nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+      if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+      if (ownerNode || usagePkg) {
+        connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+      }
+      const targetNode = resolveType(targetName);
+      if (targetNode) {
+        connections.push({ id: makeId(connKind, `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: connKind, name: label });
+      }
     }
   }
 
-  // ── 2f. Extract redefinition usages (:>> on usages) ────────────────────────
+  // ── 2f. Extended definitions (requirement, constraint, enum, use case, etc.) ──
 
-  REDEFINITION_PATTERN.lastIndex = 0;
-  while ((match = REDEFINITION_PATTERN.exec(clean)) !== null) {
-    const [, keyword, usageName, mult, targetName] = match;
-    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
-    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
-    const usagePos = match.index;
-    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
-    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
-    const enclosingUsage = findOwnerUsage(usagePos, match.index);
-    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
-    const usagePkg = findOwnerPackage(usagePos);
-    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
-    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
-    const targetSimple = simpleName(targetName);
-    const displayName = mult ? `${usageName}${mult}` : usageName;
-    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} :>>` });
-    }
-    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
-    const usageId = makeId('usage', `${ownerName}_${usageName}`);
-    const { line: uL, column: uC } = lineCol(source, usagePos);
-    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
-    const { line: uEL, column: uEC } = lineCol(source, uEnd);
-    const usageNode: SysMLNode = {
-      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
-      children: [], attributes: [], connections: [],
-      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
-    };
-    nodes.push(usageNode);
-    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
-    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
-    if (ownerNode || usagePkg) {
-      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
-    }
-    const targetNode = resolveType(targetName);
-    if (targetNode) {
-      connections.push({ id: makeId('redefines', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'redefinition', name: '«redefines»' });
+  // Helper: parse a definition pattern and create node + edges
+  function parseExtDef(pattern: RegExp, kind: SysMLNodeKind, nameGroup: number, abstractGroup: number, specGroup: number): void {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(clean)) !== null) {
+      const abstractKw = match[abstractGroup];
+      const name = match[nameGroup];
+      const specializes = match[specGroup];
+      const id = makeId('def', name);
+      if (definedNames.has(name)) continue;
+      definedNames.add(name);
+      const { line: dL, column: dC } = lineCol(source, match.index);
+      const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+      nodes.push({
+        id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+      });
+      nodeIndex.set(name, nodes[nodes.length - 1]);
+      defPositions.push({ name, start: match.index, end: blockEnd });
+      const ownerPkg = findOwnerPackage(match.index);
+      if (ownerPkg) {
+        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      if (specializes) {
+        const specSimple = simpleName(specializes);
+        connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
+      }
     }
   }
 
-  // ── 2g. Extract reference subsetting (::> on usages) ──────────────────────
-
-  REFERENCE_SUBSETTING_PATTERN.lastIndex = 0;
-  while ((match = REFERENCE_SUBSETTING_PATTERN.exec(clean)) !== null) {
-    const [, keyword, usageName, mult, targetName] = match;
-    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
-    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
-    const usagePos = match.index;
-    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
-    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
-    const enclosingUsage = findOwnerUsage(usagePos, match.index);
-    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
-    const usagePkg = findOwnerPackage(usagePos);
-    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
-    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
-    const targetSimple = simpleName(targetName);
-    const displayName = mult ? `${usageName}${mult}` : usageName;
-    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} ::>` });
-    }
-    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
-    const usageId = makeId('usage', `${ownerName}_${usageName}`);
-    const { line: uL, column: uC } = lineCol(source, usagePos);
-    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
-    const { line: uEL, column: uEC } = lineCol(source, uEnd);
-    const usageNode: SysMLNode = {
-      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
-      children: [], attributes: [], connections: [],
-      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
-    };
-    nodes.push(usageNode);
-    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
-    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
-    if (ownerNode || usagePkg) {
-      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
-    }
-    const targetNode = resolveType(targetName);
-    if (targetNode) {
-      connections.push({ id: makeId('references', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'referencesubsetting', name: '«references»' });
-    }
-  }
-
-  // ── 2h. Extended definitions (requirement, constraint, enum, etc.) ─────────
-
+  // Single-word extended defs: group[1]=abstract, group[2]=keyword, group[3]=name, group[4]=specializes
   EXT_DEF_PATTERN.lastIndex = 0;
   while ((match = EXT_DEF_PATTERN.exec(clean)) !== null) {
-    const [, abstractKw, keyword, name, specializes] = match;
-    const kind = EXT_KIND_MAP[keyword];
+    const kind = EXT_KIND_MAP[match[2]];
     if (!kind) continue;
+    // Re-use parseExtDef inline since EXT_DEF_PATTERN has keyword in group[2]
+    const abstractKw = match[1];
+    const name = match[3];
+    const specializes = match[4];
     const id = makeId('def', name);
     if (definedNames.has(name)) continue;
     definedNames.add(name);
     const { line: dL, column: dC } = lineCol(source, match.index);
     const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
     const { line: dEL, column: dEC } = lineCol(source, blockEnd);
-    const node: SysMLNode = {
+    nodes.push({
       id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
       children: [], attributes: [], connections: [],
       range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
-    };
-    nodes.push(node);
-    nodeIndex.set(name, node);
+    });
+    nodeIndex.set(name, nodes[nodes.length - 1]);
     defPositions.push({ name, start: match.index, end: blockEnd });
     const ownerPkg = findOwnerPackage(match.index);
     if (ownerPkg) {
@@ -996,39 +955,13 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  // Multi-word definitions: use case, analysis case, verification case
-  const multiWordDefs: [RegExp, SysMLNodeKind][] = [
+  // Multi-word defs: group[1]=abstract, group[2]=name, group[3]=specializes
+  for (const [pattern, kind] of [
     [USE_CASE_DEF_PATTERN, 'UseCaseDefinition'],
     [ANALYSIS_CASE_DEF_PATTERN, 'AnalysisCaseDefinition'],
     [VERIFICATION_CASE_DEF_PATTERN, 'VerificationCaseDefinition'],
-  ];
-  for (const [pattern, kind] of multiWordDefs) {
-    pattern.lastIndex = 0;
-    while ((match = pattern.exec(clean)) !== null) {
-      const [, abstractKw, name, specializes] = match;
-      const id = makeId('def', name);
-      if (definedNames.has(name)) continue;
-      definedNames.add(name);
-      const { line: dL, column: dC } = lineCol(source, match.index);
-      const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
-      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
-      const node: SysMLNode = {
-        id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
-        children: [], attributes: [], connections: [],
-        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
-      };
-      nodes.push(node);
-      nodeIndex.set(name, node);
-      defPositions.push({ name, start: match.index, end: blockEnd });
-      const ownerPkg = findOwnerPackage(match.index);
-      if (ownerPkg) {
-        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
-      }
-      if (specializes) {
-        const specSimple = simpleName(specializes);
-        connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
-      }
-    }
+  ] as [RegExp, SysMLNodeKind][]) {
+    parseExtDef(pattern, kind, 2, 1, 3);
   }
   defPositions.sort((a, b) => b.start - a.start);
 
@@ -1237,43 +1170,23 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   // ── 2m. Relationships: satisfy, verify, allocate, bind ─────────────────────
 
-  SATISFY_PATTERN.lastIndex = 0;
-  while ((match = SATISFY_PATTERN.exec(clean)) !== null) {
-    const [, reqName, partName] = match;
-    const reqNode = nodeIndex.get(reqName);
-    const partNode = nodeIndex.get(partName);
-    if (reqNode && partNode) {
-      connections.push({ id: makeId('satisfy', `${partName}_${reqName}_${match.index}`), sourceId: partNode.id, targetId: reqNode.id, kind: 'satisfy', name: '«satisfy»' });
-    }
-  }
-
-  VERIFY_PATTERN.lastIndex = 0;
-  while ((match = VERIFY_PATTERN.exec(clean)) !== null) {
-    const [, reqName, partName] = match;
-    const reqNode = nodeIndex.get(reqName);
-    const partNode = nodeIndex.get(partName);
-    if (reqNode && partNode) {
-      connections.push({ id: makeId('verify', `${partName}_${reqName}_${match.index}`), sourceId: partNode.id, targetId: reqNode.id, kind: 'verify', name: '«verify»' });
-    }
-  }
-
-  ALLOCATE_PATTERN.lastIndex = 0;
-  while ((match = ALLOCATE_PATTERN.exec(clean)) !== null) {
-    const [, from, to] = match;
-    const fromNode = nodeIndex.get(from.split('.')[0]);
-    const toNode = nodeIndex.get(to.split('.')[0]);
-    if (fromNode && toNode) {
-      connections.push({ id: makeId('allocate', `${from}_${to}_${match.index}`), sourceId: fromNode.id, targetId: toNode.id, kind: 'allocate', name: '«allocate»' });
-    }
-  }
-
-  BIND_PATTERN.lastIndex = 0;
-  while ((match = BIND_PATTERN.exec(clean)) !== null) {
-    const [, left, right] = match;
-    const leftNode = nodeIndex.get(left.split('.')[0]);
-    const rightNode = nodeIndex.get(right.split('.')[0]);
-    if (leftNode && rightNode) {
-      connections.push({ id: makeId('bind', `${left}_${right}_${match.index}`), sourceId: leftNode.id, targetId: rightNode.id, kind: 'bind', name: '=' });
+  type RelKind = SysMLConnection['kind'];
+  const relSpecs: [RegExp, RelKind, string, boolean][] = [
+    // [pattern, connKind, label, reverseDirection]
+    [SATISFY_PATTERN,  'satisfy',  '«satisfy»',  true],   // partNode → reqNode
+    [VERIFY_PATTERN,   'verify',   '«verify»',   true],
+    [ALLOCATE_PATTERN, 'allocate', '«allocate»',  false],
+    [BIND_PATTERN,     'bind',     '=',           false],
+  ];
+  for (const [pattern, connKind, label, reverse] of relSpecs) {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(clean)) !== null) {
+      const a = match[1].split('.')[0], b = match[2].split('.')[0];
+      const aNode = nodeIndex.get(a), bNode = nodeIndex.get(b);
+      if (aNode && bNode) {
+        const [src, tgt] = reverse ? [bNode, aNode] : [aNode, bNode];
+        connections.push({ id: makeId(connKind, `${a}_${b}_${match.index}`), sourceId: src.id, targetId: tgt.id, kind: connKind, name: label });
+      }
     }
   }
 
