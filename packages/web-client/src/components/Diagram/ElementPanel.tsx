@@ -228,18 +228,82 @@ export default function ElementPanel({
 
   const collectAllIds = (nodeId: string): string[] => allDescendantIds.get(nodeId) ?? [nodeId];
 
+  // Compute depth of each node in the composition tree
+  const nodeDepths = useMemo(() => {
+    const depths = new Map<string, number>();
+    const walk = (nodeId: string, d: number) => {
+      depths.set(nodeId, d);
+      for (const childId of childrenOf.get(nodeId) ?? []) walk(childId, d + 1);
+    };
+    for (const root of rootNodes) walk(root.id, 0);
+    return depths;
+  }, [rootNodes, childrenOf]);
+
+  // All node IDs that have children (collapsible)
+  const collapsibleIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const node of nodes) {
+      if ((childrenOf.get(node.id) ?? []).length > 0) ids.push(node.id);
+    }
+    return ids;
+  }, [nodes, childrenOf]);
+
+  // Max depth of any collapsible node
+  const maxDepth = useMemo(() => {
+    let max = 0;
+    for (const id of collapsibleIds) max = Math.max(max, nodeDepths.get(id) ?? 0);
+    return max;
+  }, [collapsibleIds, nodeDepths]);
+
   const allRootKeys = rootNodes.map(n => n.id);
   const allKindKeys = Array.from(kindGroups.keys());
+
   const allGroupsCollapsed = viewMode === 'nested'
-    ? allRootKeys.length > 0 && allRootKeys.every(k => collapsedGroups.has(k))
+    ? collapsibleIds.length > 0 && collapsibleIds.every(k => collapsedGroups.has(k))
     : allKindKeys.length > 0 && allKindKeys.every(k => collapsedTreeGroups.has(k));
-  const collapseAll = () => {
-    if (viewMode === 'nested') setCollapsedGroups(new Set(allRootKeys));
-    else setCollapsedTreeGroups(new Set(allKindKeys));
+
+  const allGroupsExpanded = viewMode === 'nested'
+    ? collapsibleIds.length > 0 && collapsibleIds.every(k => !collapsedGroups.has(k))
+    : allKindKeys.length > 0 && allKindKeys.every(k => !collapsedTreeGroups.has(k));
+
+  // Step-by-step collapse: collapse one level at a time, deepest expanded first
+  const stepCollapse = () => {
+    if (viewMode === 'nested') {
+      // Find the deepest level that has expanded (non-collapsed) nodes
+      for (let d = maxDepth; d >= 0; d--) {
+        const atDepth = collapsibleIds.filter(id => (nodeDepths.get(id) ?? 0) === d && !collapsedGroups.has(id));
+        if (atDepth.length > 0) {
+          setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            for (const id of atDepth) next.add(id);
+            return next;
+          });
+          return;
+        }
+      }
+    } else {
+      setCollapsedTreeGroups(new Set(allKindKeys));
+    }
   };
-  const expandAll = () => {
-    if (viewMode === 'nested') setCollapsedGroups(new Set());
-    else setCollapsedTreeGroups(new Set());
+
+  // Step-by-step expand: expand one level at a time, shallowest collapsed first
+  const stepExpand = () => {
+    if (viewMode === 'nested') {
+      // Find the shallowest level that has collapsed nodes
+      for (let d = 0; d <= maxDepth; d++) {
+        const atDepth = collapsibleIds.filter(id => (nodeDepths.get(id) ?? 0) === d && collapsedGroups.has(id));
+        if (atDepth.length > 0) {
+          setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            for (const id of atDepth) next.delete(id);
+            return next;
+          });
+          return;
+        }
+      }
+    } else {
+      setCollapsedTreeGroups(new Set());
+    }
   };
 
   const toggleAllEdges = (visible: boolean) => {
@@ -469,10 +533,17 @@ export default function ElementPanel({
               <button onClick={() => onToggleAll(true)} title="Show all" style={btnStyle}>All</button>
               <button onClick={() => onToggleAll(false)} title="Hide all" style={btnStyle}>None</button>
               <button
-                onClick={allGroupsCollapsed ? expandAll : collapseAll}
-                title={allGroupsCollapsed ? 'Expand all' : 'Collapse all'}
-                style={btnStyle}
-              >{allGroupsCollapsed ? '▶▶' : '▼▼'}</button>
+                onClick={stepExpand}
+                disabled={allGroupsExpanded}
+                title="Expand one level"
+                style={{ ...btnStyle, opacity: allGroupsExpanded ? 0.3 : 1 }}
+              >&#9660;</button>
+              <button
+                onClick={stepCollapse}
+                disabled={allGroupsCollapsed}
+                title="Collapse one level"
+                style={{ ...btnStyle, opacity: allGroupsCollapsed ? 0.3 : 1 }}
+              >&#9650;</button>
             </>
           ) : (
             <>

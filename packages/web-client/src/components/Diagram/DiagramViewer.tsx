@@ -15,6 +15,7 @@ interface DiagramViewerProps {
   viewMode?: 'nested' | 'tree';
   onViewModeChange?: (mode: 'nested' | 'tree') => void;
   onNodeSelect?: (range: { start: { line: number; character: number }; end: { line: number; character: number } }) => void;
+  onEdgeSelect?: (range: { start: { line: number; character: number }; end: { line: number; character: number } }) => void;
   onHideNode?: (id: string) => void;
   onHideEdge?: (id: string) => void;
 }
@@ -48,36 +49,93 @@ const NODE_COLORS: Record<string, string> = {
   actionin:             '#082828',
   actionout:            '#1a1008',
   actioninout:          '#1a2828',
+  // Extended definitions
+  requirementdefinition:       '#5a1a1a',
+  requirementusage:            '#3a0e0e',
+  constraintdefinition:        '#5a2a1a',
+  constraintusage:             '#3a1a0e',
+  interfacedefinition:         '#2a1a5a',
+  interfaceusage:              '#1a0e3a',
+  enumdefinition:              '#1a4a3a',
+  enumusage:                   '#0e2a20',
+  calcdefinition:              '#0a3a4a',
+  calcusage:                   '#062028',
+  allocationdefinition:        '#4a3010',
+  allocationusage:             '#2a1a08',
+  usecasedefinition:           '#1a2a5a',
+  usecaseusage:                '#0e1a3a',
+  analysiscasedefinition:      '#2a3a4a',
+  analysiscaseusage:           '#1a2028',
+  verificationcasedefinition:  '#3a2a4a',
+  verificationcaseusage:       '#201a28',
+  concerndefinition:           '#4a3a2a',
+  concernusage:                '#281e14',
+  viewdefinition:              '#1a3a3a',
+  viewusage:                   '#0e2020',
+  viewpointdefinition:         '#2a2a4a',
+  viewpointusage:              '#1a1a28',
+  renderingdefinition:         '#3a3a3a',
+  renderingusage:              '#202020',
+  metadatadefinition:          '#3a2a3a',
+  occurrencedefinition:        '#2a3a2a',
+  occurrenceusage:             '#1a2a1a',
+  // Control nodes
+  forknode:                    '#4a4a4a',
+  joinnode:                    '#4a4a4a',
+  mergenode:                   '#3a3a2a',
+  decidenode:                  '#3a3a2a',
+  transitionusage:             '#2a2a2a',
   stdlib:               '#0a2018',
   default:              '#252525',
 };
 
-// SysML v2 compliant edge styles
-// - Specialization (subclassification): solid line, hollow triangle at supertype
-// - Composition (ownership): solid line, filled diamond at owner, NO arrowhead at target
-// - Association (connection): solid line, open arrowhead at target
-// - Flow (succession): dashed line, open arrowhead at target
-// - Type reference: dashed line, open arrowhead at type
+// SysML v2.0 compliant edge styles (per OMG spec formal/2025-09-03, Section 8.2.3)
+// - Subclassification:    solid line, hollow triangle at general end
+// - Typing (defined by):  dashed line, hollow triangle at definition end
+// - Subsetting :>:        solid line, open arrow (>) at subsetted end
+// - Redefinition :>>:     solid line, open arrow (>) at redefined end, bar at redefining end
+// - Ref subsetting ::>:   solid line, open arrow (>) at referenced end
+// - Composition:          solid line, filled diamond at owner end
+// - Connection:           solid line, end adornments
+// - Flow:                 solid line, filled arrowhead at target
+// - Succession:           solid line, open arrowhead at target
+// - Transition:           solid line, filled arrowhead at target
+// - Satisfy/Verify:       dashed line, open arrowhead
+// - Allocate:             dashed line, open arrowhead
+// - Binding:              dashed line, open circles at both ends
 const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: string; markerStart?: string; labelColor: string }> = {
-  dependency:    { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#tri-spec)',                                      labelColor: '#9e9e9e' },
-  composition:   { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                markerStart: 'url(#diamond-comp)',  labelColor: '#9cdcfe' },
-  association:   { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-assoc)',                                   labelColor: '#777'    },
-  flow:          { stroke: '#4ec9b0', dash: '6,3',     markerEnd: 'url(#arrow-flow)',                                    labelColor: '#4ec9b0' },
-  typereference: { stroke: '#6a7a8a', dash: '3,3',     markerEnd: 'url(#arrow-typeref)',                                 labelColor: '#6a7a8a' },
+  dependency:          { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#tri-spec)',                                      labelColor: '#9e9e9e' },
+  subsetting:          { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
+  redefinition:        { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',  markerStart: 'url(#bar-redef)',   labelColor: '#9e9e9e' },
+  composition:         { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                  markerStart: 'url(#diamond-comp)',labelColor: '#9cdcfe' },
+  association:         { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-assoc)',                                   labelColor: '#777'    },
+  flow:                { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-flow-filled)',                             labelColor: '#4ec9b0' },
+  typereference:       { stroke: '#6a7a8a', dash: '4,3',     markerEnd: 'url(#tri-typeref)',                                   labelColor: '#6a7a8a' },
+  referencesubsetting: { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
+  satisfy:             { stroke: '#e06060', dash: '6,3',     markerEnd: 'url(#arrow-satisfy)',                                 labelColor: '#e06060' },
+  verify:              { stroke: '#60b060', dash: '6,3',     markerEnd: 'url(#arrow-verify)',                                  labelColor: '#60b060' },
+  allocate:            { stroke: '#c0a060', dash: '6,3',     markerEnd: 'url(#arrow-allocate)',                                labelColor: '#c0a060' },
+  bind:                { stroke: '#9090c0', dash: '4,3',     markerEnd: '',                                                     labelColor: '#9090c0' },
 };
 const DEFAULT_EDGE_STYLE = EDGE_STYLES.association;
 
 // SysML v2: definitions have sharp corners, usages have rounded corners, packages have sharp + tab
 const DEF_CLASSES = new Set([
   'package', 'partdefinition', 'attributedefinition', 'connectiondefinition',
-  'portdefinition', 'actiondefinition', 'statedefinition', 'itemdefinition',
+  'portdefinition', 'actiondefinition', 'itemdefinition',
+  // Note: statedefinition intentionally excluded — states use rounded corners per SysML v2 spec
+  'requirementdefinition', 'constraintdefinition', 'interfacedefinition', 'enumdefinition',
+  'calcdefinition', 'allocationdefinition', 'usecasedefinition',
+  'analysiscasedefinition', 'verificationcasedefinition',
+  'concerndefinition', 'viewdefinition', 'viewpointdefinition',
+  'renderingdefinition', 'metadatadefinition', 'occurrencedefinition',
 ]);
 const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';
 const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 'stdlib' ? 0 : 10;
 
 export default function DiagramViewer({
-  model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onHideNode, onHideEdge,
+  model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onEdgeSelect, onHideNode, onHideEdge,
 }: DiagramViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -412,6 +470,28 @@ export default function DiagramViewer({
     }
   }, [onNodeSelect]);
 
+  const onEdgeClick = useCallback((e: React.MouseEvent, edge: SEdge) => {
+    e.stopPropagation();
+    if (onEdgeSelect) {
+      // Try edge's own data range first, then fall back to source node's range
+      const edgeRange = (edge as SEdge & { data?: Record<string, unknown> }).data?.range as
+        | { start: { line: number; character: number }; end: { line: number; character: number } }
+        | undefined;
+      if (edgeRange) {
+        onEdgeSelect(edgeRange);
+        return;
+      }
+      // Fall back: navigate to the source node's range (where the relationship is declared)
+      const sourceNode = allNodes.find(n => n.id === edge.sourceId);
+      if (sourceNode) {
+        const range = sourceNode.data?.range as
+          | { start: { line: number; character: number }; end: { line: number; character: number } }
+          | undefined;
+        if (range) onEdgeSelect(range);
+      }
+    }
+  }, [onEdgeSelect, allNodes]);
+
   const onSvgMouseDown = (e: React.MouseEvent) => {
     setContextMenu(null);
     dragging.current = true;
@@ -538,25 +618,45 @@ export default function DiagramViewer({
         onContextMenu={(e) => e.preventDefault()}
       >
         <defs>
-          {/* Specialization / subclassification: hollow triangle at supertype */}
+          {/* ── Subclassification: hollow triangle at general end ── */}
           <marker id="tri-spec" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto">
             <polygon points="0 0, 12 5, 0 10" fill="#1e1e1e" stroke="#9e9e9e" strokeWidth="1.5" />
           </marker>
-          {/* Composition: filled diamond at owner end */}
+          {/* ── Typing (defined by): hollow triangle on dashed line ── */}
+          <marker id="tri-typeref" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto">
+            <polygon points="0 0, 12 5, 0 10" fill="#1e1e1e" stroke="#6a7a8a" strokeWidth="1.5" />
+          </marker>
+          {/* ── Subsetting / ref subsetting: open arrow (>) ── */}
+          <marker id="arrow-open" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#9e9e9e" strokeWidth="1.5" />
+          </marker>
+          {/* ── Redefinition: vertical bar at redefining (source) end ── */}
+          <marker id="bar-redef" markerWidth="4" markerHeight="10" refX="2" refY="5" orient="auto">
+            <line x1="2" y1="0" x2="2" y2="10" stroke="#9e9e9e" strokeWidth="1.5" />
+          </marker>
+          {/* ── Composition: filled diamond at owner end ── */}
           <marker id="diamond-comp" markerWidth="16" markerHeight="9" refX="1" refY="4.5" orient="auto">
             <polygon points="1 4.5, 7 1, 13 4.5, 7 8" fill="#9cdcfe" stroke="#9cdcfe" strokeWidth="1" />
           </marker>
-          {/* Association / connection: open arrowhead */}
+          {/* ── Connection: open arrowhead ── */}
           <marker id="arrow-assoc" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
             <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#777" strokeWidth="1.5" />
           </marker>
-          {/* Flow / succession: open arrowhead */}
-          <marker id="arrow-flow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#4ec9b0" strokeWidth="1.5" />
+          {/* ── Flow / transition: filled arrowhead (per spec: solid, filled) ── */}
+          <marker id="arrow-flow-filled" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polygon points="0 0, 9 4, 0 8" fill="#4ec9b0" stroke="#4ec9b0" strokeWidth="1" />
           </marker>
-          {/* Type reference: open arrowhead */}
-          <marker id="arrow-typeref" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#6a7a8a" strokeWidth="1.5" />
+          {/* ── Satisfy: open arrowhead (dashed) ── */}
+          <marker id="arrow-satisfy" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#e06060" strokeWidth="1.5" />
+          </marker>
+          {/* ── Verify: open arrowhead (dashed) ── */}
+          <marker id="arrow-verify" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#60b060" strokeWidth="1.5" />
+          </marker>
+          {/* ── Allocate: open arrowhead (dashed) ── */}
+          <marker id="arrow-allocate" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#c0a060" strokeWidth="1.5" />
           </marker>
         </defs>
 
@@ -569,18 +669,20 @@ export default function DiagramViewer({
             const label = edge.children[0];
             const edgeLabel = label?.text || kind;
             return (
-              <g key={edge.id} onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
-              }}>
-                {/* Invisible wide hit area for easier right-click */}
+              <g key={edge.id}
+                onClick={(e) => onEdgeClick(e, edge)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
+                }}>
+                {/* Invisible wide hit area for click and right-click */}
                 <path
                   d={edgePath(edge)}
                   stroke="transparent"
                   strokeWidth={12}
                   fill="none"
-                  style={{ cursor: 'context-menu' }}
+                  style={{ cursor: 'pointer' }}
                 />
                 <path
                   d={edgePath(edge)}
@@ -712,6 +814,40 @@ export default function DiagramViewer({
               );
             }
 
+            // ── Control nodes: fork/join (bar) and merge/decide (diamond) ──
+            const isForkJoin = cssClass === 'forknode' || cssClass === 'joinnode';
+            const isMergeDecide = cssClass === 'mergenode' || cssClass === 'decidenode';
+            if (isForkJoin) {
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#aaa' : '#888';
+              return (
+                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}>
+                  <rect width={w} height={h} fill="#aaa" stroke={borderColor} strokeWidth={1.5} rx={2} />
+                  <text x={w / 2} y={h + 14} fill="#888" fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
+                </g>
+              );
+            }
+            if (isMergeDecide) {
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#aaa' : '#888';
+              const cx = w / 2, cy = h / 2;
+              return (
+                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}>
+                  <polygon points={`${cx},0 ${w},${cy} ${cx},${h} 0,${cy}`}
+                    fill={color} stroke={borderColor} strokeWidth={1.5} />
+                  <text x={cx} y={h + 14} fill="#888" fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
+                </g>
+              );
+            }
+
             // ── Leaf / tree-mode node: SysML v2 two-compartment box ──
             // Definitions: sharp corners (rx=0), Usages: rounded corners (rx=10)
             return (
@@ -776,11 +912,17 @@ export default function DiagramViewer({
           </g>
           {/* Edge legend */}
           {[
-            ...(viewMode === 'tree' ? [{ label: '◆── composition',    color: '#9cdcfe', dash: undefined }] : []),
-            { label: '◁── specialization',  color: '#9e9e9e', dash: undefined },
-            { label: '──▷ connection',       color: '#777',    dash: undefined },
-            { label: '- -▷ flow',            color: '#4ec9b0', dash: '6,3'     },
-            { label: '- -▷ typed by',        color: '#6a7a8a', dash: '3,3'     },
+            ...(viewMode === 'tree' ? [{ label: '◆── composition',      color: '#9cdcfe', dash: undefined }] : []),
+            { label: '◁── specializes :>',     color: '#9e9e9e', dash: undefined },
+            { label: '──▷ subsets :>',          color: '#9e9e9e', dash: undefined },
+            { label: '|──▷ redefines :>>',      color: '#9e9e9e', dash: undefined },
+            { label: '- -◁ defined by :',       color: '#6a7a8a', dash: '4,3'     },
+            { label: '──▷ ref subsets ::>',     color: '#9e9e9e', dash: undefined },
+            { label: '──▶ flow',                color: '#4ec9b0', dash: undefined },
+            { label: '──▷ connection',          color: '#777',    dash: undefined },
+            { label: '- -▷ satisfy',            color: '#e06060', dash: '6,3'     },
+            { label: '- -▷ verify',             color: '#60b060', dash: '6,3'     },
+            { label: '- -▷ allocate',           color: '#c0a060', dash: '6,3'     },
           ].map(({ label, color, dash }, i) => (
             <g key={label} transform={`translate(0,${54 + i * 16})`}>
               <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />

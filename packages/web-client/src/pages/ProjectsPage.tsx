@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import Header from '../components/Layout/Header.js';
@@ -57,6 +57,46 @@ export default function ProjectsPage() {
       setError(e instanceof Error ? e.message : 'Failed to create file');
     }
   };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadFiles = async (fileList: FileList) => {
+    if (!selectedProject) return;
+    for (const file of Array.from(fileList)) {
+      try {
+        const content = await file.text();
+        const name = file.name.endsWith('.sysml') ? file.name : `${file.name}.sysml`;
+        const created = await api.files.create(selectedProject.id, name, content);
+        setFiles((prev) => [...prev, created]);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : `Failed to upload ${file.name}`);
+      }
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      uploadFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (!selectedProject) return;
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(
+      (f) => f.name.endsWith('.sysml') || f.name.endsWith('.txt') || f.type === 'text/plain',
+    );
+    if (droppedFiles.length > 0) {
+      const dt = new DataTransfer();
+      droppedFiles.forEach((f) => dt.items.add(f));
+      uploadFiles(dt.files);
+    }
+  };
+
+  const [dragOver, setDragOver] = useState(false);
 
   const openFile = (file: SysMLFile) => {
     navigate(`/projects/${selectedProject!.id}/files/${file.id}`);
@@ -117,11 +157,39 @@ export default function ProjectsPage() {
             <>
               <div style={{ padding: '16px 20px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600 }}>{selectedProject.name}</span>
-                <button onClick={createFile} style={{ background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
-                  + New File
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".sysml,.txt"
+                    multiple
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ background: '#3c3c3c', color: '#ccc', border: '1px solid #555', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#4a4a4a'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = '#3c3c3c'; }}
+                  >
+                    Upload .sysml
+                  </button>
+                  <button onClick={createFile} style={{ background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
+                    + New File
+                  </button>
+                </div>
               </div>
-              <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexWrap: 'wrap', gap: 12, alignContent: 'flex-start' }}>
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                style={{
+                  flex: 1, overflowY: 'auto', padding: 16,
+                  display: 'flex', flexWrap: 'wrap', gap: 12, alignContent: 'flex-start',
+                  border: dragOver ? '2px dashed #569cd6' : '2px dashed transparent',
+                  transition: 'border-color 0.15s',
+                }}
+              >
                 {files.map((file) => (
                   <div
                     key={file.id}
@@ -139,7 +207,9 @@ export default function ProjectsPage() {
                   </div>
                 ))}
                 {files.length === 0 && (
-                  <div style={{ color: '#666', fontSize: 13 }}>No files yet. Create one to start modeling.</div>
+                  <div style={{ color: '#666', fontSize: 13, textAlign: 'center', width: '100%', paddingTop: 40 }}>
+                    No files yet. Create a new file or drag & drop .sysml files here.
+                  </div>
                 )}
               </div>
             </>

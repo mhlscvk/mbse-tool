@@ -96,24 +96,30 @@ router.post('/register', async (req, res, next) => {
     const verifyToken = crypto.randomBytes(32).toString('hex');
     const verifyTokenExp = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+    const isDev = process.env.NODE_ENV !== 'production';
+
     const user = await prisma.user.create({
       data: {
         email: body.email,
         name: body.name,
         passwordHash,
-        verifyToken,
-        verifyTokenExp,
-        emailVerified: false,
+        verifyToken: isDev ? null : verifyToken,
+        verifyTokenExp: isDev ? null : verifyTokenExp,
+        emailVerified: isDev ? true : false,
       },
       select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true },
     });
 
-    // Send verification email (non-blocking)
-    sendVerificationEmail(body.email, verifyToken).catch((err) => {
-      console.error('[AUTH] Failed to send verification email:', err.message);
-    });
+    if (isDev) {
+      console.log(`[AUTH] Dev mode: auto-verified user ${body.email}`);
+    } else {
+      // Send verification email (non-blocking)
+      sendVerificationEmail(body.email, verifyToken).catch((err) => {
+        console.error('[AUTH] Failed to send verification email:', err.message);
+      });
+    }
 
-    res.status(201).json({ data: { user, message: 'Verification email sent. Please check your inbox.' } });
+    res.status(201).json({ data: { user, message: isDev ? 'Account created (dev: auto-verified).' : 'Verification email sent. Please check your inbox.' } });
   } catch (err) {
     next(err);
   }

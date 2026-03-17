@@ -30,8 +30,8 @@ function CompletionScreen({ onRestart }: { onRestart: () => void }) {
         textAlign: 'center', lineHeight: 1.7,
       }}>
         You built a complete SysML v2 General View from scratch — part definitions,
-        attributes, generalization, composition, ports, and items. These are the
-        foundations of every SysML v2 model.
+        attributes, specialization, composition, subsetting, redefinition, ports,
+        and items. These are the foundations of every SysML v2 model.
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
         <button
@@ -72,6 +72,7 @@ export default function TrainingPage() {
   const [diagram, setDiagram] = useState<SModelRoot | null>(null);
   const [lastResult, setLastResult] = useState<ValidationResult | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [viewMode, setViewMode] = useState<'nested' | 'tree'>('nested');
 
   const task = TRAINING_TASKS[Math.min(taskIndex, TRAINING_TASKS.length - 1)];
   const currentLevel = task.level;
@@ -258,6 +259,8 @@ export default function TrainingPage() {
               hiddenNodeIds={new Set()}
               hiddenEdgeIds={new Set()}
               storageKey="training"
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
             />
           </div>
 

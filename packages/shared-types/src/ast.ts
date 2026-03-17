@@ -1,6 +1,7 @@
 // SysML v2 AST node types produced by the language server
 export type SysMLNodeKind =
   | 'Package'
+  // ── Core structural definitions ──
   | 'PartDefinition'
   | 'AttributeDefinition'
   | 'ConnectionDefinition'
@@ -8,13 +9,51 @@ export type SysMLNodeKind =
   | 'ActionDefinition'
   | 'StateDefinition'
   | 'ItemDefinition'
+  // ── Core structural usages ──
   | 'PartUsage'
   | 'AttributeUsage'
   | 'ConnectionUsage'
   | 'PortUsage'
   | 'ActionUsage'
   | 'StateUsage'
-  | 'ItemUsage';
+  | 'ItemUsage'
+  // ── Extended definitions ──
+  | 'RequirementDefinition'
+  | 'ConstraintDefinition'
+  | 'InterfaceDefinition'
+  | 'EnumDefinition'
+  | 'CalcDefinition'
+  | 'AllocationDefinition'
+  | 'UseCaseDefinition'
+  | 'AnalysisCaseDefinition'
+  | 'VerificationCaseDefinition'
+  | 'ConcernDefinition'
+  | 'ViewDefinition'
+  | 'ViewpointDefinition'
+  | 'RenderingDefinition'
+  | 'MetadataDefinition'
+  | 'OccurrenceDefinition'
+  // ── Extended usages ──
+  | 'RequirementUsage'
+  | 'ConstraintUsage'
+  | 'InterfaceUsage'
+  | 'EnumUsage'
+  | 'CalcUsage'
+  | 'AllocationUsage'
+  | 'UseCaseUsage'
+  | 'AnalysisCaseUsage'
+  | 'VerificationCaseUsage'
+  | 'ConcernUsage'
+  | 'ViewUsage'
+  | 'ViewpointUsage'
+  | 'RenderingUsage'
+  | 'OccurrenceUsage'
+  // ── Behavioral / control ──
+  | 'TransitionUsage'
+  | 'ForkNode'
+  | 'JoinNode'
+  | 'MergeNode'
+  | 'DecideNode';
 
 export interface SysMLNode {
   id: string;
@@ -22,6 +61,7 @@ export interface SysMLNode {
   name: string;
   qualifiedName?: string;
   direction?: 'in' | 'out' | 'inout';
+  isAbstract?: boolean;
   children: SysMLNode[];
   attributes: SysMLAttribute[];
   connections: SysMLConnection[];
@@ -38,7 +78,9 @@ export interface SysMLConnection {
   id: string;
   sourceId: string;
   targetId: string;
-  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'typereference';
+  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'typereference'
+      | 'subsetting' | 'redefinition' | 'referencesubsetting'
+      | 'satisfy' | 'verify' | 'allocate' | 'bind';
   name?: string;
 }
 

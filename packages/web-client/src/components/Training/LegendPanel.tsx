@@ -66,6 +66,24 @@ function ShapePreview({ shapeType }: { shapeType: LegendShapeType }) {
           </svg>
         </div>
       );
+    case 'edge-subsetting':
+      return (
+        <div style={{ width: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="40" height="22" viewBox="0 0 40 22">
+            <line x1="4" y1="11" x2="28" y2="11" stroke="#9e9e9e" strokeWidth="1.5" />
+            <polygon points="28,5 38,11 28,17" fill="none" stroke="#9e9e9e" strokeWidth="1.5" />
+          </svg>
+        </div>
+      );
+    case 'edge-redefinition':
+      return (
+        <div style={{ width: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="40" height="22" viewBox="0 0 40 22">
+            <line x1="4" y1="11" x2="28" y2="11" stroke="#9e9e9e" strokeWidth="1.5" />
+            <polygon points="28,5 38,11 28,17" fill="none" stroke="#9e9e9e" strokeWidth="1.5" />
+          </svg>
+        </div>
+      );
     default:
       return <div style={{ width: 40, flexShrink: 0 }} />;
   }

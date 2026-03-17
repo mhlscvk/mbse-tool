@@ -1,8 +1,10 @@
 # Systemodel — SysML v2 Web Modeling Platform
 
-A web-based SysML v2 code editor and visualization tool built as a modular monorepo.
+A web-based SysML v2 code editor and visualization tool with full OMG SysML v2.0 graphical notation compliance, built as a modular monorepo.
 
 **Live:** [https://systemodel.com](https://systemodel.com)
+
+**Spec reference:** [OMG SysML v2.0 (formal/2025-09-03)](https://www.omg.org/spec/SysML/2.0)
 
 ---
 
@@ -11,8 +13,8 @@ A web-based SysML v2 code editor and visualization tool built as a modular monor
 ```
 systemodel/
 ├── packages/
-│   ├── shared-types/      # Shared TypeScript interfaces
-│   ├── diagram-service/   # SysML text parser → AST → diagram generator (port 3002)
+│   ├── shared-types/      # Shared TypeScript interfaces (AST, diagram model, API types)
+│   ├── diagram-service/   # SysML v2 text parser → AST → diagram generator (port 3002)
 │   ├── api-server/        # REST API: auth, projects, files, AI assistant (port 3003)
 │   └── web-client/        # React frontend: Monaco editor + SVG diagram viewer (port 5173)
 ```
@@ -35,7 +37,7 @@ systemodel/
 - [Docker](https://www.docker.com/) (for PostgreSQL)
 - Anthropic API key (for AI Assistant feature)
 - Google OAuth Client ID (for Google Sign-In)
-- Gmail app password (for email verification)
+- Gmail app password (for email verification in production)
 
 ---
 
@@ -100,6 +102,8 @@ VITE_DIAGRAM_URL=ws://localhost:3002/diagram
 VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
+> **Note:** In development mode (`NODE_ENV !== 'production'`), email verification is skipped — new users are auto-verified on registration.
+
 ### 5. Run database migration
 
 ```bash
@@ -140,14 +144,9 @@ Open **http://localhost:5173**
 ## Restarting after machine reboot
 
 ```bash
-# Start the database container
 docker start systemodel-db
-
-# Start backends
 node packages/api-server/dist/index.js &
 node packages/diagram-service/dist/index.js &
-
-# Start frontend
 cd packages/web-client && pnpm dev
 ```
 
@@ -177,112 +176,233 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
 
 ## Usage
 
-1. **Register** an account — a verification email is sent
-2. **Verify** your email by clicking the link
-3. **Sign in** with email/password or **Google Sign-In**
-4. **Create a project** from the projects page
-5. **Create a `.sysml` file** inside the project
-6. **Edit** — the diagram updates live as you type
-7. **AI Assistant** — click **✦ AI Assistant** in the toolbar for Claude-powered suggestions
+1. **Register** an account (auto-verified in dev, email verification in production)
+2. **Sign in** with email/password or **Google Sign-In**
+3. **Create a project** from the projects page
+4. **Create a `.sysml` file** or **upload existing `.sysml` files** (button or drag & drop)
+5. **Edit** — the diagram updates live as you type
+6. **AI Assistant** — click the AI button in the toolbar for Claude-powered suggestions
 
-### Editor features
+---
 
-- Syntax highlighting for SysML v2 keywords
-- Real-time diagnostics with quick-fix suggestions (Levenshtein-based)
-- Click any diagram node to jump to its source in the editor
-- Problems panel (click the status bar error/warning count)
+## SysML v2.0 Language Support
 
-### General View — Nested & Tree Views
+### Supported Constructs
 
-Two switchable diagram views:
+**Core definitions & usages:**
+`part`, `attribute`, `connection`, `port`, `action`, `state`, `item`
 
-**Nested View** (default) — compound ELK layout with visual nesting:
-- **Packages** rendered as SysML v2 tab-rectangle containers
-- **Definitions** shown as sharp-cornered blocks containing their children
-- **Usages** shown as rounded-corner blocks nested inside their owner
-- Composition relationships expressed as visual nesting (no composition edges drawn)
+**Extended definitions & usages:**
+`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `use case`, `analysis case`, `verification case`, `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `occurrence`
 
-**Tree View** — flat BDD-style layout:
-- All nodes rendered as separate boxes (no nesting)
-- All edges visible including composition (filled diamond markers)
-- ELK orthogonal edge routing with proper bend points
-- Definitions at top, usages below
+**Specialization operators:**
 
-**SysML v2 edge notation:**
-- Specialization: solid line, hollow triangle at supertype
-- Composition: solid line, filled diamond at owner (no arrowhead at target)
-- Association: solid line, open arrowhead
-- Flow: dashed line, open arrowhead
-- Type reference: dashed line, open arrowhead
+| Operator | Keyword | Meaning |
+|---|---|---|
+| `:>` | `specializes` | Subclassification (on definitions) |
+| `:>` | `subsets` | Subsetting (on usages) |
+| `:>>` | `redefines` | Redefinition |
+| `::>` | `references` | Reference subsetting |
+| `:` | — | Typing (defined by) |
 
-**Interaction:**
-- Pan, zoom, drag nodes
-- **Nested / Tree** toggle buttons to switch views
-- **Fit** button to auto-layout and fit all nodes in view
-- **Elements panel** — toggle visibility of individual nodes or groups
-- **Relations panel** — view and toggle edge visibility
-- Right-click context menu to hide elements
-- Click any node to jump to its source location in the editor
+**Behavioral / Action flow:**
+- `first start;` / `then terminate;` — start and terminate nodes (filled circle / X-circle)
+- `fork` / `join` — thick horizontal bar nodes
+- `merge` / `decide` — diamond nodes
+- `then X;` — succession from previous declaration to X
+- `then fork fork1;` / `then decide decision1;` — combined declaration + succession
+- `first X then Y;` — explicit succession
+- `if guard then action;` — conditional succession with `[guard]` label
+- `perform action` / `exhibit state` — shown in definition compartments
+- All flows visible in nested view inside action/state definitions
 
-### AI Assistant
+**Relationships:**
+- `satisfy` / `verify` / `allocate` / `bind`
+- `connect X to Y` / `flow from X to Y`
 
-- Powered by Claude Opus 4.6 via Anthropic API
-- Streams explanations and suggestions in real time
-- Proposes precise line/column edits with a diff preview
-- **Apply** button patches the Monaco editor directly
-- Requires `ANTHROPIC_API_KEY` in `packages/api-server/.env`
+**Other supported syntax:**
+- `abstract` keyword on definitions
+- `ref` keyword for referential parts/items
+- `in` / `out` / `inout` directed features
+- `import Pkg::*` / `import Pkg::Type`
+- Multiplicity: `[4]`, `[1..*]`, `[*]` (shown in compartments)
+- Enum values, `subject` inside requirements, `doc` strings
+- Qualified type names: `Pkg::SubPkg::TypeName`
+- Standard libraries: ScalarValues, ISQBase, ISQ, SI, Quantities (67 types)
 
-### Example SysML v2 model
+### Graphical Notation (OMG SysML v2.0 Compliant)
+
+Node shapes per Section 8.2.3 of the spec:
+
+| Element | Definition Shape | Usage Shape |
+|---|---|---|
+| Part, Attribute, Item, Port, Connection, Interface, Allocation, Calc, Enum, Requirement, View, Viewpoint, Rendering, Metadata | Square-corner rectangle | Rounded-corner rectangle |
+| State | Rounded-corner rectangle | Rounded-corner rectangle |
+| Package | Tab-rectangle | Tab-rectangle |
+| Fork / Join | Thick horizontal bar | — |
+| Merge / Decide | Diamond | — |
+| Start | Filled circle (auto-created from `first start;`) | — |
+| Terminate | X-circle (auto-created from `then terminate;`) | — |
+
+Edge styles per Section 8.2.3:
+
+| Relationship | Line | Source | Target |
+|---|---|---|---|
+| Subclassification | Solid | — | Hollow triangle |
+| Typing (defined by) | Dashed | — | Hollow triangle |
+| Subsetting | Solid | — | Open arrow (>) |
+| Redefinition | Solid | Vertical bar | Open arrow (>) |
+| Ref subsetting | Solid | — | Open arrow (>) |
+| Composition | Solid | Filled diamond | — |
+| Flow | Solid | — | Filled arrowhead |
+| Succession | Solid | — | Open arrowhead |
+| Satisfy | Dashed | — | Open arrowhead |
+| Verify | Dashed | — | Open arrowhead |
+| Allocate | Dashed | — | Open arrowhead |
+| Binding | Dashed | — | — |
+
+### Example SysML v2 Model
 
 ```sysml
-package VehicleModel {
+package VehicleSystem {
 
-  item def Fuel;
+  part def Vehicle {
+    attribute mass : Real;
+    part eng : Engine;
+    part wheel[4] : Wheel;
+    port fuelPort : FuelPort;
+  }
+
+  part def Engine {
+    attribute horsepower : Real;
+  }
+
+  part def Wheel {
+    attribute diameter : Real;
+  }
+
+  part def PoweredVehicle :> Vehicle {
+    part frontWheel :> wheel;
+  }
+
+  part def SmallVehicle :> Vehicle {
+    part smallEng :>> eng;
+  }
 
   port def FuelPort {
     in item fuelIn : Fuel;
   }
 
-  part def Engine {
-    port fuelPort : FuelPort;
-    action deliver : Drive;
+  item def Fuel;
+
+  requirement def MassRequirement {
+    doc /* The vehicle mass shall not exceed 2000 kg. */
+    subject vehicle : Vehicle;
   }
 
-  action def Drive {
-    in item throttle : Fuel;
-    out item speed : Fuel;
+  enum def FuelKind {
+    enum gasoline;
+    enum diesel;
+    enum electric;
   }
 
-  part def Vehicle {
-    part engine : Engine;
-    attribute mass : Real = 1500;
-  }
+  action def ProvidePower {
+    first start;
+    then fork fork1;
+    then generateTorque;
+    then amplifyTorque;
 
-  part vehicle : Vehicle;
+    action generateTorque;
+      then join1;
+    action amplifyTorque;
+      then join1;
+
+    join join1;
+    then decide checkOutput;
+      if sufficient then deliver;
+      if insufficient then retry;
+
+    action deliver;
+      then merge1;
+    action retry;
+      then merge1;
+
+    merge merge1;
+      then terminate;
+  }
 }
 ```
+
+---
+
+## Editor Features
+
+- **Syntax highlighting** for all SysML v2 keywords
+- **Real-time diagnostics** with Levenshtein-based fix suggestions
+- **Click any diagram node or edge** to jump to its source in the editor
+- **Problems panel** — click the status bar error/warning count
+- **Auto-save** — debounced 1.5s after each edit
+
+### General View — Nested & Tree Modes
+
+**Nested View** (default) — compound ELK layout with visual nesting:
+- Packages as tab-rectangle containers
+- Definitions as sharp-cornered blocks containing their children
+- Usages as rounded blocks nested inside their owner
+- Composition expressed as visual containment
+- Action flows visible inside action definitions (successions, guards, control nodes)
+
+**Tree View** — flat BDD-style layout:
+- All nodes as separate boxes
+- All edges visible including composition diamonds
+- ELK orthogonal edge routing with bend points
+
+### Element Panel
+
+- **Nested tab**: step-by-step collapse/expand (one depth level per click)
+- **By Kind tab**: elements grouped by type
+- **Relations tab**: edge visibility toggles grouped by relationship type
+- Show all / Hide all / per-element toggle checkboxes
+
+### AI Assistant
+
+- Powered by Claude Opus 4.6 via Anthropic API
+- Streams explanations and suggestions in real time
+- Proposes precise line/column edits with diff preview
+- **Apply** button patches the Monaco editor directly
+
+### Training Mode
+
+Interactive 7-level tutorial building a Vehicle model from scratch:
+1. Part Definitions
+2. Attributes
+3. Specialization & Composition
+4. Subsetting (`:>` on usages)
+5. Redefinition (`:>>`)
+6. Ports
+7. Items
 
 ---
 
 ## Features
 
 ### Implemented
-- [x] User registration with email verification (nodemailer / Gmail SMTP)
-- [x] Google OAuth Sign-In (Google Identity Services)
-- [x] JWT authentication with bcrypt password hashing
-- [x] Security hardening: helmet, rate limiting, HTTPS enforcement, timing-safe login
-- [x] Project and file management (CRUD)
-- [x] SysML v2 code editor (Monaco) with syntax highlighting and auto-indent
-- [x] Real-time diagnostics with Levenshtein fix suggestions
-- [x] SysML v2 parser: all definition and usage types, `in`/`out`/`inout` parameters, qualified type names
-- [x] Parser supports nested definitions, nested usages, and items inside any definition type
+- [x] Full SysML v2.0 parser (30+ definition/usage types, all operators, action flow)
+- [x] Action flow diagrams (start, terminate, fork, join, merge, decide, successions, guards)
+- [x] OMG-compliant graphical notation (node shapes, edge styles per spec Section 8.2.3)
 - [x] Nested containment view with ELK compound layout
-- [x] Tree view (flat BDD-style) with ELK orthogonal edge routing
-- [x] SysML v2 graphical notation (correct edge markers, node shapes per spec)
-- [x] Element panel: nested view, by-kind grouping, Relations tab, visibility toggles
-- [x] AI Assistant: Claude Opus 4.6, SSE streaming, propose_edit tool, Apply button
-- [x] localStorage persistence for all UI state (view mode, hidden elements, positions)
-- [x] Production deployment with Nginx, SSL, PM2
+- [x] Tree view (flat BDD) with ELK orthogonal edge routing
+- [x] Monaco editor with SysML syntax highlighting and diagnostics
+- [x] Element panel with step-by-step collapse, visibility toggles
+- [x] Edge click navigation to source code
+- [x] .sysml file upload (button + drag & drop)
+- [x] AI Assistant (Claude Opus 4.6, streaming, propose_edit tool)
+- [x] User auth: email/password + Google OAuth + email verification
+- [x] Security: helmet, rate limiting, HTTPS, timing-safe login, JWT HS256
+- [x] Project and file CRUD with auto-save
+- [x] Training mode (7 levels, progressive SysML v2 tutorial)
+- [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
+- [x] Production deployment (Nginx, SSL, PM2, Hetzner VPS)
 
 ### Planned
 - [ ] LSP autocompletion (syside-languageserver integration)
@@ -300,14 +420,12 @@ package VehicleModel {
 |---|---|
 | Frontend | React 18, TypeScript, Vite |
 | Editor | Monaco Editor |
-| Diagram renderer | Custom SVG renderer |
-| Layout engine | elkjs (Eclipse Layout Kernel) |
+| Diagram | Custom SVG renderer + elkjs (Eclipse Layout Kernel) |
 | AI | Anthropic Claude API (@anthropic-ai/sdk) |
-| Backend API | Node.js, Express |
+| Backend | Node.js, Express |
 | Security | Helmet, express-rate-limit, bcrypt |
 | Auth | JWT + bcrypt + email verification + Google OAuth |
-| Database ORM | Prisma |
-| Database | PostgreSQL 16 |
+| Database | PostgreSQL 16 + Prisma ORM |
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
@@ -318,4 +436,4 @@ package VehicleModel {
 
 - Live: https://systemodel.com
 - Repository: https://github.com/mhlscvk/mbse-tool
-- SysML v2 Specification: https://github.com/Systems-Modeling/SysML-v2-Release
+- SysML v2.0 Specification: https://www.omg.org/spec/SysML/2.0

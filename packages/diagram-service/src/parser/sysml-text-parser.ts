@@ -160,18 +160,58 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 
 // ─── Definition patterns ────────────────────────────────────────────────────
 
-const DEF_PATTERN = /\b(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+specializes\s+([\w:]+))?\s*[{;]/g;
-const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
+// group[1]=abstract?, group[2]=keyword, group[3]=name, group[4]=specializes target
+const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+// group[1]=keyword, group[2]=name, group[3]=multiplicity (optional), group[4]=type
+const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
 const UNTYPED_USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*[;{]/g;
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
 const IN_OUT_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 const IN_OUT_UNTYPED_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*[;{]/g;
 const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*([\w:]+))?\s*=\s*([^;]+);/g;
+// Subsetting: part x :> y; or part x subsets y;
+const SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::>(?!>)\s*|\bsubsets\s+)([\w:]+)\s*[;{]/g;
+// Redefinition: part x :>> y; or part x redefines y;
+const REDEFINITION_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::>>\s*|\bredefines\s+)([\w:]+)\s*[;{]/g;
+// Reference subsetting: part x ::> y; or part x references y;
+const REFERENCE_SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?:::>\s*|\breferences\s+)([\w:]+)\s*[;{]/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
+// Extended definition patterns (single-word keywords)
+const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|concern|view|viewpoint|rendering|metadata|occurrence)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+// Multi-word definition patterns
+const USE_CASE_DEF_PATTERN = /\b(abstract\s+)?use\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+const VERIFICATION_CASE_DEF_PATTERN = /\b(abstract\s+)?verification\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+// Behavioral
+const PERFORM_PATTERN = /\bperform\s+(?:action\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const EXHIBIT_PATTERN = /\bexhibit\s+state\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+// Successions: "first X then Y;" standalone
+const SUCCESSION_PATTERN = /\bfirst\s+(\w+)\s+then\s+(\w+)\s*;/g;
+// Inline "then Y;" or "then fork Y;" after declarations
+// Optionally skips a keyword (fork/join/merge/decide/action/state) before the target name
+const INLINE_THEN_PATTERN = /\bthen\s+(?:(?:fork|join|merge|decide|action|state)\s+)?(\w+)\s*;/g;
+// Conditional succession: "if guard then action;"
+const IF_THEN_PATTERN = /\bif\s+(\w+)\s+then\s+(\w+)\s*;/g;
+// Control nodes (including start and terminate)
+const CONTROL_NODE_PATTERN = /\b(fork|join|merge|decide)\s+(\w+)\s*;/g;
+// Relationships
+const SATISFY_PATTERN = /\bsatisfy\s+(?:requirement\s+)?(\w+)\s+by\s+(\w+)\s*;/g;
+const VERIFY_PATTERN = /\bverify\s+(?:requirement\s+)?(\w+)\s+by\s+(\w+)\s*;/g;
+const ALLOCATE_PATTERN = /\ballocate\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
+const BIND_PATTERN = /\bbind\s+(\w+(?:\.\w+)*)\s*=\s*(\w+(?:\.\w+)*)\s*;/g;
 // import PackageName::*;  or  import PackageName::TypeName;
 const IMPORT_PATTERN = /\bimport\s+(\w+)::(\*|\w+)\s*;/g;
+
+// Extended keyword → SysMLNodeKind mapping
+const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
+  requirement: 'RequirementDefinition', constraint: 'ConstraintDefinition',
+  interface: 'InterfaceDefinition', enum: 'EnumDefinition', calc: 'CalcDefinition',
+  allocation: 'AllocationDefinition', concern: 'ConcernDefinition',
+  view: 'ViewDefinition', viewpoint: 'ViewpointDefinition', rendering: 'RenderingDefinition',
+  metadata: 'MetadataDefinition', occurrence: 'OccurrenceDefinition',
+};
 
 // ─── Main parser ─────────────────────────────────────────────────────────────
 
@@ -331,7 +371,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   let match: RegExpExecArray | null;
 
   while ((match = DEF_PATTERN.exec(clean)) !== null) {
-    const [, keyword, name, specializes] = match;
+    const [, abstractKw, keyword, name, specializes] = match;
     const kind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Definition` as SysMLNodeKind;
     const id = makeId('def', name);
 
@@ -343,6 +383,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind,
       name,
       qualifiedName: name,
+      isAbstract: !!abstractKw,
       children: [],
       attributes: [],
       connections: [],
@@ -410,7 +451,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   DEF_PATTERN.lastIndex = 0;
   while ((match = DEF_PATTERN.exec(clean)) !== null) {
     const end = findBlockEnd(clean, match.index + match[0].length - 1);
-    defPositions.push({ name: match[2], start: match.index, end });
+    defPositions.push({ name: match[3], start: match.index, end });
   }
   // Sort by start descending so inner defs match first
   defPositions.sort((a, b) => b.start - a.start);
@@ -490,7 +531,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   USAGE_PATTERN.lastIndex = 0;
 
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
-    const [, keyword, usageName, typeName] = match;
+    const [, keyword, usageName, multiplicity, typeName] = match;
 
     // Skip if preceded by 'in', 'out', or 'inout' — those are action parameters handled separately
     const pre = clean.slice(Math.max(0, match.index - 7), match.index);
@@ -515,8 +556,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const typeSimple = simpleName(typeName);
 
     // Store in owner's attributes for compartment rendering (only for def owners)
+    const displayName = multiplicity ? `${usageName}${multiplicity}` : usageName;
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: usageName, type: typeSimple, value: keyword });
+      ownerNode.attributes.push({ name: displayName, type: typeSimple, value: keyword });
     }
 
     // Build the usage SysMLNode
@@ -795,6 +837,444 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: 'composition',
       name: '',
     });
+  }
+
+  // ── 2e. Extract subsetting usages (:> on usages) ──────────────────────────
+
+  SUBSETTING_PATTERN.lastIndex = 0;
+  while ((match = SUBSETTING_PATTERN.exec(clean)) !== null) {
+    const [, keyword, usageName, mult, targetName] = match;
+    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    const usagePos = match.index;
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+    const targetSimple = simpleName(targetName);
+    const displayName = mult ? `${usageName}${mult}` : usageName;
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} :>` });
+    }
+    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const usageId = makeId('usage', `${ownerName}_${usageName}`);
+    const { line: uL, column: uC } = lineCol(source, usagePos);
+    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: uEL, column: uEC } = lineCol(source, uEnd);
+    const usageNode: SysMLNode = {
+      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+    };
+    nodes.push(usageNode);
+    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+    if (ownerNode || usagePkg) {
+      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+    }
+    const targetNode = resolveType(targetName);
+    if (targetNode) {
+      connections.push({ id: makeId('subsets', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'subsetting', name: '«subsets»' });
+    }
+  }
+
+  // ── 2f. Extract redefinition usages (:>> on usages) ────────────────────────
+
+  REDEFINITION_PATTERN.lastIndex = 0;
+  while ((match = REDEFINITION_PATTERN.exec(clean)) !== null) {
+    const [, keyword, usageName, mult, targetName] = match;
+    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    const usagePos = match.index;
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+    const targetSimple = simpleName(targetName);
+    const displayName = mult ? `${usageName}${mult}` : usageName;
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} :>>` });
+    }
+    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const usageId = makeId('usage', `${ownerName}_${usageName}`);
+    const { line: uL, column: uC } = lineCol(source, usagePos);
+    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: uEL, column: uEC } = lineCol(source, uEnd);
+    const usageNode: SysMLNode = {
+      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+    };
+    nodes.push(usageNode);
+    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+    if (ownerNode || usagePkg) {
+      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+    }
+    const targetNode = resolveType(targetName);
+    if (targetNode) {
+      connections.push({ id: makeId('redefines', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'redefinition', name: '«redefines»' });
+    }
+  }
+
+  // ── 2g. Extract reference subsetting (::> on usages) ──────────────────────
+
+  REFERENCE_SUBSETTING_PATTERN.lastIndex = 0;
+  while ((match = REFERENCE_SUBSETTING_PATTERN.exec(clean)) !== null) {
+    const [, keyword, usageName, mult, targetName] = match;
+    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    const usagePos = match.index;
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+    const targetSimple = simpleName(targetName);
+    const displayName = mult ? `${usageName}${mult}` : usageName;
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} ::>` });
+    }
+    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const usageId = makeId('usage', `${ownerName}_${usageName}`);
+    const { line: uL, column: uC } = lineCol(source, usagePos);
+    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: uEL, column: uEC } = lineCol(source, uEnd);
+    const usageNode: SysMLNode = {
+      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+    };
+    nodes.push(usageNode);
+    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+    if (ownerNode || usagePkg) {
+      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+    }
+    const targetNode = resolveType(targetName);
+    if (targetNode) {
+      connections.push({ id: makeId('references', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'referencesubsetting', name: '«references»' });
+    }
+  }
+
+  // ── 2h. Extended definitions (requirement, constraint, enum, etc.) ─────────
+
+  EXT_DEF_PATTERN.lastIndex = 0;
+  while ((match = EXT_DEF_PATTERN.exec(clean)) !== null) {
+    const [, abstractKw, keyword, name, specializes] = match;
+    const kind = EXT_KIND_MAP[keyword];
+    if (!kind) continue;
+    const id = makeId('def', name);
+    if (definedNames.has(name)) continue;
+    definedNames.add(name);
+    const { line: dL, column: dC } = lineCol(source, match.index);
+    const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+    const node: SysMLNode = {
+      id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+    };
+    nodes.push(node);
+    nodeIndex.set(name, node);
+    defPositions.push({ name, start: match.index, end: blockEnd });
+    const ownerPkg = findOwnerPackage(match.index);
+    if (ownerPkg) {
+      connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+    }
+    if (specializes) {
+      const specSimple = simpleName(specializes);
+      connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
+    }
+  }
+
+  // Multi-word definitions: use case, analysis case, verification case
+  const multiWordDefs: [RegExp, SysMLNodeKind][] = [
+    [USE_CASE_DEF_PATTERN, 'UseCaseDefinition'],
+    [ANALYSIS_CASE_DEF_PATTERN, 'AnalysisCaseDefinition'],
+    [VERIFICATION_CASE_DEF_PATTERN, 'VerificationCaseDefinition'],
+  ];
+  for (const [pattern, kind] of multiWordDefs) {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(clean)) !== null) {
+      const [, abstractKw, name, specializes] = match;
+      const id = makeId('def', name);
+      if (definedNames.has(name)) continue;
+      definedNames.add(name);
+      const { line: dL, column: dC } = lineCol(source, match.index);
+      const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+      const node: SysMLNode = {
+        id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+      };
+      nodes.push(node);
+      nodeIndex.set(name, node);
+      defPositions.push({ name, start: match.index, end: blockEnd });
+      const ownerPkg = findOwnerPackage(match.index);
+      if (ownerPkg) {
+        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      if (specializes) {
+        const specSimple = simpleName(specializes);
+        connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
+      }
+    }
+  }
+  defPositions.sort((a, b) => b.start - a.start);
+
+  // ── 2i. Behavioral: perform, exhibit, successions, control nodes ───────────
+
+  PERFORM_PATTERN.lastIndex = 0;
+  while ((match = PERFORM_PATTERN.exec(clean)) !== null) {
+    const [, actionName, typeName] = match;
+    const ownerNode = findOwnerDef(match.index);
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: actionName, type: typeName ? simpleName(typeName) : undefined, value: 'perform' });
+    }
+  }
+
+  EXHIBIT_PATTERN.lastIndex = 0;
+  while ((match = EXHIBIT_PATTERN.exec(clean)) !== null) {
+    const [, stateName, typeName] = match;
+    const ownerNode = findOwnerDef(match.index);
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: stateName, type: typeName ? simpleName(typeName) : undefined, value: 'exhibit' });
+    }
+  }
+
+  // ── 2j. Control nodes: fork, join, merge, decide ────────────────────────────
+
+  CONTROL_NODE_PATTERN.lastIndex = 0;
+  while ((match = CONTROL_NODE_PATTERN.exec(clean)) !== null) {
+    const [, nodeType, nodeName] = match;
+    const kindMap: Record<string, SysMLNodeKind> = {
+      fork: 'ForkNode', join: 'JoinNode', merge: 'MergeNode', decide: 'DecideNode',
+    };
+    const kind = kindMap[nodeType];
+    if (!kind) continue;
+    const id = makeId('control', nodeName);
+    const usagePos = match.index;
+    const { line: cL, column: cC } = lineCol(source, usagePos);
+    const cEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: cEL, column: cEC } = lineCol(source, cEnd);
+    const controlNode: SysMLNode = {
+      id, kind, name: nodeName,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: cL - 1, character: cC - 1 }, end: { line: cEL - 1, character: cEC - 1 } },
+    };
+    nodes.push(controlNode);
+    nodeIndex.set(nodeName, controlNode);
+    // Add composition to enclosing owner
+    const ownerNode = findOwnerDef(usagePos);
+    const usagePkg = findOwnerPackage(usagePos);
+    if (ownerNode) {
+      connections.push({ id: makeId('owns', `${ownerNode.name}_${nodeName}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+    } else if (usagePkg) {
+      connections.push({ id: makeId('owns', `${usagePkg.name}_${nodeName}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
+    }
+  }
+
+  // ── 2k. Create start/terminate nodes when referenced ────────────────────────
+
+  // Helper: ensure a special node exists (start, done, terminate)
+  function ensureSpecialNode(name: string, ownerOffset: number): void {
+    if (nodeIndex.has(name)) return;
+    const kindMap: Record<string, SysMLNodeKind> = {
+      start: 'ForkNode', done: 'JoinNode', terminate: 'DecideNode',
+    };
+    const kind = kindMap[name] ?? 'ForkNode';
+    const id = makeId('control', name);
+    const { line: sL, column: sC } = lineCol(source, ownerOffset);
+    const specialNode: SysMLNode = {
+      id, kind, name,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: sL - 1, character: sC - 1 }, end: { line: sL - 1, character: sC - 1 } },
+    };
+    nodes.push(specialNode);
+    nodeIndex.set(name, specialNode);
+    const ownerNode = findOwnerDef(ownerOffset);
+    const usagePkg = findOwnerPackage(ownerOffset);
+    if (ownerNode) {
+      connections.push({ id: makeId('owns', `${ownerNode.name}_${name}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+    } else if (usagePkg) {
+      connections.push({ id: makeId('owns', `${usagePkg.name}_${name}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
+    }
+  }
+
+  // ── 2l. Successions ───────────────────────────────────────────────────────
+
+  // "first X then Y;" — standalone succession
+  SUCCESSION_PATTERN.lastIndex = 0;
+  while ((match = SUCCESSION_PATTERN.exec(clean)) !== null) {
+    const [, fromName, toName] = match;
+    if (fromName === 'start' || fromName === 'done' || fromName === 'terminate') ensureSpecialNode(fromName, match.index);
+    if (toName === 'start' || toName === 'done' || toName === 'terminate') ensureSpecialNode(toName, match.index);
+    const fromNode = nodeIndex.get(fromName);
+    const toNode = nodeIndex.get(toName);
+    if (fromNode && toNode) {
+      connections.push({
+        id: makeId('succession', `${fromName}_${toName}_${match.index}`),
+        sourceId: fromNode.id, targetId: toNode.id,
+        kind: 'flow', name: '',
+      });
+    }
+  }
+
+  // "first X;" alone (no then) — just ensure X exists as a node for subsequent then targets
+  {
+    const firstAloneRe = /\bfirst\s+(\w+)\s*;/g;
+    firstAloneRe.lastIndex = 0;
+    let fm: RegExpExecArray | null;
+    while ((fm = firstAloneRe.exec(clean)) !== null) {
+      const name = fm[1];
+      if (name === 'start' || name === 'done' || name === 'terminate') ensureSpecialNode(name, fm.index);
+    }
+  }
+
+  // Inline "then Y;" — find nearest preceding declaration as source
+  // Build a position→name map from all declarations (actions, states, control nodes)
+  const declPositions: { name: string; end: number }[] = [];
+  {
+    // Collect end positions of all action/state/control-node/fork/join/merge/decide declarations
+    const declRe = /\b(?:action|state|fork|join|merge|decide)\s+(\w+)\s*[;{]/g;
+    declRe.lastIndex = 0;
+    let dm: RegExpExecArray | null;
+    while ((dm = declRe.exec(clean)) !== null) {
+      const pre = clean.slice(Math.max(0, dm.index - 5), dm.index);
+      if (/\bdef\s+$/.test(pre)) continue; // skip "action def X"
+      if (/\bperform\s+$/.test(pre) || /\bexhibit\s+$/.test(pre)) continue;
+      const endPos = dm.index + dm[0].length;
+      declPositions.push({ name: dm[1], end: endPos });
+    }
+    // Also "first start;" counts as a declaration of start
+    const firstRe = /\bfirst\s+(\w+)\s*;/g;
+    firstRe.lastIndex = 0;
+    while ((dm = firstRe.exec(clean)) !== null) {
+      declPositions.push({ name: dm[1], end: dm.index + dm[0].length });
+    }
+    declPositions.sort((a, b) => a.end - b.end);
+  }
+
+  // Track which "then" occurrences are already handled by SUCCESSION_PATTERN
+  const handledThenPositions = new Set<number>();
+  SUCCESSION_PATTERN.lastIndex = 0;
+  while ((match = SUCCESSION_PATTERN.exec(clean)) !== null) {
+    // The "then" keyword position inside "first X then Y;"
+    const thenPos = match.index + match[0].indexOf('then');
+    handledThenPositions.add(thenPos);
+  }
+
+  INLINE_THEN_PATTERN.lastIndex = 0;
+  while ((match = INLINE_THEN_PATTERN.exec(clean)) !== null) {
+    // Skip if this "then" is part of "first X then Y;" or "if G then A;"
+    if (handledThenPositions.has(match.index)) continue;
+    // Check if preceded by "if guard" — those are handled separately
+    const preThen = clean.slice(Math.max(0, match.index - 30), match.index);
+    if (/\bif\s+\w+\s+$/.test(preThen)) continue;
+    // Skip "then" inside "first ... then ..."
+    if (/\bfirst\s+\w+\s+$/.test(preThen)) continue;
+
+    const toName = match[1];
+    if (toName === 'start' || toName === 'done' || toName === 'terminate') ensureSpecialNode(toName, match.index);
+
+    // Find the nearest preceding declaration
+    const pos = match.index;
+    let fromName: string | undefined;
+    for (let i = declPositions.length - 1; i >= 0; i--) {
+      if (declPositions[i].end <= pos) {
+        fromName = declPositions[i].name;
+        break;
+      }
+    }
+    if (!fromName) continue;
+    if (fromName === 'start' || fromName === 'done' || fromName === 'terminate') ensureSpecialNode(fromName, match.index);
+
+    const fromNode = nodeIndex.get(fromName);
+    const toNode = nodeIndex.get(toName);
+    if (fromNode && toNode) {
+      connections.push({
+        id: makeId('then', `${fromName}_${toName}_${match.index}`),
+        sourceId: fromNode.id, targetId: toNode.id,
+        kind: 'flow', name: '',
+      });
+    }
+  }
+
+  // "if guard then action;" — conditional succession from nearest preceding decide/node
+  IF_THEN_PATTERN.lastIndex = 0;
+  while ((match = IF_THEN_PATTERN.exec(clean)) !== null) {
+    const [, guard, toName] = match;
+    const pos = match.index;
+    // Find the nearest preceding declaration as the source
+    let fromName: string | undefined;
+    for (let i = declPositions.length - 1; i >= 0; i--) {
+      if (declPositions[i].end <= pos) {
+        fromName = declPositions[i].name;
+        break;
+      }
+    }
+    if (!fromName) continue;
+    const fromNode = nodeIndex.get(fromName);
+    const toNode = nodeIndex.get(toName);
+    if (fromNode && toNode) {
+      connections.push({
+        id: makeId('guard', `${fromName}_${toName}_${match.index}`),
+        sourceId: fromNode.id, targetId: toNode.id,
+        kind: 'flow', name: `[${guard}]`,
+      });
+    }
+  }
+
+  // ── 2m. Relationships: satisfy, verify, allocate, bind ─────────────────────
+
+  SATISFY_PATTERN.lastIndex = 0;
+  while ((match = SATISFY_PATTERN.exec(clean)) !== null) {
+    const [, reqName, partName] = match;
+    const reqNode = nodeIndex.get(reqName);
+    const partNode = nodeIndex.get(partName);
+    if (reqNode && partNode) {
+      connections.push({ id: makeId('satisfy', `${partName}_${reqName}_${match.index}`), sourceId: partNode.id, targetId: reqNode.id, kind: 'satisfy', name: '«satisfy»' });
+    }
+  }
+
+  VERIFY_PATTERN.lastIndex = 0;
+  while ((match = VERIFY_PATTERN.exec(clean)) !== null) {
+    const [, reqName, partName] = match;
+    const reqNode = nodeIndex.get(reqName);
+    const partNode = nodeIndex.get(partName);
+    if (reqNode && partNode) {
+      connections.push({ id: makeId('verify', `${partName}_${reqName}_${match.index}`), sourceId: partNode.id, targetId: reqNode.id, kind: 'verify', name: '«verify»' });
+    }
+  }
+
+  ALLOCATE_PATTERN.lastIndex = 0;
+  while ((match = ALLOCATE_PATTERN.exec(clean)) !== null) {
+    const [, from, to] = match;
+    const fromNode = nodeIndex.get(from.split('.')[0]);
+    const toNode = nodeIndex.get(to.split('.')[0]);
+    if (fromNode && toNode) {
+      connections.push({ id: makeId('allocate', `${from}_${to}_${match.index}`), sourceId: fromNode.id, targetId: toNode.id, kind: 'allocate', name: '«allocate»' });
+    }
+  }
+
+  BIND_PATTERN.lastIndex = 0;
+  while ((match = BIND_PATTERN.exec(clean)) !== null) {
+    const [, left, right] = match;
+    const leftNode = nodeIndex.get(left.split('.')[0]);
+    const rightNode = nodeIndex.get(right.split('.')[0]);
+    if (leftNode && rightNode) {
+      connections.push({ id: makeId('bind', `${left}_${right}_${match.index}`), sourceId: leftNode.id, targetId: rightNode.id, kind: 'bind', name: '=' });
+    }
   }
 
   // ── 3. Extract explicit connect statements ──────────────────────────────

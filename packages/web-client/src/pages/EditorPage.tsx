@@ -375,7 +375,16 @@ export default function EditorPage() {
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               onNodeSelect={(range) => {
-                // range is 0-based (LSP), Monaco is 1-based
+                monacoRef.current?.revealRange(
+                  range.start.line + 1, range.start.character + 1,
+                  range.end.line + 1,   range.end.character + 1,
+                );
+                if (!editorOpen) {
+                  setSplitPct(lastSplitPct.current);
+                  setEditorOpen(true);
+                }
+              }}
+              onEdgeSelect={(range) => {
                 monacoRef.current?.revealRange(
                   range.start.line + 1, range.start.character + 1,
                   range.end.line + 1,   range.end.character + 1,

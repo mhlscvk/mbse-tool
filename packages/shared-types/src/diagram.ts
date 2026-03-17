@@ -23,6 +23,7 @@ export interface SEdge {
   children: SLabel[];
   routingPoints?: { x: number; y: number }[];
   cssClasses?: string[];
+  data?: Record<string, unknown>;
 }
 
 export interface SLabel {
