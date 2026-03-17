@@ -2,6 +2,8 @@
 
 A web-based SysML v2 code editor and visualization tool built as a modular monorepo.
 
+**Live:** [https://systemodel.com](https://systemodel.com)
+
 ---
 
 ## Architecture
@@ -32,6 +34,8 @@ systemodel/
 - [pnpm](https://pnpm.io/) >= 9.x (`npm install -g pnpm`)
 - [Docker](https://www.docker.com/) (for PostgreSQL)
 - Anthropic API key (for AI Assistant feature)
+- Google OAuth Client ID (for Google Sign-In)
+- Gmail app password (for email verification)
 
 ---
 
@@ -68,11 +72,18 @@ docker run -d \
 ```env
 PORT=3003
 DATABASE_URL=postgresql://postgres:password@localhost:5432/systemodel
-JWT_SECRET=change-this-to-a-long-random-secret
+JWT_SECRET=<generate with: openssl rand -hex 32>
 JWT_EXPIRES_IN=7d
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:5173
 ANTHROPIC_API_KEY=your-api-key-here
+APP_URL=http://localhost:5173
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-gmail@gmail.com
+SMTP_PASS=your-gmail-app-password
+SMTP_FROM="Systemodel" <noreply@systemodel.com>
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
 **`packages/diagram-service/.env`**
@@ -80,6 +91,13 @@ ANTHROPIC_API_KEY=your-api-key-here
 PORT=3002
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:5173
+```
+
+**`packages/web-client/.env`**
+```env
+VITE_API_URL=http://localhost:3003/api
+VITE_DIAGRAM_URL=ws://localhost:3002/diagram
+VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
 ### 5. Run database migration
@@ -135,13 +153,37 @@ cd packages/web-client && pnpm dev
 
 ---
 
+## Production Deployment
+
+The app is deployed at **https://systemodel.com** on a Hetzner VPS.
+
+```
+Internet → Nginx (port 80/443, SSL via Let's Encrypt)
+              ├─ systemodel.com         → Vite static build (React SPA)
+              ├─ systemodel.com/api/*    → api-server (port 3003)
+              └─ systemodel.com/diagram  → diagram-service WS (port 3002)
+```
+
+### Deploy new changes
+
+```bash
+git push origin master
+ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
+  cd packages/api-server && npx prisma migrate deploy && npx prisma generate && \
+  cd ../.. && pnpm run build && pm2 restart all"
+```
+
+---
+
 ## Usage
 
-1. **Register** an account at the login page
-2. **Create a project** from the projects page
-3. **Create a `.sysml` file** inside the project
-4. **Edit** — the nested containment diagram updates live as you type
-5. **AI Assistant** — click **✦ AI Assistant** in the toolbar to open Claude-powered suggestions
+1. **Register** an account — a verification email is sent
+2. **Verify** your email by clicking the link
+3. **Sign in** with email/password or **Google Sign-In**
+4. **Create a project** from the projects page
+5. **Create a `.sysml` file** inside the project
+6. **Edit** — the diagram updates live as you type
+7. **AI Assistant** — click **✦ AI Assistant** in the toolbar for Claude-powered suggestions
 
 ### Editor features
 
@@ -150,24 +192,37 @@ cd packages/web-client && pnpm dev
 - Click any diagram node to jump to its source in the editor
 - Problems panel (click the status bar error/warning count)
 
-### General View — Nested Containment Diagram
+### General View — Nested & Tree Views
 
-The diagram displays all SysML v2 elements in a nested containment hierarchy using ELK compound layout:
+Two switchable diagram views:
 
+**Nested View** (default) — compound ELK layout with visual nesting:
 - **Packages** rendered as SysML v2 tab-rectangle containers
-- **Definitions** (part def, port def, action def, item def, etc.) shown as sharp-cornered blocks containing their children
-- **Usages** (part, port, action, item, attribute, etc.) shown as rounded-corner blocks nested inside their owner
-- **In/out/inout parameters** displayed as child blocks with direction badges
-- All containment relationships derived from composition edges — every element appears nested inside its parent
-- Supports qualified type names (e.g. `Pkg::SubPkg::TypeName`)
+- **Definitions** shown as sharp-cornered blocks containing their children
+- **Usages** shown as rounded-corner blocks nested inside their owner
+- Composition relationships expressed as visual nesting (no composition edges drawn)
+
+**Tree View** — flat BDD-style layout:
+- All nodes rendered as separate boxes (no nesting)
+- All edges visible including composition (filled diamond markers)
+- ELK orthogonal edge routing with proper bend points
+- Definitions at top, usages below
+
+**SysML v2 edge notation:**
+- Specialization: solid line, hollow triangle at supertype
+- Composition: solid line, filled diamond at owner (no arrowhead at target)
+- Association: solid line, open arrowhead
+- Flow: dashed line, open arrowhead
+- Type reference: dashed line, open arrowhead
 
 **Interaction:**
 - Pan, zoom, drag nodes
+- **Nested / Tree** toggle buttons to switch views
 - **Fit** button to auto-layout and fit all nodes in view
-- **Elements panel** — toggle visibility of individual nodes or groups (nested and by-kind views)
+- **Elements panel** — toggle visibility of individual nodes or groups
+- **Relations panel** — view and toggle edge visibility
 - Right-click context menu to hide elements
 - Click any node to jump to its source location in the editor
-- ELK auto-layout re-runs when nodes are added/removed or sizes change
 
 ### AI Assistant
 
@@ -212,25 +267,22 @@ package VehicleModel {
 ## Features
 
 ### Implemented
-- [x] User registration and login (JWT + bcrypt)
+- [x] User registration with email verification (nodemailer / Gmail SMTP)
+- [x] Google OAuth Sign-In (Google Identity Services)
+- [x] JWT authentication with bcrypt password hashing
+- [x] Security hardening: helmet, rate limiting, HTTPS enforcement, timing-safe login
 - [x] Project and file management (CRUD)
 - [x] SysML v2 code editor (Monaco) with syntax highlighting and auto-indent
 - [x] Real-time diagnostics with Levenshtein fix suggestions
-- [x] SysML v2 parser: all definition and usage types, `in`/`out`/`inout` parameters, qualified type names (`Pkg::Type`)
+- [x] SysML v2 parser: all definition and usage types, `in`/`out`/`inout` parameters, qualified type names
 - [x] Parser supports nested definitions, nested usages, and items inside any definition type
-- [x] Live nested containment diagram with ELK compound layout
-- [x] SysML v2 graphical notation (tab-rectangle packages, sharp-corner defs, rounded usages)
-- [x] All elements displayed in nested hierarchy: definitions retain children, usages nested under owners
-- [x] ELK auto-layout (re-runs on node/edge/size changes)
-- [x] SVG diagram: pan, zoom, drag nodes
-- [x] Element panel: nested view, by-kind grouping, alphabetical sort, real-time visibility toggles
-- [x] Standard library nodes shown when referenced
+- [x] Nested containment view with ELK compound layout
+- [x] Tree view (flat BDD-style) with ELK orthogonal edge routing
+- [x] SysML v2 graphical notation (correct edge markers, node shapes per spec)
+- [x] Element panel: nested view, by-kind grouping, Relations tab, visibility toggles
 - [x] AI Assistant: Claude Opus 4.6, SSE streaming, propose_edit tool, Apply button
-- [x] localStorage persistence for all UI state
-- [x] Node click → editor navigation
-- [x] PrismaClient singleton — single shared DB connection pool across all routes
-- [x] Authorization enforced on all project PATCH/DELETE mutations (ownerId in WHERE clause)
-- [x] React memory: timer, drag, and resize listeners cleaned up on component unmount
+- [x] localStorage persistence for all UI state (view mode, hidden elements, positions)
+- [x] Production deployment with Nginx, SSL, PM2
 
 ### Planned
 - [ ] LSP autocompletion (syside-languageserver integration)
@@ -252,14 +304,18 @@ package VehicleModel {
 | Layout engine | elkjs (Eclipse Layout Kernel) |
 | AI | Anthropic Claude API (@anthropic-ai/sdk) |
 | Backend API | Node.js, Express |
+| Security | Helmet, express-rate-limit, bcrypt |
+| Auth | JWT + bcrypt + email verification + Google OAuth |
 | Database ORM | Prisma |
 | Database | PostgreSQL 16 |
-| Auth | JWT + bcrypt |
+| Email | Nodemailer (Gmail SMTP) |
+| Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
 
 ---
 
 ## Project Links
 
+- Live: https://systemodel.com
 - Repository: https://github.com/mhlscvk/mbse-tool
 - SysML v2 Specification: https://github.com/Systems-Modeling/SysML-v2-Release
