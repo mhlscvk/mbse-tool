@@ -30,6 +30,11 @@ export const api = {
         method: 'POST', body: JSON.stringify({ email, password, name }),
       }),
     me: () => request<import('@systemodel/shared-types').User>('/auth/me'),
+    google: (credential: string) =>
+      request<{ accessToken: string; user: import('@systemodel/shared-types').User }>('/auth/google', {
+        method: 'POST', body: JSON.stringify({ credential }),
+      }),
+    resendVerify: () => request<{ message: string }>('/auth/resend-verify', { method: 'POST' }),
   },
   projects: {
     list: () => request<import('@systemodel/shared-types').Project[]>('/projects'),

@@ -1,26 +1,97 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import { useAuthStore } from '../store/auth.js';
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  // Handle email verification redirect
+  useEffect(() => {
+    const verified = searchParams.get('verified');
+    if (verified === 'success') {
+      setInfo('Email verified successfully! You can now sign in.');
+      setMode('login');
+    } else if (verified === 'expired') {
+      setError('Verification link expired. Please register again or resend verification.');
+    }
+  }, [searchParams]);
+
+  // Google Sign-In callback
+  const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await api.auth.google(response.credential);
+      setAuth(result.accessToken, result.user);
+      navigate('/projects');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [setAuth, navigate]);
+
+  // Load Google Identity Services script
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const win = window as any;
+    const initGoogle = () => {
+      win.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleResponse,
+      });
+      if (googleBtnRef.current) {
+        win.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'filled_black',
+          size: 'large',
+          width: 280,
+          text: 'continue_with',
+        });
+      }
+    };
+
+    if (win.google?.accounts?.id) {
+      initGoogle();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = initGoogle;
+    document.head.appendChild(script);
+    return () => { script.remove(); };
+  }, [handleGoogleResponse]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
     try {
-      const result = mode === 'login'
-        ? await api.auth.login(form.email, form.password)
-        : await api.auth.register(form.email, form.password, form.name);
-      setAuth(result.accessToken, result.user);
-      navigate('/projects');
+      if (mode === 'register') {
+        await api.auth.register(form.email, form.password, form.name);
+        setInfo('Account created! Check your email for a verification link.');
+        setMode('login');
+      } else {
+        const result = await api.auth.login(form.email, form.password);
+        setAuth(result.accessToken, result.user);
+        navigate('/projects');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -36,7 +107,7 @@ export default function LoginPage() {
 
         <div style={{ display: 'flex', marginBottom: 24, gap: 8 }}>
           {(['login', 'register'] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} style={{
+            <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); }} style={{
               flex: 1, padding: '8px 0', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13,
               background: mode === m ? '#0e639c' : '#3c3c3c', color: mode === m ? '#fff' : '#888',
             }}>
@@ -67,9 +138,11 @@ export default function LoginPage() {
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             required
+            minLength={mode === 'register' ? 8 : undefined}
             style={inputStyle}
           />
           {error && <div style={{ color: '#f48771', fontSize: 13 }}>{error}</div>}
+          {info && <div style={{ color: '#4ec9b0', fontSize: 13 }}>{info}</div>}
           <button type="submit" disabled={loading} style={{
             background: loading ? '#3c3c3c' : '#0e639c', color: '#fff',
             border: 'none', borderRadius: 4, padding: '10px 0',
@@ -78,6 +151,18 @@ export default function LoginPage() {
             {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
+        {/* Google Sign-In */}
+        {GOOGLE_CLIENT_ID && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+              <div style={{ flex: 1, height: 1, background: '#3c3c3c' }} />
+              <span style={{ color: '#666', fontSize: 12 }}>or</span>
+              <div style={{ flex: 1, height: 1, background: '#3c3c3c' }} />
+            </div>
+            <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center' }} />
+          </>
+        )}
       </div>
     </div>
   );
