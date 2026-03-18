@@ -170,11 +170,11 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 // ─── Definition patterns ────────────────────────────────────────────────────
 
 // group[1]=abstract?, group[2]=keyword, group[3]=name, group[4]=specializes target
-const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*(?:parallel\s+)?[{;]/g;
 // group[1]=keyword, group[2]=name, group[3]=multiplicity (optional), group[4]=type
 const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
-const UNTYPED_USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*[;{]/g;
+const UNTYPED_USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(?:parallel\s+)?[;{]/g;
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
 const IN_OUT_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 const IN_OUT_UNTYPED_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*[;{]/g;
@@ -196,6 +196,15 @@ const VERIFICATION_CASE_DEF_PATTERN = /\b(abstract\s+)?verification\s+case\s+def
 // Behavioral
 const PERFORM_PATTERN = /\bperform\s+(?:action\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 const EXHIBIT_PATTERN = /\bexhibit\s+(?:state\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+// Transition usage — matches both named and anonymous forms:
+//   transition transName first source accept trigger if guard then target;
+//   transition first source accept trigger then target;
+//   transition transName { first source; accept trigger; then target; }
+const TRANSITION_NAMED_PATTERN = /\btransition\s+(?!first\b|accept\b|if\b|then\b)(\w+)/g;
+const TRANSITION_ANON_PATTERN = /\btransition\s+(?=first\b|accept\b)/g;
+// Shorthand transition (TargetTransitionUsage): source inferred from previous state
+// Two-step approach: first find "accept ... then target;" span, then parse components inside
+const SHORTHAND_ACCEPT_THEN_PATTERN = /\baccept\s+([\s\S]+?)\bthen\s+(\w+)\s*;/g;
 // Successions: "first X then Y;" standalone
 const SUCCESSION_PATTERN = /\bfirst\s+(\w+)\s+then\s+(\w+)\s*;/g;
 // Inline "then Y;" or "then fork Y;" after declarations
@@ -399,12 +408,16 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const { line: defLine, column: defCol } = lineCol(source, match.index);
     const blockEndIdx = findBlockEnd(clean, match.index + match[0].length - 1);
     const { line: defEndLine, column: defEndCol } = lineCol(source, blockEndIdx);
+    // Check for parallel keyword between definition name and opening brace (not in the name itself)
+    const afterName = match[0].slice(match[0].indexOf(name) + name.length);
+    const isParallel = /\bparallel\b/.test(afterName);
     const node: SysMLNode = {
       id,
       kind,
       name,
       qualifiedName: name,
       isAbstract: !!abstractKw,
+      ...(isParallel ? { isParallel: true } : {}),
       children: [],
       attributes: [],
       connections: [],
@@ -558,6 +571,62 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     return undefined;
   }
 
+  // ── 1c. Extract entry/exit/do behaviors inside state defs and state usages ──
+  // These appear as compartment attributes like "entry / actionName" in the diagram.
+  {
+    const STATE_BEHAVIOR_RE = /\b(entry|exit|do)\s*(?:action\s+)?(\w+)?\s*[;{]/g;
+    STATE_BEHAVIOR_RE.lastIndex = 0;
+    let sbm: RegExpExecArray | null;
+    while ((sbm = STATE_BEHAVIOR_RE.exec(clean)) !== null) {
+      const [, behaviorKind, actionName] = sbm;
+      const pos = sbm.index;
+
+      // Skip false positives: "do" preceded by "if"
+      if (behaviorKind === 'do') {
+        const preDo = clean.slice(Math.max(0, pos - 5), pos);
+        if (/\bif\s*$/.test(preDo)) continue;
+      }
+
+      // Must be inside a state def or state usage body
+      let ownerState: SysMLNode | undefined;
+
+      // Check defPositions for enclosing state def (sorted by start desc = innermost first)
+      for (const dp of defPositions) {
+        if (pos > dp.start && pos < dp.end) {
+          const node = nodeIndex.get(dp.name);
+          if (node && node.kind === 'StateDefinition') {
+            ownerState = node;
+            break;
+          }
+        }
+      }
+
+      // Also check usagePositions for enclosing state usage
+      if (!ownerState) {
+        for (const up of usagePositions) {
+          if (pos > up.start && pos < up.end) {
+            const node = nodeIndex.get(up.name);
+            if (node && node.kind === 'StateUsage') {
+              ownerState = node;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!ownerState) continue;
+
+      const displayText = actionName
+        ? `${behaviorKind} / ${actionName}`
+        : `${behaviorKind}`;
+      ownerState.attributes.push({
+        name: displayText,
+        type: undefined,
+        value: `__${behaviorKind}__`,
+      });
+    }
+  }
+
   // ── 2-pre. Create perform/exhibit nodes BEFORE usage parsing ──────────────
   // These must be in nodeIndex before inner usages are parsed so findOwnerUsage works.
   {
@@ -642,9 +711,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
     const [, keyword, usageName, multiplicity, typeName] = match;
 
-    // Skip if preceded by 'in', 'out', 'inout', 'perform', or 'exhibit' — handled separately
+    // Skip if preceded by 'in', 'out', 'inout', 'perform', 'exhibit', 'entry', 'exit', 'do' — handled separately
     const pre = clean.slice(Math.max(0, match.index - 9), match.index);
-    if (/\b(inout|in|out|perform|exhibit)\s+$/.test(pre)) continue;
+    if (/\b(inout|in|out|perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
 
     // Find the innermost enclosing definition or usage block that owns this usage
     const usagePos = match.index;
@@ -743,9 +812,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
     const [fullMatch, keyword, usageName] = match;
 
-    // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', or 'exhibit'
+    // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', 'exhibit', 'entry', 'exit', 'do'
     const pre = clean.slice(Math.max(0, match.index - 9), match.index);
-    if (/\b(inout|in|out|perform|exhibit)\s+$/.test(pre)) continue;
+    if (/\b(inout|in|out|perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
     if (/\bdef\s+$/.test(pre)) continue;   // skip `part def Foo`
 
     // Skip if this name was already captured as a typed usage or definition
@@ -1182,9 +1251,36 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   // ── 2l. Successions ───────────────────────────────────────────────────────
 
+  // Pre-scan: collect all transition statement ranges so succession/then don't double-match
+  const transitionRanges: { start: number; end: number }[] = [];
+  {
+    // Named transitions
+    const trScan = new RegExp(TRANSITION_NAMED_PATTERN.source, 'g');
+    let trm: RegExpExecArray | null;
+    while ((trm = trScan.exec(clean)) !== null) {
+      const afterName = clean.indexOf(trm[1], trm.index) + trm[1].length;
+      let si = afterName;
+      while (si < clean.length && clean[si] !== ';' && clean[si] !== '{') si++;
+      transitionRanges.push({ start: trm.index, end: findBlockEnd(clean, si) });
+    }
+    // Anonymous transitions
+    const trAnonScan = new RegExp(TRANSITION_ANON_PATTERN.source, 'g');
+    while ((trm = trAnonScan.exec(clean)) !== null) {
+      let si = trm.index + trm[0].length;
+      while (si < clean.length && clean[si] !== ';' && clean[si] !== '{') si++;
+      transitionRanges.push({ start: trm.index, end: findBlockEnd(clean, si) });
+    }
+  }
+  function isInsideTransition(offset: number): boolean {
+    return transitionRanges.some(r => offset >= r.start && offset < r.end);
+  }
+
   // "first X then Y;" — standalone succession
   SUCCESSION_PATTERN.lastIndex = 0;
   while ((match = SUCCESSION_PATTERN.exec(clean)) !== null) {
+    // Skip if inside a transition statement — handled by transition parser
+    if (isInsideTransition(match.index)) continue;
+
     const [, fromName, toName] = match;
     if (SPECIAL_NAMES.has(fromName)) ensureSpecialNode(fromName, match.index);
     if (SPECIAL_NAMES.has(toName)) ensureSpecialNode(toName, match.index);
@@ -1199,7 +1295,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  // "first X;" alone (no then) — just ensure X exists as a node for subsequent then targets
+  // "first X;" alone (no then) — in state context this means X is the initial state
+  // Creates a start → X succession edge; in action context just ensures the node exists
   {
     const firstAloneRe = /\bfirst\s+(\w+)\s*;/g;
     firstAloneRe.lastIndex = 0;
@@ -1207,6 +1304,33 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     while ((fm = firstAloneRe.exec(clean)) !== null) {
       const name = fm[1];
       if (name === 'start' || name === 'done' || name === 'terminate') ensureSpecialNode(name, fm.index);
+
+      // Skip if inside a transition statement — handled by transition parser
+      if (isInsideTransition(fm.index)) continue;
+
+      // Check if inside a state def — if so, create start → X initial succession
+      let insideStateDef = false;
+      for (const dp of defPositions) {
+        if (fm.index > dp.start && fm.index < dp.end) {
+          const node = nodeIndex.get(dp.name);
+          if (node && node.kind === 'StateDefinition') {
+            insideStateDef = true;
+            break;
+          }
+        }
+      }
+      if (insideStateDef) {
+        ensureSpecialNode('start', fm.index);
+        const startNode = resolveNodeAtOffset('start', fm.index);
+        const targetNode = resolveNodeAtOffset(name, fm.index);
+        if (startNode && targetNode) {
+          connections.push({
+            id: makeId('initial', `start_${name}_${fm.index}`),
+            sourceId: startNode.id, targetId: targetNode.id,
+            kind: 'succession', name: '',
+          });
+        }
+      }
     }
   }
 
@@ -1221,7 +1345,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     while ((dm = declRe.exec(clean)) !== null) {
       const pre = clean.slice(Math.max(0, dm.index - 5), dm.index);
       if (/\bdef\s+$/.test(pre)) continue; // skip "action def X"
-      if (/\bperform\s+$/.test(pre) || /\bexhibit\s+$/.test(pre)) continue;
+      if (/\b(?:perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
       const endPos = dm.index + dm[0].length;
       declPositions.push({ name: dm[1], end: endPos });
     }
@@ -1232,11 +1356,46 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     while ((pdm = performDeclRe.exec(clean)) !== null) {
       declPositions.push({ name: pdm[1], end: pdm.index + pdm[0].length });
     }
+    // Transition declarations also count
+    const transDeclRe = /\btransition\s+(\w+)\s*[;{]/g;
+    transDeclRe.lastIndex = 0;
+    while ((pdm = transDeclRe.exec(clean)) !== null) {
+      declPositions.push({ name: pdm[1], end: pdm.index + pdm[0].length });
+    }
     // Also "first start;" counts as a declaration of start
     const firstRe = /\bfirst\s+(\w+)\s*;/g;
     firstRe.lastIndex = 0;
     while ((dm = firstRe.exec(clean)) !== null) {
       declPositions.push({ name: dm[1], end: dm.index + dm[0].length });
+    }
+    // Entry/exit/do declarations: "entry;" or "entry action name;" — for then-resolution
+    // Per spec 7.18.2: "entry; then off;" means succession from entry action to off
+    const entryDeclRe = /\b(entry|exit|do)\s*(?:action\s+)?(\w+)?\s*[;{]/g;
+    entryDeclRe.lastIndex = 0;
+    while ((dm = entryDeclRe.exec(clean)) !== null) {
+      const behaviorKind = dm[1];
+      const actionName = dm[2];
+      const endPos = dm.index + dm[0].length;
+      // Only entry actions should serve as sources for "then" successions
+      if (behaviorKind === 'entry') {
+        // For "entry;" (no name) or "entry action name;", treat as a declaration
+        // that can be resolved to a start node in state context
+        const resolvedName = actionName ?? 'start';
+        // If it's "entry;" (no name), ensure a start node exists in this scope
+        if (!actionName) {
+          // Check if inside a state def
+          for (const dp of defPositions) {
+            if (dm.index > dp.start && dm.index < dp.end) {
+              const node = nodeIndex.get(dp.name);
+              if (node && (node.kind === 'StateDefinition' || node.kind === 'StateUsage')) {
+                ensureSpecialNode('start', dm.index);
+                break;
+              }
+            }
+          }
+        }
+        declPositions.push({ name: resolvedName, end: endPos });
+      }
     }
     declPositions.sort((a, b) => a.end - b.end);
   }
@@ -1250,15 +1409,30 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     handledThenPositions.add(thenPos);
   }
 
+  // Pre-scan shorthand accept...then positions so inline-then doesn't double-match
+  const handledShorthandThenPositions = new Set<number>();
+  {
+    const preScan = new RegExp(SHORTHAND_ACCEPT_THEN_PATTERN.source, 'g');
+    let psm: RegExpExecArray | null;
+    while ((psm = preScan.exec(clean)) !== null) {
+      const thenIdx = psm.index + psm[0].lastIndexOf('then');
+      handledShorthandThenPositions.add(thenIdx);
+    }
+  }
+
   INLINE_THEN_PATTERN.lastIndex = 0;
   while ((match = INLINE_THEN_PATTERN.exec(clean)) !== null) {
     // Skip if this "then" is part of "first X then Y;" or "if G then A;"
     if (handledThenPositions.has(match.index)) continue;
+    // Skip if inside a transition statement — handled by transition parser
+    if (isInsideTransition(match.index)) continue;
     // Check if preceded by "if guard" — those are handled separately
-    const preThen = clean.slice(Math.max(0, match.index - 30), match.index);
+    const preThen = clean.slice(Math.max(0, match.index - 60), match.index);
     if (/\bif\s+[\w.]+\s+$/.test(preThen)) continue;
     // Skip "then" inside "first ... then ..."
     if (/\bfirst\s+\w+\s+$/.test(preThen)) continue;
+    // Skip "then" handled by shorthand accept...then parser (position-based)
+    if (handledShorthandThenPositions.has(match.index)) continue;
 
     const toName = match[1];
     if (SPECIAL_NAMES.has(toName)) ensureSpecialNode(toName, match.index);
@@ -1370,6 +1544,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   // "if guard then action; else action2;" — conditional succession with else branch
   IF_THEN_ELSE_PATTERN.lastIndex = 0;
   while ((match = IF_THEN_ELSE_PATTERN.exec(clean)) !== null) {
+    if (isInsideTransition(match.index)) continue;
     const [, guard, thenName, elseName] = match;
     const pos = match.index;
     handledIfPositions.add(pos);
@@ -1407,6 +1582,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   while ((match = IF_THEN_PATTERN.exec(clean)) !== null) {
     // Skip if already handled by IF_THEN_ELSE_PATTERN
     if (handledIfPositions.has(match.index)) continue;
+    if (isInsideTransition(match.index)) continue;
     const [, guard, toName] = match;
     const pos = match.index;
     validateGuardBoolean(guard, pos);
@@ -1427,6 +1603,189 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         sourceId: fromNode.id, targetId: toNode.id,
         kind: 'succession', name: `[${guard}]`,
       });
+    }
+  }
+
+  // ── 2l-extra. Transition usages ──────────────────────────────────────────────
+  // SysML v2 transition syntax inside state defs:
+  //   transition transName first source accept trigger if guard then target;
+  //   transition first source accept trigger then target;   (anonymous)
+  //   transition transName { first source; accept trigger; if guard; then target; }
+  // Components: first=source, accept=trigger, if=guard, do=effect, then=target
+  {
+    // Helper to parse a transition body and create the succession edge
+    function parseTransitionBody(body: string, pos: number, transName: string | null): void {
+      const firstMatch = body.match(/\bfirst\s+(\w+)/);
+      const thenMatch = body.match(/\bthen\s+(\w+)/);
+      // Accept: "accept TriggerName [via port]" or "accept after 5[min]"
+      const acceptMatch = body.match(/\baccept\s+(after\s+[\d[\].\w]+|\w+)(?:\s+via\s+(\w+))?/);
+      const ifMatch = body.match(/\bif\s+([\w.]+)/);
+      const doMatch = body.match(/\bdo\s+(?:action\s+)?(\w+)/);
+
+      const sourceName = firstMatch?.[1];
+      const targetName = thenMatch?.[1];
+      const triggerText = acceptMatch?.[1];
+      const viaPort = acceptMatch?.[2];
+      const guardExpr = ifMatch?.[1];
+      const effectName = doMatch?.[1];
+
+      // Build label: "trigger via port [guard] / effect"
+      const labelParts: string[] = [];
+      if (triggerText) {
+        labelParts.push(viaPort ? `${triggerText} via ${viaPort}` : triggerText);
+      }
+      if (guardExpr) labelParts.push(`[${guardExpr}]`);
+      if (effectName) labelParts.push(`/ ${effectName}`);
+      const edgeLabel = labelParts.length > 0 ? labelParts.join(' ') : '';
+
+      if (sourceName && targetName) {
+        if (SPECIAL_NAMES.has(sourceName)) ensureSpecialNode(sourceName, pos);
+        if (SPECIAL_NAMES.has(targetName)) ensureSpecialNode(targetName, pos);
+        const fromNode = resolveNodeAtOffset(sourceName, pos);
+        const toNode = resolveNodeAtOffset(targetName, pos);
+        if (fromNode && toNode) {
+          connections.push({
+            id: makeId('transition', `${transName ?? 'anon'}_${pos}`),
+            sourceId: fromNode.id,
+            targetId: toNode.id,
+            kind: 'transition',
+            name: edgeLabel,
+          });
+        }
+      }
+
+      if (transName) {
+        declPositions.push({ name: transName, end: pos + body.length });
+      }
+    }
+
+    // Named transitions: "transition transName first ... then ...;"
+    TRANSITION_NAMED_PATTERN.lastIndex = 0;
+    let tm: RegExpExecArray | null;
+    while ((tm = TRANSITION_NAMED_PATTERN.exec(clean)) !== null) {
+      const transName = tm[1];
+      const pos = tm.index;
+      // Find the end of the full transition statement (block or semicolon)
+      const afterName = clean.indexOf(transName, pos) + transName.length;
+      // Scan forward to find the terminating ; or { block
+      let scanIdx = afterName;
+      while (scanIdx < clean.length && clean[scanIdx] !== ';' && clean[scanIdx] !== '{') scanIdx++;
+      const blockEnd = findBlockEnd(clean, scanIdx);
+      const body = clean.slice(pos, blockEnd);
+      parseTransitionBody(body, pos, transName);
+    }
+
+    // Anonymous transitions: "transition first ... then ...;"
+    TRANSITION_ANON_PATTERN.lastIndex = 0;
+    while ((tm = TRANSITION_ANON_PATTERN.exec(clean)) !== null) {
+      const pos = tm.index;
+      // Find end of statement
+      let scanIdx = pos + tm[0].length;
+      while (scanIdx < clean.length && clean[scanIdx] !== ';' && clean[scanIdx] !== '{') scanIdx++;
+      const blockEnd = findBlockEnd(clean, scanIdx);
+      const body = clean.slice(pos, blockEnd);
+      parseTransitionBody(body, pos, null);
+    }
+  }
+
+  // ── 2l-shorthand. Shorthand transitions: "accept trigger [via port] [if guard] [do effect] then target;"
+  // Per SysML v2 spec 7.18.3 (TargetTransitionUsage): source inferred from lexically previous state
+  {
+    // Build sorted list of state declaration positions for source inference
+    const stateDeclPositions: { name: string; end: number; pos: number }[] = [];
+    {
+      const stateUsageRe = /\bstate\s+(\w+)\s*(?::\s*[\w:]+\s*)?[;{]/g;
+      stateUsageRe.lastIndex = 0;
+      let sm: RegExpExecArray | null;
+      while ((sm = stateUsageRe.exec(clean)) !== null) {
+        const pre = clean.slice(Math.max(0, sm.index - 8), sm.index);
+        if (/\bdef\s+$/.test(pre) || /\bexhibit\s+$/.test(pre)) continue;
+        const blockEnd = findBlockEnd(clean, sm.index + sm[0].length - 1);
+        stateDeclPositions.push({ name: sm[1], end: blockEnd, pos: sm.index });
+      }
+      stateDeclPositions.sort((a, b) => a.end - b.end);
+    }
+
+    /** Find the nearest preceding state declaration before the given offset. */
+    function findPreviousState(offset: number): string | undefined {
+      for (let i = stateDeclPositions.length - 1; i >= 0; i--) {
+        if (stateDeclPositions[i].end <= offset) return stateDeclPositions[i].name;
+      }
+      return undefined;
+    }
+
+    SHORTHAND_ACCEPT_THEN_PATTERN.lastIndex = 0;
+    let stm: RegExpExecArray | null;
+    while ((stm = SHORTHAND_ACCEPT_THEN_PATTERN.exec(clean)) !== null) {
+      const pos = stm.index;
+
+      // Skip if inside a full transition statement (already handled)
+      if (isInsideTransition(pos)) continue;
+
+      // Must be inside a state def or state usage body
+      let insideState = false;
+      for (const dp of defPositions) {
+        if (pos > dp.start && pos < dp.end) {
+          const node = nodeIndex.get(dp.name);
+          if (node && (node.kind === 'StateDefinition' || node.kind === 'StateUsage')) {
+            insideState = true;
+            break;
+          }
+        }
+      }
+      if (!insideState) {
+        // Also check usagePositions for state usages with bodies
+        for (const up of usagePositions) {
+          if (pos > up.start && pos < up.end) {
+            const node = nodeIndex.get(up.name) ??
+              nodeIndex.get(`${findOwnerNameAtOffset(up.start)}.${up.name}`);
+            if (node && (node.kind === 'StateUsage' || node.kind === 'StateDefinition')) {
+              insideState = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!insideState) continue;
+
+      const [, bodyText, targetName] = stm;
+
+      // Two-step: parse components from the body between "accept" and "then"
+      const acceptMatch = bodyText.match(/^(after\s+[\d\[\].\w]+|\w+)/);
+      const viaMatch = bodyText.match(/\bvia\s+(\w+)/);
+      const ifMatch = bodyText.match(/\bif\s+([\w.]+)/);
+      const doMatch = bodyText.match(/\bdo\s+(?:action\s+)?(\w+)/);
+      const triggerText = acceptMatch?.[1]?.trim();
+      const viaPort = viaMatch?.[1];
+      const guardExpr = ifMatch?.[1];
+      const effectName = doMatch?.[1];
+
+      // Track this "then" position so INLINE_THEN_PATTERN skips it
+      const thenPos = pos + stm[0].lastIndexOf('then');
+      handledShorthandThenPositions.add(thenPos);
+
+      // Infer source from the nearest preceding state declaration
+      const sourceName = findPreviousState(pos);
+      if (!sourceName || !targetName) continue;
+
+      if (SPECIAL_NAMES.has(targetName)) ensureSpecialNode(targetName, pos);
+
+      const fromNode = resolveNodeAtOffset(sourceName, pos);
+      const toNode = resolveNodeAtOffset(targetName, pos);
+      if (fromNode && toNode) {
+        const labelParts: string[] = [];
+        if (triggerText) labelParts.push(viaPort ? `${triggerText} via ${viaPort}` : triggerText);
+        if (guardExpr) labelParts.push(`[${guardExpr}]`);
+        if (effectName) labelParts.push(`/ ${effectName}`);
+
+        connections.push({
+          id: makeId('shorthand-trans', `${sourceName}_${targetName}_${pos}`),
+          sourceId: fromNode.id,
+          targetId: toNode.id,
+          kind: 'transition',
+          name: labelParts.join(' '),
+        });
+      }
     }
   }
 
@@ -1496,10 +1855,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     });
   }
 
-  // Deduplicate connections (same source+target)
+  // Deduplicate connections (same source+target+kind)
   const seen = new Set<string>();
   const uniqueConnections = connections.filter((c) => {
-    const key = `${c.sourceId}→${c.targetId}`;
+    const key = `${c.sourceId}→${c.targetId}:${c.kind}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

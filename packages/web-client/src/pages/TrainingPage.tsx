@@ -377,10 +377,10 @@ export default function TrainingPage() {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12,
       }}>
         <span
-          style={{ fontWeight: 700, color: '#569cd6', cursor: 'pointer', fontSize: 16 }}
+          style={{ fontWeight: 700, color: '#A0522D', cursor: 'pointer', fontSize: 18, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic' }}
           onClick={() => navigate('/projects')}
         >
-          Systemodel
+          SysteModel
         </span>
         <span style={{ color: '#444' }}>/</span>
         <span style={{ color: '#d4d4d4', fontSize: 14 }}>Training Mode</span>

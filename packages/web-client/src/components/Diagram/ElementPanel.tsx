@@ -70,6 +70,13 @@ const KIND_LABELS: Record<string, string> = {
   actionin:             'In Parameter',
   actionout:            'Out Parameter',
   actioninout:          'InOut Parameter',
+  performactionusage:   'Perform Action',
+  exhibitstateusage:    'Exhibit State',
+  transitionusage:      'Transition',
+  forknode:             'Fork Node',
+  joinnode:             'Join Node',
+  mergenode:            'Merge Node',
+  decidenode:           'Decide Node',
   startnode:            'Start Node',
   terminatenode:        'Terminate Node',
   stdlib:               'Standard Library',
@@ -95,6 +102,13 @@ const KIND_COLORS: Record<string, string> = {
   actionin:             '#082828',
   actionout:            '#1a1008',
   actioninout:          '#1a2828',
+  performactionusage:   '#082828',
+  exhibitstateusage:    '#202008',
+  transitionusage:      '#2a2a2a',
+  forknode:             '#4a4a4a',
+  joinnode:             '#4a4a4a',
+  mergenode:            '#3a3a2a',
+  decidenode:           '#3a3a2a',
   startnode:            '#222222',
   terminatenode:        '#3a3a3a',
   stdlib:               '#0a2018',
@@ -102,19 +116,37 @@ const KIND_COLORS: Record<string, string> = {
 };
 
 const EDGE_KIND_LABELS: Record<string, string> = {
-  dependency:    'Generalization',
-  composition:   'Composition',
-  association:   'Association',
-  flow:          'Flow',
-  typereference: 'Type Reference',
+  dependency:          'Specialization',
+  composition:         'Composition',
+  association:         'Association',
+  flow:                'Flow',
+  succession:          'Succession',
+  transition:          'Transition',
+  typereference:       'Type Reference',
+  subsetting:          'Subsetting',
+  redefinition:        'Redefinition',
+  referencesubsetting: 'Reference Subsetting',
+  satisfy:             'Satisfy',
+  verify:              'Verify',
+  allocate:            'Allocate',
+  bind:                'Binding',
 };
 
 const EDGE_KIND_COLORS: Record<string, string> = {
-  dependency:    '#9e9e9e',
-  composition:   '#9cdcfe',
-  association:   '#777777',
-  flow:          '#4ec9b0',
-  typereference: '#6a7a8a',
+  dependency:          '#9e9e9e',
+  composition:         '#9cdcfe',
+  association:         '#777777',
+  flow:                '#4ec9b0',
+  succession:          '#4ec9b0',
+  transition:          '#4ec9b0',
+  typereference:       '#6a7a8a',
+  subsetting:          '#9e9e9e',
+  redefinition:        '#9e9e9e',
+  referencesubsetting: '#9e9e9e',
+  satisfy:             '#e06060',
+  verify:              '#60b060',
+  allocate:            '#c0a060',
+  bind:                '#9090c0',
 };
 
 function getNodeName(node: SNode): string {
@@ -494,8 +526,10 @@ export default function ElementPanel({
           ) : (
             <span style={{
               width: 8, height: 8, flexShrink: 0,
-              borderRadius: kind.includes('usage') || kind === 'actionin' || kind === 'actionout' || kind === 'actioninout' ? 4 : 1,
+              borderRadius: kind.includes('usage') || kind === 'actionin' || kind === 'actionout' || kind === 'actioninout'
+                || kind === 'startnode' || kind === 'terminatenode' ? 4 : kind === 'forknode' || kind === 'joinnode' ? 1 : kind === 'mergenode' || kind === 'decidenode' ? 0 : 1,
               background: color,
+              ...(kind === 'mergenode' || kind === 'decidenode' ? { transform: 'rotate(45deg)', width: 7, height: 7 } : {}),
             }} />
           )}
 
@@ -563,8 +597,10 @@ export default function ElementPanel({
             >{isGroupCollapsed ? '▶' : '▼'}</span>
             <span style={{
               width: 8, height: 8, flexShrink: 0,
-              borderRadius: kind.includes('usage') || kind === 'actionin' || kind === 'actionout' || kind === 'actioninout' ? 4 : 1,
+              borderRadius: kind.includes('usage') || kind === 'actionin' || kind === 'actionout' || kind === 'actioninout'
+                || kind === 'startnode' || kind === 'terminatenode' ? 4 : 1,
               background: color, display: 'inline-block',
+              ...(kind === 'mergenode' || kind === 'decidenode' ? { transform: 'rotate(45deg)', width: 7, height: 7 } : {}),
             }} />
             <span
               onClick={() => toggleTreeGroupCollapse(kind)}

@@ -162,6 +162,7 @@ const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: st
   association:         { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-assoc)',                                   labelColor: '#777'    },
   flow:                { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-flow-filled)',                             labelColor: '#4ec9b0' },
   succession:          { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#4ec9b0' },
+  transition:          { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-flow-filled)',                             labelColor: '#4ec9b0' },
   typereference:       { stroke: '#6a7a8a', dash: '4,3',     markerEnd: 'url(#tri-typeref)',                                   labelColor: '#6a7a8a' },
   referencesubsetting: { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
   satisfy:             { stroke: '#e06060', dash: '6,3',     markerEnd: 'url(#arrow-satisfy)',                                 labelColor: '#e06060' },
@@ -174,8 +175,7 @@ const DEFAULT_EDGE_STYLE = EDGE_STYLES.association;
 // SysML v2: definitions have sharp corners, usages have rounded corners, packages have sharp + tab
 const DEF_CLASSES = new Set([
   'package', 'partdefinition', 'attributedefinition', 'connectiondefinition',
-  'portdefinition', 'actiondefinition', 'itemdefinition',
-  // Note: statedefinition intentionally excluded — states use rounded corners per SysML v2 spec
+  'portdefinition', 'actiondefinition', 'statedefinition', 'itemdefinition',
   'requirementdefinition', 'constraintdefinition', 'interfacedefinition', 'enumdefinition',
   'calcdefinition', 'allocationdefinition', 'usecasedefinition',
   'analysiscasedefinition', 'verificationcasedefinition',
@@ -185,6 +185,7 @@ const DEF_CLASSES = new Set([
 const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';
 const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 'stdlib' ? 0 : 10;
+const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
 
 export default function DiagramViewer({
   model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onEdgeSelect, onHideNode, onHideEdge,
@@ -397,7 +398,7 @@ export default function DiagramViewer({
       const flowEdgesByParent = new Map<string, Array<{ id: string; sources: string[]; targets: string[] }>>();
       for (const e of allEdges) {
         const ek = e.cssClasses?.[0];
-        if (ek !== 'flow' && ek !== 'succession') continue;
+        if (ek !== 'flow' && ek !== 'succession' && ek !== 'transition') continue;
         // Both source and target must share the same parent container
         const srcParent = parentOf.get(e.sourceId);
         const tgtParent = parentOf.get(e.targetId);
@@ -936,7 +937,7 @@ export default function DiagramViewer({
     const cache = new Map<string, { x: number; y: number }[]>();
     for (const e of edges) {
       const ek2 = e.cssClasses?.[0];
-      if (ek2 === 'composition' || ek2 === 'flow' || ek2 === 'succession') continue;
+      if (ek2 === 'composition' || ek2 === 'flow' || ek2 === 'succession' || ek2 === 'transition') continue;
       const path = routeOrthogonal(e.sourceId, e.targetId);
       if (path && path.length >= 2) {
         cache.set(e.id, path);
@@ -1418,7 +1419,6 @@ export default function DiagramViewer({
 
             // ── Non-package container (nested mode only): title-bar + children area ──
             // Control nodes (fork/join/merge/decide) should never render as containers
-            const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
             if (isContainer && !CONTROL_CSS.has(cssClass)) {
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#4d9ad4' : '#4a8ab0';
 
@@ -1722,6 +1722,8 @@ export default function DiagramViewer({
             { label: '- -◁ defined by :',       color: '#6a7a8a', dash: '4,3'     },
             { label: '──▷ ref subsets ::>',     color: '#9e9e9e', dash: undefined },
             { label: '──▶ flow',                color: '#4ec9b0', dash: undefined },
+            { label: '──▷ succession',          color: '#4ec9b0', dash: undefined },
+            { label: '──▶ transition',          color: '#4ec9b0', dash: undefined },
             { label: '──▷ connection',          color: '#777',    dash: undefined },
             { label: '- -▷ satisfy',            color: '#e06060', dash: '6,3'     },
             { label: '- -▷ verify',             color: '#60b060', dash: '6,3'     },

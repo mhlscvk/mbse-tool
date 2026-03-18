@@ -33,10 +33,10 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
       flexShrink: 0,
     }}>
       <span
-        style={{ fontWeight: 700, color: '#569cd6', cursor: 'pointer', fontSize: 16 }}
+        style={{ fontWeight: 700, color: '#A0522D', cursor: 'pointer', fontSize: 18, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic' }}
         onClick={() => navigate('/projects')}
       >
-        Systemodel
+        SysteModel
       </span>
       {title && (
         <>

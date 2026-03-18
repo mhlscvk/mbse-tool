@@ -94,7 +94,8 @@ function nodeToSNode(node: SysMLNode): SNode {
   const baseKindText = isStdlib
     ? `«${node.qualifiedName?.split('::')[0] ?? 'stdlib'}»`
     : (KIND_DISPLAY[node.kind] ?? `«${node.kind}»`);
-  const kindText = node.isAbstract ? `{abstract} ${baseKindText}` : baseKindText;
+  let kindText = node.isAbstract ? `{abstract} ${baseKindText}` : baseKindText;
+  if (node.isParallel) kindText += ' {parallel}';
   const kindLabel = makeLabel(`${node.id}__kind`, kindText);
 
   // Usage nodes: show "name[mult] : Type" in the name label
@@ -167,6 +168,10 @@ function nodeToSNode(node: SysMLNode): SNode {
     .map((attr, i) => {
       let text: string;
       const val = attr.value ?? '';
+      // State behavior attributes (entry/exit/do) — display as-is
+      if (val === '__entry__' || val === '__exit__' || val === '__do__') {
+        return makeLabel(`${node.id}__usage__${i}`, attr.name);
+      }
       // Check if value is a keyword or keyword+operator (e.g., "part :>", "part :>>", "part ::>")
       const baseKeyword = val.split(/\s+/)[0];
       const operator = val.includes(':>>') ? ' :>> ' : val.includes('::>') ? ' ::> ' : val.includes(':>') ? ' :> ' : '';

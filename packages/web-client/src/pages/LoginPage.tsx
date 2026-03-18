@@ -136,7 +136,7 @@ export default function LoginPage() {
   return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e1e1e' }}>
       <div style={{ background: '#2d2d30', padding: 40, borderRadius: 8, width: 360, border: '1px solid #3c3c3c' }}>
-        <h1 style={{ color: '#569cd6', marginBottom: 8, fontSize: 24 }}>Systemodel</h1>
+        <h1 style={{ color: '#A0522D', marginBottom: 8, fontSize: 28, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic' }}>SysteModel</h1>
         <p style={{ color: '#888', marginBottom: 32, fontSize: 13 }}>SysML v2 Modeling Platform</p>
 
         <div style={{ display: 'flex', marginBottom: 24, gap: 8 }}>

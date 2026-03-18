@@ -66,6 +66,8 @@ export interface SysMLNode {
   qualifiedName?: string;
   direction?: 'in' | 'out' | 'inout';
   isAbstract?: boolean;
+  /** True for parallel state definitions/usages */
+  isParallel?: boolean;
   /** Multiplicity text, e.g. "[4]", "[1..*]", "[0..1]" */
   multiplicity?: string;
   children: SysMLNode[];
@@ -84,7 +86,7 @@ export interface SysMLConnection {
   id: string;
   sourceId: string;
   targetId: string;
-  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'succession' | 'typereference'
+  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'succession' | 'transition' | 'typereference'
       | 'subsetting' | 'redefinition' | 'referencesubsetting'
       | 'satisfy' | 'verify' | 'allocate' | 'bind';
   name?: string;

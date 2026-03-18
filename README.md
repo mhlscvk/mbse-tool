@@ -266,6 +266,21 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
 - Succession (open arrowhead) is distinct from flow (filled arrowhead) per SysML v2 spec
 - Orthogonal edge routing in nested view — all relationship lines use right-angle paths
 
+**State machines (per OMG SysML v2.0 spec Section 7.18):**
+- `state def Name { ... }` / `state def Name parallel { ... }` — state definitions with optional `parallel` keyword
+- Sub-states: `state off;`, `state starting;`, `state on;` nested inside state defs/usages
+- `entry action name;` / `entry;` / `do action name;` / `exit action name;` — state behaviors shown in compartment
+- `entry; then off;` — initial state succession from entry action to first state (start → off)
+- `first X;` inside state def — marks initial state (creates start → X succession)
+- Named transitions: `transition t1 first source accept TriggerName if guard do effect then target;`
+- Anonymous transitions: `transition first source accept Trigger then target;`
+- Shorthand transitions (per spec 7.18.3): `accept TriggerName then target;` — source inferred from lexically previous state
+- `accept Trigger via portName then target;` — receiver port syntax
+- `accept after 5[min] then target;` — timed trigger syntax
+- Block-form transitions: `transition t1 { first source; accept Trigger; then target; }`
+- Transition edges use filled arrowheads (distinct from succession open arrowheads)
+- Fork/join/merge/decide control nodes work inside state defs
+
 **Relationships:**
 - `satisfy` / `verify` / `allocate` / `bind`
 - `connect X to Y` / `flow from X to Y`
@@ -287,7 +302,7 @@ Node shapes per Section 8.2.3 of the spec:
 | Element | Definition Shape | Usage Shape |
 |---|---|---|
 | Part, Attribute, Item, Port, Connection, Interface, Allocation, Calc, Enum, Requirement, View, Viewpoint, Rendering, Metadata | Square-corner rectangle | Rounded-corner rectangle |
-| State | Rounded-corner rectangle | Rounded-corner rectangle |
+| State | Square-corner rectangle | Rounded-corner rectangle |
 | Package | Tab-rectangle | Tab-rectangle |
 | Perform Action | — | Rounded-corner rectangle (`«perform»`) |
 | Exhibit State | — | Rounded-corner rectangle (`«exhibit»`) |
@@ -308,6 +323,7 @@ Edge styles per Section 8.2.3:
 | Composition | Solid | Filled diamond | — |
 | Flow | Solid | — | Filled arrowhead |
 | Succession | Solid | — | Open arrowhead |
+| Transition | Solid | — | Filled arrowhead |
 | Satisfy | Dashed | — | Open arrowhead |
 | Verify | Dashed | — | Open arrowhead |
 | Allocate | Dashed | — | Open arrowhead |
@@ -475,10 +491,11 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 ## Features
 
 ### Implemented
-- [x] Full SysML v2.0 parser (30+ definition/usage types, all operators, action flow)
+- [x] Full SysML v2.0 parser (30+ definition/usage types, all operators, action flow, state machines)
 - [x] Action flow diagrams (start, terminate, fork, join, merge, decide, successions, guards)
+- [x] State machine diagrams (state defs, sub-states, transitions, entry/exit/do, parallel, shorthand transitions)
 - [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as distinct node kinds
-- [x] Scoped containment — each action container gets its own start/terminate/control nodes
+- [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
 - [x] If-then-else parsing with dotted guard expressions (`obj.prop.isActive`)
 - [x] OMG-compliant graphical notation (node shapes, edge styles per spec Section 8.2.3)
@@ -495,7 +512,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] User auth: email/password + Google OAuth + email verification
 - [x] Security hardening: helmet, rate limiting, HTTPS, Zod validation, WebSocket limits, error sanitization
-- [x] Automated tests: 175 vitest tests (parser, transformer, robustness, security)
+- [x] Automated tests: 297 vitest tests (parser, transformer, state machines, robustness, security, audit)
 - [x] Project and file CRUD with auto-save
 - [x] Training mode (7 levels, progressive SysML v2 tutorial)
 - [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
@@ -527,7 +544,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (175 tests: parser, transformer, robustness, security) |
+| Testing | Vitest (297 tests: parser, transformer, state machines, robustness, security, audit) |
 
 ---
 
@@ -541,12 +558,16 @@ cd packages/diagram-service && pnpm test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 175 tests across 5 test suites:
+**Coverage:** 297 tests across 9 test suites:
 
 - **Parser tests** (66): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
+- **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
+- **Parser audit tests** (34): ReDoS resistance, isParallel false positive prevention, connection dedup correctness, shorthand transitions in state usages, entry/exit/do edge cases, transition components, entry-then succession, no-duplicate-edge verification, regression (action flow, parts, packages, imports, relationships), performance benchmarks
 - **Parser robustness tests** (53): empty/minimal inputs, malformed syntax, special characters, large inputs, comment edge cases, imports, diagnostic quality, source ranges, connection edge cases, rapid parsing, input size limits, control flow
 - **Parser security tests** (13): XSS vectors, DoS resistance, path traversal, input type safety, error message sanitization
 - **Transformer tests** (20): node shapes, keyword display, compartments, edges, empty inputs
+- **Transformer state tests** (17): state def/usage cssClasses, exhibit state, entry/exit/do compartment rendering, transition edge type, composition edges, full pipeline
+- **Transformer audit tests** (16): sharp/rounded corner compliance, parallel kind text, behavior compartment rendering, transition vs succession edge types, node/edge structure integrity, full spec example pipelines
 - **Transformer robustness tests** (23): empty/minimal models, node structure validation, labels, edge CSS classes, compartments, control nodes, performance, full pipeline integration
 
 ---
