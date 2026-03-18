@@ -8,9 +8,14 @@
       "depth": 1,
       "files": [
         {
+          "name": "Comments",
+          "content": "package 'Comment Example' {\n  comment /* This is comment, part of the model,annotating (by default) it's owning package. */\n  comment Comment1  /* This is a named comment. */\n  comment about Automobile /* This is an unnamed comment, annotating an explicitly specified element.\n  */\n  part def Automobile;\n  alias Car for Automobile {\n    comment /* This is a comment annotating its owning element.  */\n  }\n    comment /* This is a note. It is in the text, but not part of the model.*/\n  alias Torque for ISQ::TorqueValue;\n}",
+          "size": 523
+        },
+        {
           "name": "Packages-Members",
-          "content": "package 'Package Example' {\npublic import ISQ::TorqueValue;\nprivate import ScalarValues::*;\npart def Automobile;\nalias Car for Automobile;\nalias Torque for ISQ::TorqueValue;\n\n}",
-          "size": 176
+          "content": "package 'Package Example' {\n  public import ISQ::TorqueValue;\n  private import ScalarValues::*;\n  part def Automobile;\n  alias Car for Automobile;\n  alias Torque for ISQ::TorqueValue;\n}",
+          "size": 185
         }
       ],
       "children": []
