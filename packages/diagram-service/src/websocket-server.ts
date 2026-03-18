@@ -10,7 +10,7 @@ type DiagramRequest =
   | { kind: 'model'; model: SysMLModel };              // pre-built AST (future: from LSP)
 
 const MAX_PAYLOAD = 10 * 1024 * 1024; // 10 MB
-const MAX_CONNECTIONS_PER_IP = 5;
+const MAX_CONNECTIONS_PER_IP = 20;
 const MAX_MESSAGES_PER_MINUTE = 120;
 
 export function createDiagramWebSocketServer(server: Server): WebSocketServer {

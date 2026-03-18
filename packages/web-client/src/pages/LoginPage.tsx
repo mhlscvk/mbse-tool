@@ -43,12 +43,15 @@ export default function LoginPage() {
   }, [setAuth, navigate]);
 
   // Load Google Identity Services script
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
+
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const win = window as any;
     const initGoogle = () => {
+      if (!win.google?.accounts?.id) return;
       win.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleGoogleResponse,
@@ -68,13 +71,27 @@ export default function LoginPage() {
       return;
     }
 
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = initGoogle;
-    document.head.appendChild(script);
-    return () => { script.remove(); };
+    // Only load script once
+    if (!scriptRef.current) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogle;
+      document.head.appendChild(script);
+      scriptRef.current = script;
+    }
+
+    return () => {
+      if (scriptRef.current) {
+        scriptRef.current.remove();
+        scriptRef.current = null;
+      }
+      // Cancel any pending Google prompts
+      if (win.google?.accounts?.id?.cancel) {
+        win.google.accounts.id.cancel();
+      }
+    };
   }, [handleGoogleResponse]);
 
   const [showResend, setShowResend] = useState(false);

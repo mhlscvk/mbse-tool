@@ -12,15 +12,30 @@ export class DiagramClient {
   private errorListeners: ErrorListener[] = [];
   private clearListeners: ClearListener[] = [];
   private reconnectDelay = 2000;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private intentionalClose = false;
   private pendingText: { uri: string; content: string } | null = null;
 
   connect(): void {
+    // Clean up any pending reconnect
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    // Close existing connection cleanly before opening a new one
+    if (this.ws) {
+      this.intentionalClose = true;
+      this.ws.close();
+      this.ws = null;
+    }
+
+    this.intentionalClose = false;
     this.ws = new WebSocket(DIAGRAM_URL);
 
     this.ws.onopen = () => {
       console.log('[Diagram] Connected to diagram service');
       this.reconnectDelay = 2000;
-      // Flush any pending text that arrived before connection was ready
       if (this.pendingText) {
         this.sendText(this.pendingText.uri, this.pendingText.content);
         this.pendingText = null;
@@ -43,15 +58,17 @@ export class DiagramClient {
     };
 
     this.ws.onclose = () => {
+      if (this.intentionalClose) return;
       console.log(`[Diagram] Disconnected — reconnecting in ${this.reconnectDelay}ms`);
-      setTimeout(() => {
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
         this.connect();
       }, this.reconnectDelay);
     };
 
-    this.ws.onerror = (e) => {
-      console.error('[Diagram] WebSocket error', e);
+    this.ws.onerror = () => {
+      // onclose will fire after this — let it handle reconnect
     };
   }
 
@@ -87,7 +104,13 @@ export class DiagramClient {
   }
 
   disconnect(): void {
+    this.intentionalClose = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.ws?.close();
+    this.ws = null;
   }
 }
 

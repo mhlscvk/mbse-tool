@@ -14,6 +14,7 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
   const navigate = useNavigate();
   const location = useLocation();
   const onTrainingPage = location.pathname === '/training';
+  const onSettingsPage = location.pathname === '/settings';
 
   const handleLogout = () => {
     clearAuth();
@@ -57,6 +58,21 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
           title="Open interactive SysML v2 training"
         >
           Training
+        </button>
+      )}
+      {!onSettingsPage && user && (
+        <button
+          onClick={() => navigate('/settings')}
+          style={{
+            background: 'transparent', color: '#888',
+            border: '1px solid #3c3c3c', borderRadius: 4,
+            padding: '3px 10px', cursor: 'pointer', fontSize: 12,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#569cd6'; (e.currentTarget as HTMLButtonElement).style.color = '#569cd6'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3c3c3c'; (e.currentTarget as HTMLButtonElement).style.color = '#888'; }}
+          title="MCP connection settings"
+        >
+          Settings
         </button>
       )}
       {showSave && (

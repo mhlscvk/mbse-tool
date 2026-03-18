@@ -15,7 +15,7 @@ systemodel/
 ├── packages/
 │   ├── shared-types/      # Shared TypeScript interfaces (AST, diagram model, API types)
 │   ├── diagram-service/   # SysML v2 text parser → AST → diagram generator (port 3002)
-│   ├── api-server/        # REST API: auth, projects, files, AI assistant (port 3003)
+│   ├── api-server/        # REST API: auth, projects, files, AI chat, MCP server (port 3003)
 │   ├── lsp-server/        # Language Server Protocol bridge (port 3001)
 │   └── web-client/        # React frontend: Monaco editor + SVG diagram viewer (port 5173)
 ```
@@ -28,6 +28,7 @@ systemodel/
 | API Server | http://localhost:3003 | HTTP/REST |
 | Diagram Service | ws://localhost:3002/diagram | WebSocket |
 | LSP Server | ws://localhost:3001/lsp | WebSocket |
+| MCP Server | http://localhost:3003/mcp | Streamable HTTP |
 | PostgreSQL | localhost:5432 | TCP |
 
 ---
@@ -37,7 +38,7 @@ systemodel/
 - [Node.js](https://nodejs.org/) >= 20.10.0
 - [pnpm](https://pnpm.io/) >= 9.x (`npm install -g pnpm`)
 - [Docker](https://www.docker.com/) (for PostgreSQL)
-- Anthropic API key (for AI Assistant feature)
+- Anthropic API key (optional — for free-tier AI chat)
 - Google OAuth Client ID (for Google Sign-In)
 - Gmail app password (for email verification in production)
 
@@ -81,6 +82,8 @@ JWT_EXPIRES_IN=7d
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:5173
 ANTHROPIC_API_KEY=your-api-key-here
+AI_MONTHLY_LIMIT=50
+AI_ENCRYPTION_KEY=<generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
 APP_URL=http://localhost:5173
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -195,7 +198,8 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
 3. **Create a project** from the projects page
 4. **Create a `.sysml` file** or **upload existing `.sysml` files** (button or drag & drop)
 5. **Edit** — the diagram updates live as you type
-6. **AI Assistant** — click the AI button in the toolbar for Claude-powered suggestions
+6. **AI Chat** — click the AI button in the toolbar to chat with AI (free tier or your own API key)
+7. **MCP Connection** — go to Settings to connect external AI clients (Claude Desktop, Cursor, VS Code)
 
 ---
 
@@ -399,12 +403,24 @@ package VehicleSystem {
 - **Views tab**: save, load, update, rename, and delete named visibility presets
 - Show all / Hide all / per-element toggle checkboxes
 
-### AI Assistant
+### AI Chat (Hybrid)
 
-- Powered by Claude Opus 4.6 via Anthropic API
-- Streams explanations and suggestions in real time
-- Proposes precise line/column edits with diff preview
-- **Apply** button patches the Monaco editor directly
+- **Free tier** — 50 messages/month using Claude Haiku (server-side key, no setup needed)
+- **Own key** — unlimited, any model (Claude Sonnet/Opus, GPT-4o, Gemini) — key encrypted with AES-256-GCM, stored server-side
+- Multi-provider: Anthropic, OpenAI, Google Gemini
+- Streaming responses with tool call visualization
+- AI can read, edit, create, delete, and search SysML files via tools
+
+### MCP Server
+
+External AI clients (Claude Desktop, Cursor, VS Code, Windsurf) connect to systemodel via the Model Context Protocol.
+
+- **Endpoint:** `/mcp` (Streamable HTTP transport)
+- **Auth:** JWT or long-lived MCP access tokens (created in Settings)
+- **8 tools:** list_projects, list_files, read_file, create_file, update_file, apply_edit, delete_file, search_files
+- **3 prompts:** review-sysml, explain-element, generate-sysml
+- **Resources:** SysML v2 syntax reference, dynamic file resources (subscribable)
+- **Real-time:** file change notifications pushed to connected MCP clients
 
 ### Training Mode
 
@@ -425,7 +441,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 
 - **Helmet.js** security headers on all HTTP services
 - **CORS** origin allowlisting with validation on API server, diagram service, and LSP server
-- **Rate limiting** on auth endpoints (10 attempts / 15 min), registration (5 / hour), and API routes (100 / min)
+- **Rate limiting** on auth (10/15min), registration (5/hr), API (100/min), AI chat (20/min), MCP (200/min)
 - **JWT HS256** with explicit algorithm enforcement to prevent algorithm confusion attacks
 - **Timing-safe login** — bcrypt always runs even for non-existent users
 - **File name sanitization** — path separators and null bytes stripped, length limited to 255
@@ -439,12 +455,17 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - **Cached tree traversals** — ancestor/descendant lookups memoized per layout to avoid O(n²) routing
 - **HTTPS enforcement** in production with x-forwarded-proto redirect
 - **Error sanitization** — internal error details and stack traces hidden in production
+- **AI key encryption** — AES-256-GCM with per-key IV, stored encrypted in DB, never returned after initial save
+- **MCP session limits** — max 5 sessions/user, 500 total, 24h TTL with cleanup
+- **Prisma transaction** on concurrent file edits (TOCTOU prevention)
+- **Graceful shutdown** — Prisma disconnect on SIGTERM/SIGINT
 
 ### Security Checklist for Production
 
 - [ ] Generate a strong JWT secret: `openssl rand -hex 32`
 - [ ] Use unique database credentials (not default `password`)
 - [ ] Store secrets via environment injection (not `.env` files in deployment)
+- [ ] Generate AI_ENCRYPTION_KEY: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 - [ ] Use `wss://` and `https://` for all service URLs
 - [ ] Set `ALLOWED_ORIGINS` to your production domain only
 - [ ] Configure `trust proxy` if behind a reverse proxy
@@ -469,7 +490,9 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] Multi-select (shift+drag rubber-band, ctrl+click) with batch hide via right-click
 - [x] Edge click navigation to source code
 - [x] .sysml file upload (button + drag & drop)
-- [x] AI Assistant (Claude Opus 4.6, streaming, propose_edit tool)
+- [x] AI Chat: hybrid free tier (Haiku) + own-key unlimited (Claude/GPT/Gemini), encrypted key storage
+- [x] MCP Server: 8 tools, 3 prompts, real-time subscriptions, Streamable HTTP transport
+- [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] User auth: email/password + Google OAuth + email verification
 - [x] Security hardening: helmet, rate limiting, HTTPS, Zod validation, WebSocket limits, error sanitization
 - [x] Automated tests: 175 vitest tests (parser, transformer, robustness, security)
@@ -495,7 +518,8 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Frontend | React 18, TypeScript, Vite |
 | Editor | Monaco Editor |
 | Diagram | Custom SVG renderer + elkjs (Eclipse Layout Kernel) |
-| AI | Anthropic Claude API (@anthropic-ai/sdk) |
+| AI Chat | Anthropic, OpenAI, Google Gemini (multi-provider, AES-256-GCM encrypted keys) |
+| MCP | @modelcontextprotocol/sdk (Streamable HTTP) |
 | Backend | Node.js, Express, tsx |
 | Security | Helmet, express-rate-limit, bcrypt, Zod |
 | Auth | JWT + bcrypt + email verification + Google OAuth |

@@ -104,6 +104,9 @@ export default function EditorPage() {
 
   const onDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    // Clean up any previous drag listeners first
+    dividerCleanupRef.current?.();
+
     isDragging.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -120,14 +123,13 @@ export default function EditorPage() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('mouseup', cleanup);
       dividerCleanupRef.current = null;
     };
-    const onMouseUp = cleanup;
 
     dividerCleanupRef.current = cleanup;
     window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mouseup', cleanup);
   }, []);
 
   useEffect(() => {
@@ -354,9 +356,9 @@ export default function EditorPage() {
               }}
               onMouseEnter={e => { if (!aiOpen) e.currentTarget.style.background = '#4a4a4a'; }}
               onMouseLeave={e => { if (!aiOpen) e.currentTarget.style.background = '#3c3c3c'; }}
-              title={aiOpen ? 'Close AI assistant' : 'Open AI assistant (Claude)'}
+              title={aiOpen ? 'Close AI chat' : 'Open AI chat'}
             >
-              ✦ AI Assistant
+              &#10022; AI
             </button>
           </div>
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -413,16 +415,11 @@ export default function EditorPage() {
             />
             {aiOpen && (
               <AiAssistant
-                content={content}
-                diagnostics={diagnostics}
-                onApplyEdit={(startLine, startCol, endLine, endCol, newText) => {
-                  monacoRef.current?.applyFix(startLine, startCol, endLine, endCol, newText);
-                  if (!editorOpen) {
-                    setSplitPct(lastSplitPct.current);
-                    setEditorOpen(true);
-                  }
-                }}
                 onClose={() => setAiOpen(false)}
+                projectId={projectId}
+                fileId={fileId}
+                fileContent={content}
+                fileName={file?.name}
               />
             )}
           </div>

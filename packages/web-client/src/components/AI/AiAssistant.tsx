@@ -1,102 +1,154 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { DiagramDiagnostic } from '@systemodel/shared-types';
-import { streamAssist, type AiEditEvent } from '../../services/ai-client.js';
+import { useNavigate } from 'react-router-dom';
+import { useAiSettings } from '../../store/ai-settings.js';
+import { streamChat, fetchFreeTierStatus, fetchChatHistory, clearChatHistory, type ToolCallDisplay, type FreeTierStatus } from '../../services/ai-client.js';
+import { api, type AiKeyInfo } from '../../services/api-client.js';
 
 interface AiAssistantProps {
-  content: string;
-  diagnostics: DiagramDiagnostic[];
-  onApplyEdit: (startLine: number, startCol: number, endLine: number, endCol: number, newText: string) => void;
   onClose: () => void;
+  projectId?: string;
+  fileId?: string;
+  fileContent?: string;
+  fileName?: string;
 }
 
-interface MsgEdit extends AiEditEvent { applied: boolean }
-
-interface Message {
+interface ChatMessage {
   role: 'user' | 'assistant';
-  text: string;
-  edits?: MsgEdit[];
-  error?: string;
+  content: string;
+  toolCalls?: ToolCallDisplay[];
 }
 
-const SUGGESTIONS = [
-  'Fix all errors shown in the problems panel',
-  'Add a mass attribute to the selected block',
-  'Generate a complete SysML v2 template for a vehicle system',
-  'Explain what this file models',
-  'Add ports and flow connections between blocks',
-];
+const PROVIDER_LABELS = { anthropic: 'Claude', openai: 'GPT', gemini: 'Gemini' } as const;
+const PROVIDER_COLORS = { anthropic: '#d4a27a', openai: '#74aa9c', gemini: '#4285f4' } as const;
 
-export default function AiAssistant({ content, diagnostics, onApplyEdit, onClose }: AiAssistantProps) {
-  const [messages, setMessages]     = useState<Message[]>([]);
-  const [input, setInput]           = useState('');
-  const [streaming, setStreaming]   = useState(false);
-  const bottomRef                   = useRef<HTMLDivElement>(null);
-  const textareaRef                 = useRef<HTMLTextAreaElement>(null);
-  const abortRef                    = useRef(false);
+export default function AiAssistant({ onClose, projectId, fileId, fileContent, fileName }: AiAssistantProps) {
+  const navigate = useNavigate();
+  const { provider, setProvider } = useAiSettings();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [streaming, setStreaming] = useState(false);
+  const [freeStatus, setFreeStatus] = useState<FreeTierStatus | null>(null);
+  const [storedKeys, setStoredKeys] = useState<AiKeyInfo[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Auto-scroll to bottom when messages update
+  const activeKey = storedKeys.find(k => k.provider === provider);
+  const hasOwnKey = !!activeKey;
+  const isFreeTier = !hasOwnKey;
+  const freeTierAvailable = freeStatus?.freeTierAvailable ?? false;
+  const canChat = hasOwnKey || freeTierAvailable;
+  const quotaExhausted = isFreeTier && freeStatus ? freeStatus.remaining <= 0 : false;
+
+  useEffect(() => {
+    fetchFreeTierStatus().then(setFreeStatus);
+    api.aiKeys.list().then(keys => {
+      setStoredKeys(keys);
+      // Auto-select a connected provider if the current one has no key
+      if (keys.length > 0 && !keys.find(k => k.provider === provider)) {
+        setProvider(keys[0].provider as 'anthropic' | 'openai' | 'gemini');
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Load chat history on mount / fileId change
+  useEffect(() => {
+    if (!fileId) return;
+    fetchChatHistory(fileId).then(history => {
+      if (history.length === 0) return;
+      setMessages(history.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.text,
+        toolCalls: m.edits?.map((e, i) => ({
+          id: `saved_${i}`,
+          name: e.name,
+          args: e.args,
+          result: e.result,
+          isError: e.isError,
+        })),
+      })));
+    });
+  }, [fileId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const send = useCallback(async (instruction: string) => {
-    if (!instruction.trim() || streaming) return;
+    if (!instruction.trim() || streaming || !canChat || quotaExhausted) return;
 
-    const userMsg: Message = { role: 'user', text: instruction };
-    const assistantMsg: Message = { role: 'assistant', text: '', edits: [] };
+    const userMsg: ChatMessage = { role: 'user', content: instruction };
+    const assistantMsg: ChatMessage = { role: 'assistant', content: '', toolCalls: [] };
 
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
     setInput('');
     setStreaming(true);
-    abortRef.current = false;
+    abortControllerRef.current = new AbortController();
+
+    const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
 
     try {
-      for await (const event of streamAssist(content, instruction, diagnostics)) {
-        if (abortRef.current) break;
+      const gen = streamChat({
+        provider: hasOwnKey ? provider : 'anthropic',
+        model: activeKey?.model,
+        messages: history,
+        context: { projectId, fileId, fileContent, fileName },
+      });
+
+      for await (const event of gen) {
+        if (abortControllerRef.current?.signal.aborted) break;
+
         if (event.type === 'text') {
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: next[next.length - 1].text + event.chunk };
-            return next;
-          });
-        } else if (event.type === 'edit') {
-          const edit: MsgEdit = { ...event, applied: false };
-          setMessages((prev) => {
+          setMessages(prev => {
             const next = [...prev];
             const last = next[next.length - 1];
-            next[next.length - 1] = { ...last, edits: [...(last.edits ?? []), edit] };
+            next[next.length - 1] = { ...last, content: last.content + event.chunk };
             return next;
           });
-        } else if (event.type === 'error') {
-          setMessages((prev) => {
+        } else if (event.type === 'tool_call') {
+          setMessages(prev => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], error: event.message };
+            const last = next[next.length - 1];
+            next[next.length - 1] = {
+              ...last,
+              toolCalls: [...(last.toolCalls ?? []), { id: event.id, name: event.name, args: event.args }],
+            };
             return next;
           });
+        } else if (event.type === 'tool_result') {
+          setMessages(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            const calls = (last.toolCalls ?? []).map(tc =>
+              tc.id === event.id ? { ...tc, result: event.result, isError: event.isError } : tc
+            );
+            next[next.length - 1] = { ...last, toolCalls: calls };
+            return next;
+          });
+        } else if (event.type === 'done') {
+          // Refresh free tier status
+          if (isFreeTier) fetchFreeTierStatus().then(setFreeStatus);
+        } else if (event.type === 'error') {
+          setMessages(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            next[next.length - 1] = { ...last, content: last.content + `\n\n**Error:** ${event.message}` };
+            return next;
+          });
+          if (isFreeTier) fetchFreeTierStatus().then(setFreeStatus);
           break;
         }
       }
     } catch (err) {
-      setMessages((prev) => {
+      setMessages(prev => {
         const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], error: err instanceof Error ? err.message : 'Stream failed' };
+        const last = next[next.length - 1];
+        next[next.length - 1] = { ...last, content: last.content + `\n\n**Error:** ${err instanceof Error ? err.message : 'Failed'}` };
         return next;
       });
     } finally {
       setStreaming(false);
     }
-  }, [content, diagnostics, streaming]);
-
-  const handleApplyEdit = useCallback((msgIdx: number, editIdx: number, edit: MsgEdit) => {
-    onApplyEdit(edit.startLine, edit.startColumn, edit.endLine, edit.endColumn, edit.newText);
-    setMessages((prev) => {
-      const next = [...prev];
-      const edits = [...(next[msgIdx].edits ?? [])];
-      edits[editIdx] = { ...edits[editIdx], applied: true };
-      next[msgIdx] = { ...next[msgIdx], edits };
-      return next;
-    });
-  }, [onApplyEdit]);
+  }, [provider, setProvider, activeKey, messages, streaming, canChat, quotaExhausted, hasOwnKey, isFreeTier, projectId, fileId, fileContent, fileName]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -104,6 +156,9 @@ export default function AiAssistant({ content, diagnostics, onApplyEdit, onClose
       send(input);
     }
   };
+
+  const tierLabel = hasOwnKey ? PROVIDER_LABELS[provider] : 'Free';
+  const tierColor = hasOwnKey ? PROVIDER_COLORS[provider] : '#888';
 
   return (
     <div style={{
@@ -119,50 +174,63 @@ export default function AiAssistant({ content, diagnostics, onApplyEdit, onClose
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 14 }}>✦</span>
-          <span style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>AI Assistant</span>
+          <span style={{ fontSize: 14 }}>&#10022;</span>
+          <span style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>AI Chat</span>
           <span style={{
-            fontSize: 9, background: '#007acc', color: '#fff',
+            fontSize: 9, background: tierColor + '30', color: tierColor,
             borderRadius: 3, padding: '1px 5px', fontWeight: 600,
-          }}>Claude</span>
+          }}>{tierLabel}</span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={() => navigate('/settings')} title="AI Settings" style={iconBtn}>&#9881;</button>
           {messages.length > 0 && (
-            <button
-              onClick={() => setMessages([])}
-              title="Clear conversation"
-              style={iconBtn}
-            >⟳</button>
+            <button onClick={() => { if (fileId) clearChatHistory(fileId); setMessages([]); }} title="Clear chat" style={iconBtn}>&#10227;</button>
           )}
-          <button onClick={onClose} title="Close" style={iconBtn}>✕</button>
+          <button onClick={onClose} title="Close" style={iconBtn}>&#10005;</button>
         </div>
       </div>
 
+      {/* Free tier quota bar */}
+      {isFreeTier && freeStatus && freeStatus.freeTierAvailable && (
+        <div style={{ padding: '4px 10px', background: '#1a1a1a', borderBottom: '1px solid #3c3c3c', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+            <span style={{ fontSize: 10, color: '#888' }}>
+              {freeStatus.used} / {freeStatus.limit} free messages
+            </span>
+            <span style={{ fontSize: 10, color: quotaExhausted ? '#f48771' : '#569cd6', cursor: 'pointer' }}
+              onClick={() => navigate('/settings')}
+            >
+              {quotaExhausted ? 'Upgrade' : 'Add your key for unlimited'}
+            </span>
+          </div>
+          <div style={{ width: '100%', height: 3, background: '#333', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.min(100, (freeStatus.used / freeStatus.limit) * 100)}%`,
+              height: '100%', borderRadius: 2,
+              background: quotaExhausted ? '#a03030' : '#007acc',
+            }} />
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {messages.length === 0 ? (
-          <div style={{ padding: '16px 12px' }}>
-            <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
-              Ask Claude to edit your SysML v2 model, fix errors, or explain anything.
+        {!canChat ? (
+          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>&#10022;</div>
+            <div style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect AI Provider</div>
+            <div style={{ color: '#888', fontSize: 12, lineHeight: 1.6, marginBottom: 16 }}>
+              Add your AI provider API key in Settings to start chatting.
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  style={{
-                    background: '#2d2d2d', border: '1px solid #3c3c3c',
-                    borderRadius: 4, color: '#9cdcfe', fontSize: 11,
-                    textAlign: 'left', padding: '6px 10px', cursor: 'pointer',
-                    lineHeight: 1.4,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#2a3a4a')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#2d2d2d')}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            <button onClick={() => navigate('/settings')} style={{
+              background: '#0e639c', color: '#fff', border: 'none',
+              borderRadius: 4, padding: '8px 20px', fontSize: 13, cursor: 'pointer',
+            }}>Configure AI Provider</button>
+          </div>
+        ) : messages.length === 0 ? (
+          <div style={{ padding: '16px 12px', color: '#888', fontSize: 12, lineHeight: 1.6 }}>
+            Ask the AI to edit your SysML model, fix errors, explain code, or generate new elements.
+            {isFreeTier && <span style={{ color: '#569cd6' }}> You&apos;re on the free tier ({freeStatus?.remaining ?? '...'} messages left).</span>}
           </div>
         ) : (
           messages.map((msg, mi) => (
@@ -172,46 +240,23 @@ export default function AiAssistant({ content, diagnostics, onApplyEdit, onClose
                   margin: '4px 10px', padding: '8px 10px',
                   background: '#094771', borderRadius: 6,
                   color: '#e0e8f0', fontSize: 12, lineHeight: 1.5,
-                }}>
-                  {msg.text}
-                </div>
+                }}>{msg.content}</div>
               ) : (
                 <div style={{ padding: '4px 0' }}>
-                  {/* Assistant text */}
-                  {msg.text && (
+                  {msg.content && (
                     <div style={{
                       padding: '0 12px', color: '#d4d4d4', fontSize: 12,
                       lineHeight: 1.6, whiteSpace: 'pre-wrap',
-                    }}>
-                      <SimpleMarkdown text={msg.text} />
-                    </div>
+                    }}><SimpleMarkdown text={msg.content} /></div>
                   )}
-                  {/* Streaming indicator */}
-                  {streaming && mi === messages.length - 1 && !msg.text && (
+                  {streaming && mi === messages.length - 1 && !msg.content && !msg.toolCalls?.length && (
                     <div style={{ padding: '4px 12px', color: '#555', fontSize: 12 }}>
-                      <span style={{ animation: 'pulse 1s infinite' }}>▋</span>
+                      <span style={{ animation: 'pulse 1s infinite' }}>&#9613;</span>
                     </div>
                   )}
-                  {/* Error */}
-                  {msg.error && (
-                    <div style={{
-                      margin: '4px 12px', padding: '6px 10px',
-                      background: '#2a1010', border: '1px solid #5a2020',
-                      borderRadius: 4, color: '#f48771', fontSize: 11,
-                    }}>
-                      ✕ {msg.error}
-                    </div>
-                  )}
-                  {/* Edit proposals */}
-                  {msg.edits && msg.edits.length > 0 && (
-                    <div style={{ margin: '6px 10px 2px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {msg.edits.map((edit, ei) => (
-                        <EditCard
-                          key={ei}
-                          edit={edit}
-                          onApply={() => handleApplyEdit(mi, ei, edit)}
-                        />
-                      ))}
+                  {msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <div style={{ margin: '6px 10px 2px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {msg.toolCalls.map(tc => <ToolCallCard key={tc.id} call={tc} />)}
                     </div>
                   )}
                 </div>
@@ -223,116 +268,96 @@ export default function AiAssistant({ content, diagnostics, onApplyEdit, onClose
       </div>
 
       {/* Input */}
-      <div style={{
-        padding: '8px', borderTop: '1px solid #3c3c3c',
-        background: '#252526', flexShrink: 0,
-      }}>
-        <div style={{ position: 'relative' }}>
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask Claude… (Enter to send, Shift+Enter for newline)"
-            disabled={streaming}
-            rows={3}
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              background: '#3c3c3c', border: '1px solid #555',
-              borderRadius: 4, color: '#d4d4d4', fontSize: 12,
-              padding: '7px 36px 7px 10px', resize: 'none',
-              fontFamily: 'inherit', lineHeight: 1.4,
-              outline: 'none',
-            }}
-            onFocus={(e) => (e.target.style.borderColor = '#007acc')}
-            onBlur={(e) => (e.target.style.borderColor = '#555')}
-          />
-          <button
-            onClick={() => streaming ? (abortRef.current = true) : send(input)}
-            title={streaming ? 'Stop' : 'Send (Enter)'}
-            style={{
-              position: 'absolute', right: 6, bottom: 6,
-              background: streaming ? '#5a1a1a' : (input.trim() ? '#007acc' : '#3c3c3c'),
-              border: 'none', borderRadius: 4, color: '#fff',
-              width: 26, height: 26, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, transition: 'background 0.1s',
-            }}
-          >
-            {streaming ? '■' : '▶'}
-          </button>
+      {canChat && (
+        <div style={{
+          padding: '8px', borderTop: '1px solid #3c3c3c',
+          background: '#252526', flexShrink: 0,
+        }}>
+          <div style={{ position: 'relative' }}>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={quotaExhausted ? 'Free tier limit reached — add your key in Settings' : 'Ask about your SysML model...'}
+              disabled={streaming || quotaExhausted}
+              rows={3}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: quotaExhausted ? '#2a2a2a' : '#3c3c3c',
+                border: '1px solid #555', borderRadius: 4,
+                color: quotaExhausted ? '#666' : '#d4d4d4', fontSize: 12,
+                padding: '7px 36px 7px 10px', resize: 'none',
+                fontFamily: 'inherit', lineHeight: 1.4, outline: 'none',
+              }}
+              onFocus={e => { if (!quotaExhausted) e.target.style.borderColor = '#007acc'; }}
+              onBlur={e => (e.target.style.borderColor = '#555')}
+            />
+            <button
+              onClick={() => streaming ? abortControllerRef.current?.abort() : send(input)}
+              disabled={quotaExhausted && !streaming}
+              title={quotaExhausted ? 'Limit reached' : streaming ? 'Stop' : 'Send (Enter)'}
+              style={{
+                position: 'absolute', right: 6, bottom: 6,
+                background: streaming ? '#5a1a1a' : quotaExhausted ? '#333' : (input.trim() ? '#007acc' : '#3c3c3c'),
+                border: 'none', borderRadius: 4, color: '#fff',
+                width: 26, height: 26,
+                cursor: quotaExhausted && !streaming ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+              }}
+            >{streaming ? '\u25A0' : '\u25B6'}</button>
+          </div>
         </div>
-        <div style={{ color: '#555', fontSize: 10, marginTop: 4, textAlign: 'right' }}>
-          {content.split('\n').length} lines · {diagnostics.length} diagnostic{diagnostics.length !== 1 ? 's' : ''}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-// ── Edit proposal card ────────────────────────────────────────────────────────
+// ─── Tool Call Card ──────────────────────────────────────────────────────────
 
-function EditCard({ edit, onApply }: { edit: MsgEdit; onApply: () => void }) {
+function ToolCallCard({ call }: { call: ToolCallDisplay }) {
   const [expanded, setExpanded] = useState(false);
+  const isDone = call.result !== undefined;
+  const isError = call.isError;
 
   return (
     <div style={{
-      border: `1px solid ${edit.applied ? '#2a5a2a' : '#2a4a6a'}`,
-      borderRadius: 4, overflow: 'hidden',
-      background: edit.applied ? '#0a1a0a' : '#0a1a2a',
-      opacity: edit.applied ? 0.7 : 1,
+      border: `1px solid ${isError ? '#5a2a2a' : isDone ? '#2a4a2a' : '#2a3a4a'}`,
+      borderRadius: 4, overflow: 'hidden', fontSize: 11,
+      background: isError ? '#1a0a0a' : isDone ? '#0a1a0a' : '#0a0a1a',
     }}>
-      {/* Card header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        padding: '5px 8px', cursor: 'pointer',
-      }} onClick={() => setExpanded((v) => !v)}>
-        <span style={{ color: edit.applied ? '#4ec9b0' : '#9cdcfe', fontSize: 13 }}>
-          {edit.applied ? '✓' : '✎'}
+        padding: '4px 8px', cursor: 'pointer',
+      }} onClick={() => setExpanded(v => !v)}>
+        <span style={{ color: isError ? '#f48771' : isDone ? '#4ec9b0' : '#569cd6', fontSize: 12 }}>
+          {isError ? '\u2717' : isDone ? '\u2713' : '\u25CB'}
         </span>
-        <span style={{ flex: 1, color: '#c8d8e8', fontSize: 11 }}>{edit.description}</span>
-        <span style={{ color: '#555', fontSize: 10 }}>
-          L{edit.startLine}–{edit.endLine}
-        </span>
-        <span style={{ color: '#888', fontSize: 10 }}>{expanded ? '▲' : '▼'}</span>
+        <code style={{ color: '#9cdcfe', fontFamily: 'monospace' }}>{call.name}</code>
+        <span style={{ flex: 1 }} />
+        <span style={{ color: '#555', fontSize: 9 }}>{expanded ? '\u25B2' : '\u25BC'}</span>
       </div>
-
-      {/* Expanded: diff preview */}
       {expanded && (
-        <div style={{
-          borderTop: '1px solid #2a3a4a',
-          background: '#111', padding: '6px 8px',
-          fontFamily: "'Consolas','Courier New',monospace",
-          fontSize: 11, overflowX: 'auto', maxHeight: 160, overflowY: 'auto',
-        }}>
-          {edit.newText.split('\n').map((line, i) => (
-            <div key={i} style={{ color: '#4ec9b0', whiteSpace: 'pre' }}>+ {line}</div>
-          ))}
-        </div>
-      )}
-
-      {/* Apply button */}
-      {!edit.applied && (
-        <div style={{ padding: '4px 8px', borderTop: expanded ? '1px solid #1a2a3a' : 'none' }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); onApply(); }}
-            style={{
-              background: '#007acc', border: 'none', borderRadius: 3,
-              color: '#fff', fontSize: 11, padding: '3px 10px',
-              cursor: 'pointer', width: '100%',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#005a9e')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = '#007acc')}
-          >
-            Apply Edit
-          </button>
+        <div style={{ borderTop: '1px solid #2a2a2a', padding: '4px 8px', background: '#111' }}>
+          <div style={{ color: '#888', fontSize: 10, marginBottom: 2 }}>Args:</div>
+          <pre style={{ color: '#888', margin: 0, fontSize: 10, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {JSON.stringify(call.args, null, 2)}
+          </pre>
+          {call.result && (
+            <>
+              <div style={{ color: '#888', fontSize: 10, marginTop: 4, marginBottom: 2 }}>Result:</div>
+              <pre style={{
+                color: isError ? '#f48771' : '#4ec9b0', margin: 0, fontSize: 10,
+                whiteSpace: 'pre-wrap', fontFamily: 'monospace', maxHeight: 120, overflow: 'auto',
+              }}>{call.result}</pre>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── Minimal markdown renderer (bold, inline code, headings) ──────────────────
+// ─── Markdown ────────────────────────────────────────────────────────────────
 
 function SimpleMarkdown({ text }: { text: string }) {
   const lines = text.split('\n');
@@ -342,9 +367,8 @@ function SimpleMarkdown({ text }: { text: string }) {
         if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, color: '#9cdcfe', marginTop: 6 }}>{line.slice(4)}</div>;
         if (line.startsWith('## '))  return <div key={i} style={{ fontWeight: 700, color: '#9cdcfe', marginTop: 6 }}>{line.slice(3)}</div>;
         if (line.startsWith('# '))   return <div key={i} style={{ fontWeight: 700, color: '#9cdcfe', marginTop: 6 }}>{line.slice(2)}</div>;
-        if (line.startsWith('- ') || line.startsWith('* ')) {
-          return <div key={i} style={{ paddingLeft: 12, color: '#d4d4d4' }}>• {renderInline(line.slice(2))}</div>;
-        }
+        if (line.startsWith('- ') || line.startsWith('* '))
+          return <div key={i} style={{ paddingLeft: 12, color: '#d4d4d4' }}>&bull; {renderInline(line.slice(2))}</div>;
         return <div key={i}>{renderInline(line) || <br />}</div>;
       })}
     </>
@@ -352,7 +376,6 @@ function SimpleMarkdown({ text }: { text: string }) {
 }
 
 function renderInline(text: string): React.ReactNode {
-  // Split on **bold** and `code`
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))

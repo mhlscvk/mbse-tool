@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
+import { mcpEvents } from '../mcp/events.js';
 
 const router: IRouter = Router({ mergeParams: true });
 
@@ -54,6 +55,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const file = await prisma.sysMLFile.create({
       data: { name: safeName, content, size: contentSize, projectId: req.params.projectId },
     });
+    mcpEvents.emitFileChange({ fileId: file.id, userId: req.userId!, action: 'created' });
     res.status(201).json({ data: file });
   } catch (err) { next(err); }
 });
@@ -89,6 +91,7 @@ router.put('/:fileId', async (req: AuthRequest, res, next) => {
       where: { id: req.params.fileId },
       data: { content, size: contentSize },
     });
+    mcpEvents.emitFileChange({ fileId: req.params.fileId, userId: req.userId!, action: 'updated' });
     res.json({ data: updated });
   } catch (err) { next(err); }
 });
@@ -103,6 +106,7 @@ router.delete('/:fileId', async (req: AuthRequest, res, next) => {
     });
     if (!file) { res.status(404).json({ error: 'Not Found', message: 'File not found' }); return; }
     await prisma.sysMLFile.delete({ where: { id: req.params.fileId } });
+    mcpEvents.emitFileChange({ fileId: req.params.fileId, userId: req.userId!, action: 'deleted' });
     res.status(204).send();
   } catch (err) { next(err); }
 });

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "systemodel": {
+      "type": "streamablehttp",
+      "url": "http://localhost:3003/mcp",
+      "headers": {
+        "Authorization": "Bearer mcp_oNugX-dN91O6-oEWFGG7GKF8km9qH4Y9JSjS1C_iDrA"
+      }
+    }
+  }
+}

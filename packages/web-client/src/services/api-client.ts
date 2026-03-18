@@ -1,6 +1,8 @@
 import { useAuthStore } from '../store/auth.js';
 
 const BASE_URL = '/api';
+const REQUEST_TIMEOUT_MS = 30_000;
+let redirectingTo401 = false;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuthStore.getState().token;
@@ -10,13 +12,32 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  const json = await res.json();
+  // Timeout via AbortController
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!res.ok) {
-    throw new Error(json.message ?? `Request failed: ${res.status}`);
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      // Auto-logout on expired/invalid token (prevent multiple redirects)
+      if (res.status === 401 && token && !redirectingTo401) {
+        redirectingTo401 = true;
+        useAuthStore.getState().clearAuth();
+        window.location.href = '/login';
+      }
+      throw new Error(json.message ?? `Request failed: ${res.status}`);
+    }
+    return json.data as T;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return json.data as T;
 }
 
 export const api = {
@@ -63,4 +84,61 @@ export const api = {
     delete: (projectId: string, fileId: string) =>
       request<void>(`/projects/${projectId}/files/${fileId}`, { method: 'DELETE' }),
   },
+  aiKeys: {
+    list: () => request<AiKeyInfo[]>('/ai/keys'),
+    save: (provider: string, apiKey: string, model: string) =>
+      request<AiKeySaveResult>('/ai/keys', {
+        method: 'POST', body: JSON.stringify({ provider, apiKey, model }),
+      }),
+    updateModel: (provider: string, model: string) =>
+      request<{ provider: string; model: string }>(`/ai/keys/${provider}`, {
+        method: 'PATCH', body: JSON.stringify({ model }),
+      }),
+    remove: (provider: string) =>
+      request<{ success: boolean }>(`/ai/keys/${provider}`, { method: 'DELETE' }),
+  },
+  mcpTokens: {
+    list: () => request<McpTokenInfo[]>('/mcp-tokens'),
+    create: (name: string, expiresInDays?: number) =>
+      request<McpTokenCreated>('/mcp-tokens', {
+        method: 'POST',
+        body: JSON.stringify({ name, expiresInDays }),
+      }),
+    revoke: (id: string) =>
+      request<{ success: boolean }>(`/mcp-tokens/${id}`, { method: 'DELETE' }),
+  },
 };
+
+export interface AiKeyInfo {
+  id: string;
+  provider: string;
+  maskedKey: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiKeySaveResult {
+  provider: string;
+  maskedKey: string;
+  fullKey: string; // shown once
+  model: string;
+}
+
+export interface McpTokenInfo {
+  id: string;
+  name: string;
+  token: string;
+  lastUsed: string | null;
+  expiresAt: string | null;
+  revoked: boolean;
+  createdAt: string;
+}
+
+export interface McpTokenCreated {
+  id: string;
+  name: string;
+  token: string;
+  expiresAt: string | null;
+  createdAt: string;
+}

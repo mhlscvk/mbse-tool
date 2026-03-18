@@ -1,0 +1,279 @@
+import { Anthropic } from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+import { GoogleGenerativeAI, type Content, type Part } from '@google/generative-ai';
+import { AI_TOOLS } from './tools.js';
+
+// ─── Common types ─────────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'tool_result';
+  content: string;
+  toolCallId?: string;
+  toolName?: string;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export type StreamEvent =
+  | { type: 'text_delta'; text: string }
+  | { type: 'tool_calls'; calls: ToolCall[] }
+  | { type: 'done'; stopReason: string };
+
+export interface AiProvider {
+  streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent>;
+}
+
+// ─── Tool schema conversion ──────────────────────────────────────────────────
+
+function anthropicTools(): Anthropic.Messages.Tool[] {
+  return AI_TOOLS.map(t => ({
+    name: t.name,
+    description: t.description,
+    input_schema: { type: 'object' as const, properties: t.parameters.properties, required: t.parameters.required },
+  }));
+}
+
+function openaiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  return AI_TOOLS.map(t => ({
+    type: 'function' as const,
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+  }));
+}
+
+function geminiTools() {
+  return [{
+    functionDeclarations: AI_TOOLS.map(t => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    })),
+  }];
+}
+
+// ─── Anthropic ────────────────────────────────────────────────────────────────
+
+class AnthropicProvider implements AiProvider {
+  private client: Anthropic;
+  private model: string;
+
+  constructor(apiKey: string, model?: string) {
+    this.client = new Anthropic({ apiKey, maxRetries: 2 });
+    this.model = model || 'claude-sonnet-4-20250514';
+  }
+
+  async *streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent> {
+    // Convert to Anthropic format
+    const anthropicMsgs: Anthropic.Messages.MessageParam[] = [];
+    for (const m of messages) {
+      if (m.role === 'user') {
+        anthropicMsgs.push({ role: 'user', content: m.content });
+      } else if (m.role === 'assistant') {
+        anthropicMsgs.push({ role: 'assistant', content: m.content });
+      } else if (m.role === 'tool_result') {
+        anthropicMsgs.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.toolCallId!, content: m.content }] });
+      }
+    }
+
+    const stream = this.client.messages.stream({
+      model: this.model,
+      max_tokens: 4096,
+      system,
+      tools: anthropicTools(),
+      messages: anthropicMsgs,
+    });
+
+    let textBuffer = '';
+    const toolCalls: ToolCall[] = [];
+    let currentToolId: string | null = null;
+    let currentToolName: string | null = null;
+    let toolJson = '';
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_start') {
+        if (event.content_block.type === 'text') {
+          // text block starting
+        } else if (event.content_block.type === 'tool_use') {
+          currentToolId = event.content_block.id;
+          currentToolName = event.content_block.name;
+          toolJson = '';
+        }
+      } else if (event.type === 'content_block_delta') {
+        if (event.delta.type === 'text_delta') {
+          textBuffer += event.delta.text;
+          yield { type: 'text_delta', text: event.delta.text };
+        } else if (event.delta.type === 'input_json_delta') {
+          toolJson += event.delta.partial_json;
+        }
+      } else if (event.type === 'content_block_stop') {
+        if (currentToolId && currentToolName) {
+          try {
+            const args = JSON.parse(toolJson || '{}');
+            toolCalls.push({ id: currentToolId, name: currentToolName, args });
+          } catch { /* skip malformed */ }
+          currentToolId = null;
+          currentToolName = null;
+          toolJson = '';
+        }
+      } else if (event.type === 'message_stop') {
+        // done
+      }
+    }
+
+    const finalMessage = await stream.finalMessage();
+    const stopReason = finalMessage.stop_reason ?? 'end_turn';
+
+    if (toolCalls.length > 0) {
+      yield { type: 'tool_calls', calls: toolCalls };
+    }
+    yield { type: 'done', stopReason };
+  }
+}
+
+// ─── OpenAI ───────────────────────────────────────────────────────────────────
+
+class OpenAIProvider implements AiProvider {
+  private client: OpenAI;
+  private model: string;
+
+  constructor(apiKey: string, model?: string) {
+    this.client = new OpenAI({ apiKey, maxRetries: 2 });
+    this.model = model || 'gpt-4o';
+  }
+
+  async *streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent> {
+    const openaiMsgs: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: system },
+    ];
+    for (const m of messages) {
+      if (m.role === 'user') {
+        openaiMsgs.push({ role: 'user', content: m.content });
+      } else if (m.role === 'assistant') {
+        openaiMsgs.push({ role: 'assistant', content: m.content });
+      } else if (m.role === 'tool_result') {
+        openaiMsgs.push({ role: 'tool', tool_call_id: m.toolCallId!, content: m.content });
+      }
+    }
+
+    const stream = await this.client.chat.completions.create({
+      model: this.model,
+      max_tokens: 4096,
+      tools: openaiTools(),
+      messages: openaiMsgs,
+      stream: true,
+    });
+
+    const toolCallMap = new Map<number, { id: string; name: string; argsJson: string }>();
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) continue;
+
+      if (delta.content) {
+        yield { type: 'text_delta', text: delta.content };
+      }
+
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const idx = tc.index;
+          if (!toolCallMap.has(idx)) {
+            toolCallMap.set(idx, { id: tc.id ?? `call_${idx}`, name: tc.function?.name ?? '', argsJson: '' });
+          }
+          const entry = toolCallMap.get(idx)!;
+          if (tc.function?.name) entry.name = tc.function.name;
+          if (tc.function?.arguments) entry.argsJson += tc.function.arguments;
+        }
+      }
+
+      const finishReason = chunk.choices?.[0]?.finish_reason;
+      if (finishReason) {
+        if (toolCallMap.size > 0) {
+          const calls: ToolCall[] = [];
+          for (const [, entry] of toolCallMap) {
+            try {
+              calls.push({ id: entry.id, name: entry.name, args: JSON.parse(entry.argsJson || '{}') });
+            } catch { /* skip */ }
+          }
+          if (calls.length > 0) yield { type: 'tool_calls', calls };
+        }
+        yield { type: 'done', stopReason: finishReason };
+      }
+    }
+  }
+}
+
+// ─── Gemini ───────────────────────────────────────────────────────────────────
+
+class GeminiProvider implements AiProvider {
+  private client: GoogleGenerativeAI;
+  private model: string;
+
+  constructor(apiKey: string, model?: string) {
+    this.client = new GoogleGenerativeAI(apiKey);
+    this.model = model || 'gemini-2.0-flash';
+  }
+
+  async *streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent> {
+    const contents: Content[] = [];
+    for (const m of messages) {
+      if (m.role === 'user') {
+        contents.push({ role: 'user', parts: [{ text: m.content }] });
+      } else if (m.role === 'assistant') {
+        contents.push({ role: 'model', parts: [{ text: m.content }] });
+      } else if (m.role === 'tool_result') {
+        contents.push({
+          role: 'function' as Content['role'],
+          parts: [{ functionResponse: { name: m.toolName!, response: { result: m.content } } } as Part],
+        });
+      }
+    }
+
+    const genModel = this.client.getGenerativeModel({
+      model: this.model,
+      systemInstruction: system,
+      tools: geminiTools() as never,
+    });
+
+    const result = await genModel.generateContentStream({ contents });
+
+    const toolCalls: ToolCall[] = [];
+    let callIdx = 0;
+
+    for await (const chunk of result.stream) {
+      const parts = chunk.candidates?.[0]?.content?.parts;
+      if (!parts) continue;
+
+      for (const part of parts) {
+        if (part.text) {
+          yield { type: 'text_delta', text: part.text };
+        }
+        if (part.functionCall) {
+          toolCalls.push({
+            id: `gemini_call_${callIdx++}`,
+            name: part.functionCall.name,
+            args: (part.functionCall.args ?? {}) as Record<string, unknown>,
+          });
+        }
+      }
+    }
+
+    if (toolCalls.length > 0) {
+      yield { type: 'tool_calls', calls: toolCalls };
+    }
+    yield { type: 'done', stopReason: toolCalls.length > 0 ? 'tool_use' : 'end' };
+  }
+}
+
+// ─── Factory ──────────────────────────────────────────────────────────────────
+
+export function createProvider(provider: string, apiKey: string, model?: string): AiProvider {
+  switch (provider) {
+    case 'anthropic': return new AnthropicProvider(apiKey, model);
+    case 'openai':    return new OpenAIProvider(apiKey, model);
+    case 'gemini':    return new GeminiProvider(apiKey, model);
+    default: throw new Error(`Unsupported provider: ${provider}`);
+  }
+}
