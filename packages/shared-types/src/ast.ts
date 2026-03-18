@@ -57,7 +57,9 @@ export type SysMLNodeKind =
   | 'MergeNode'
   | 'DecideNode'
   | 'StartNode'
-  | 'TerminateNode';
+  | 'TerminateNode'
+  // ── Namespace ──
+  | 'Alias';
 
 export interface SysMLNode {
   id: string;

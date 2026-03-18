@@ -23,6 +23,7 @@ export default function EditorPage() {
   const [diagram, setDiagram] = useState<SModelRoot | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [readOnly, setReadOnly] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const monacoRef = useRef<MonacoEditorHandle>(null);
 
@@ -145,6 +146,10 @@ export default function EditorPage() {
 
   useEffect(() => {
     if (!projectId || !fileId) return;
+    // Check if project is read-only (system project)
+    api.projects.get(projectId)
+      .then((p) => { if (p.isSystem) setReadOnly(true); })
+      .catch(() => {});
     api.files.get(projectId, fileId)
       .then((f) => {
         setFile(f);
@@ -156,6 +161,7 @@ export default function EditorPage() {
   }, [projectId, fileId]);
 
   const handleChange = useCallback((value: string) => {
+    if (readOnly) return;
     setContent(value);
     // Send text to diagram-service for server-side parsing → BDD generation
     diagramClient.sendText(`file://${fileId}`, value);
@@ -173,10 +179,10 @@ export default function EditorPage() {
         setSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [projectId, fileId]);
+  }, [projectId, fileId, readOnly]);
 
   const handleSave = async () => {
-    if (!projectId || !fileId) return;
+    if (!projectId || !fileId || readOnly) return;
     clearTimeout(saveTimer.current);
     setSaving(true);
     try {
@@ -193,7 +199,7 @@ export default function EditorPage() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
-      <Header title={file.name} showSave onSave={handleSave} saving={saving} />
+      <Header title={`${file.name}${readOnly ? ' (Read Only)' : ''}`} showSave={!readOnly} onSave={handleSave} saving={saving} />
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Editor pane */}
         <div style={{
@@ -209,6 +215,7 @@ export default function EditorPage() {
               ref={monacoRef}
               value={content}
               onChange={handleChange}
+              readOnly={readOnly}
               markers={diagnostics.map((d): EditorMarker => ({
                 severity: d.severity,
                 message: d.message,

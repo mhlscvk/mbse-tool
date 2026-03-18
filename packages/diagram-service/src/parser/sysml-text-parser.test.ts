@@ -266,6 +266,102 @@ describe('Packages', () => {
     const { diagnostics } = parse('import FakePackage::*;');
     expect(diagnostics.some(d => d.message.includes('not a recognized'))).toBe(true);
   });
+
+  it('parses quoted package names', () => {
+    const code = `package 'Package Example' { part def Vehicle; }`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Package' && n.name === 'Package Example')).toBe(true);
+    expect(model.connections.some(c => c.kind === 'composition')).toBe(true);
+  });
+
+  it('parses public/private import visibility', () => {
+    const code = `public import ISQ::TorqueValue; private import ScalarValues::*; part def V { attribute t : TorqueValue; attribute r : Real; }`;
+    const { diagnostics } = parse(code);
+    // No errors — visibility prefixes accepted, types resolve
+    expect(diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+    // No "unknown type" warnings for TorqueValue or Real
+    expect(diagnostics.filter(d => d.message.includes('Unknown type')).length).toBe(0);
+  });
+
+  it('parses multi-level qualified import', () => {
+    const code = `import ISQ::TorqueValue; part def V { attribute t : TorqueValue; }`;
+    const { diagnostics } = parse(code);
+    expect(diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+    expect(diagnostics.filter(d => d.message.includes('Unknown type')).length).toBe(0);
+  });
+});
+
+describe('Aliases', () => {
+  it('parses basic alias declaration', () => {
+    const code = `part def Automobile; alias Car for Automobile;`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'Car')).toBe(true);
+  });
+
+  it('parses alias for qualified name', () => {
+    const code = `import ISQ::TorqueValue; alias Torque for ISQ::TorqueValue;`;
+    const { model } = parse(code);
+    const alias = model.nodes.find(n => n.kind === 'Alias' && n.name === 'Torque');
+    expect(alias).toBeDefined();
+    expect(alias!.attributes[0]?.type).toBe('ISQ::TorqueValue');
+  });
+
+  it('resolves alias as type reference', () => {
+    const code = `part def Automobile; alias Car for Automobile; part myCar : Car;`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.name === 'myCar')).toBe(true);
+  });
+
+  it('parses alias inside package with composition', () => {
+    const code = `package Pkg { part def Automobile; alias Car for Automobile; }`;
+    const { model } = parse(code);
+    const alias = model.nodes.find(n => n.kind === 'Alias');
+    expect(alias).toBeDefined();
+    const comp = model.connections.filter(c => c.kind === 'composition' && c.targetId === alias!.id);
+    expect(comp.length).toBe(1);
+  });
+
+  it('parses alias with quoted name', () => {
+    const code = `part def Automobile; alias 'My Car' for Automobile;`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'My Car')).toBe(true);
+  });
+});
+
+describe('Quoted names', () => {
+  it('parses full spec Package Example', () => {
+    const code = `package 'Package Example' {
+      public import ISQ::TorqueValue;
+      private import ScalarValues::*;
+      part def Automobile;
+      alias Car for Automobile;
+      alias Torque for ISQ::TorqueValue;
+    }`;
+    const { model, diagnostics } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Package' && n.name === 'Package Example')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'PartDefinition' && n.name === 'Automobile')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'Car')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'Torque')).toBe(true);
+    expect(diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+  });
+
+  it('parses quoted definition name', () => {
+    const code = `part def 'My Vehicle';`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'PartDefinition' && n.name === 'My Vehicle')).toBe(true);
+  });
+
+  it('parses quoted usage name', () => {
+    const code = `part def Vehicle; part 'my car' : Vehicle;`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.name === 'my car')).toBe(true);
+  });
+
+  it('parses quoted names in connections', () => {
+    const code = `part def A; part def B; part 'x y' : A; part 'z w' : B; connect 'x y' to 'z w';`;
+    const { model } = parse(code);
+    expect(model.connections.some(c => c.kind === 'association')).toBe(true);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

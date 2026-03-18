@@ -61,12 +61,17 @@ export const api = {
   },
   projects: {
     list: () => request<import('@systemodel/shared-types').Project[]>('/projects'),
-    create: (name: string, description?: string) =>
+    create: (name: string, description?: string, parentId?: string) =>
       request<import('@systemodel/shared-types').Project>('/projects', {
-        method: 'POST', body: JSON.stringify({ name, description }),
+        method: 'POST', body: JSON.stringify({ name, description, parentId }),
       }),
     get: (id: string) => request<import('@systemodel/shared-types').Project>(`/projects/${id}`),
+    rename: (id: string, name: string, description?: string) =>
+      request<import('@systemodel/shared-types').Project>(`/projects/${id}`, {
+        method: 'PATCH', body: JSON.stringify({ name, description }),
+      }),
     delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
+    download: (id: string) => `${BASE_URL}/projects/${id}/download`,
   },
   files: {
     list: (projectId: string) =>
@@ -81,8 +86,14 @@ export const api = {
       request<import('@systemodel/shared-types').SysMLFile>(`/projects/${projectId}/files/${fileId}`, {
         method: 'PUT', body: JSON.stringify({ content }),
       }),
+    rename: (projectId: string, fileId: string, name: string) =>
+      request<import('@systemodel/shared-types').SysMLFile>(`/projects/${projectId}/files/${fileId}`, {
+        method: 'PATCH', body: JSON.stringify({ name }),
+      }),
     delete: (projectId: string, fileId: string) =>
       request<void>(`/projects/${projectId}/files/${fileId}`, { method: 'DELETE' }),
+    download: (projectId: string, fileId: string) =>
+      `${BASE_URL}/projects/${projectId}/files/${fileId}/download`,
   },
   aiKeys: {
     list: () => request<AiKeyInfo[]>('/ai/keys'),

@@ -1,8 +1,53 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
+import { useAuthStore } from '../store/auth.js';
 import Header from '../components/Layout/Header.js';
 import type { Project, SysMLFile } from '@systemodel/shared-types';
+
+// ─── Context Menu ────────────────────────────────────────────────────────────
+
+interface ContextMenuItem { label: string; onClick: () => void; danger?: boolean }
+interface ContextMenuState { x: number; y: number; items: ContextMenuItem[] }
+
+function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed', left: menu.x, top: menu.y, zIndex: 9999,
+        background: '#2d2d30', border: '1px solid #555', borderRadius: 4,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: 140, padding: '4px 0',
+      }}
+    >
+      {menu.items.map((item, i) => (
+        <div
+          key={i}
+          onClick={() => { item.onClick(); onClose(); }}
+          style={{
+            padding: '6px 16px', fontSize: 12, cursor: 'pointer',
+            color: item.danger ? '#f48771' : '#d4d4d4',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#094771'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -13,9 +58,23 @@ export default function ProjectsPage() {
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const toggleCollapse = (id: string) =>
+    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const refreshProjects = async () => {
+    try {
+      const list = await api.projects.list();
+      setProjects(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load projects');
+    }
+  };
 
   useEffect(() => {
-    api.projects.list().then(setProjects).catch((e) => setError(e.message)).finally(() => setLoading(false));
+    refreshProjects().finally(() => setLoading(false));
   }, []);
 
   const selectProject = async (project: Project) => {
@@ -35,8 +94,8 @@ export default function ProjectsPage() {
     setCreating(true);
     setError('');
     try {
-      const project = await api.projects.create(newProjectName.trim());
-      setProjects((prev) => [project, ...prev]);
+      await api.projects.create(newProjectName.trim());
+      await refreshProjects();
       setNewProjectName('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create project');
@@ -102,9 +161,213 @@ export default function ProjectsPage() {
     navigate(`/projects/${selectedProject!.id}/files/${file.id}`);
   };
 
+  // ─── Project actions ─────────────────────────────────────────────────────
+
+  const createSubproject = async (parent: Project) => {
+    const name = prompt('Subproject name:');
+    if (!name?.trim()) return;
+    try {
+      await api.projects.create(name.trim(), undefined, parent.id);
+      await refreshProjects();
+      // Auto-expand the parent
+      setCollapsed((prev) => ({ ...prev, [parent.id]: false }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create subproject');
+    }
+  };
+
+  const renameProject = async (project: Project) => {
+    const newName = prompt('Rename project:', project.name);
+    if (!newName || newName === project.name) return;
+    try {
+      const updated = await api.projects.rename(project.id, newName.trim());
+      if (selectedProject?.id === project.id) setSelectedProject(updated);
+      await refreshProjects();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename project');
+    }
+  };
+
+  const deleteProject = async (project: Project) => {
+    const hasChildren = project.children && project.children.length > 0;
+    const msg = hasChildren
+      ? `Delete project "${project.name}", its subproject(s), and all files?`
+      : `Delete project "${project.name}" and all its files?`;
+    if (!confirm(msg)) return;
+    try {
+      await api.projects.delete(project.id);
+      await refreshProjects();
+      if (selectedProject?.id === project.id) {
+        setSelectedProject(null);
+        setFiles([]);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete project');
+    }
+  };
+
+  const downloadProject = (project: Project) => {
+    const token = useAuthStore.getState().token;
+    const url = api.projects.download(project.id);
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${project.name}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download project'));
+  };
+
+  const onProjectContextMenu = useCallback((e: React.MouseEvent, project: Project) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (project.isSystem) {
+      // System projects: download only
+      setContextMenu({
+        x: e.clientX, y: e.clientY,
+        items: [{ label: 'Download', onClick: () => downloadProject(project) }],
+      });
+      return;
+    }
+    const items: ContextMenuItem[] = [
+      { label: 'Rename', onClick: () => renameProject(project) },
+    ];
+    if (project.depth < 2) {
+      items.push({ label: 'New Subproject', onClick: () => createSubproject(project) });
+    }
+    items.push(
+      { label: 'Download', onClick: () => downloadProject(project) },
+      { label: 'Delete', onClick: () => deleteProject(project), danger: true },
+    );
+    setContextMenu({ x: e.clientX, y: e.clientY, items });
+  }, []);
+
+  // ─── File actions ────────────────────────────────────────────────────────
+
+  const renameFile = async (file: SysMLFile) => {
+    if (!selectedProject) return;
+    const newName = prompt('Rename file:', file.name);
+    if (!newName || newName === file.name) return;
+    try {
+      const updated = await api.files.rename(selectedProject.id, file.id, newName.trim());
+      setFiles((prev) => prev.map((f) => (f.id === file.id ? updated : f)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename file');
+    }
+  };
+
+  const deleteFile = async (file: SysMLFile) => {
+    if (!selectedProject) return;
+    if (!confirm(`Delete file "${file.name}"?`)) return;
+    try {
+      await api.files.delete(selectedProject.id, file.id);
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete file');
+    }
+  };
+
+  const downloadFile = (file: SysMLFile) => {
+    if (!selectedProject) return;
+    const token = useAuthStore.getState().token;
+    const url = api.files.download(selectedProject.id, file.id);
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = file.name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download file'));
+  };
+
+  const onFileContextMenu = useCallback((e: React.MouseEvent, file: SysMLFile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (selectedProject?.isSystem) {
+      // System project files: download only
+      setContextMenu({
+        x: e.clientX, y: e.clientY,
+        items: [{ label: 'Download', onClick: () => downloadFile(file) }],
+      });
+      return;
+    }
+    setContextMenu({
+      x: e.clientX, y: e.clientY,
+      items: [
+        { label: 'Rename', onClick: () => renameFile(file) },
+        { label: 'Download', onClick: () => downloadFile(file) },
+        { label: 'Delete', onClick: () => deleteFile(file), danger: true },
+      ],
+    });
+  }, [selectedProject]);
+
+  // ─── Project Tree Item ───────────────────────────────────────────────────
+
+  const ProjectTreeItem = ({ project, depth }: { project: Project; depth: number }) => {
+    const hasChildren = project.children && project.children.length > 0;
+    const isCollapsed = collapsed[project.id] ?? false;
+    const isSelected = selectedProject?.id === project.id;
+
+    return (
+      <>
+        <div
+          onClick={() => selectProject(project)}
+          onContextMenu={(e) => onProjectContextMenu(e, project)}
+          style={{
+            paddingLeft: 12 + depth * 16,
+            paddingRight: 12,
+            paddingTop: 8,
+            paddingBottom: 8,
+            cursor: 'pointer',
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: isSelected ? '#2d2d30' : 'transparent',
+            color: isSelected ? '#d4d4d4' : '#888',
+            borderLeft: isSelected ? '2px solid #569cd6' : '2px solid transparent',
+          }}
+          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#252526'; }}
+          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+        >
+          {hasChildren ? (
+            <span
+              onClick={(e) => { e.stopPropagation(); toggleCollapse(project.id); }}
+              style={{ cursor: 'pointer', fontSize: 9, width: 14, textAlign: 'center', userSelect: 'none', color: '#888' }}
+            >
+              {isCollapsed ? '\u25B6' : '\u25BC'}
+            </span>
+          ) : (
+            <span style={{ width: 14 }} />
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {project.name}
+          </span>
+          {(project._count?.files ?? 0) > 0 && (
+            <span style={{ color: '#555', fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>
+              {project._count!.files}
+            </span>
+          )}
+        </div>
+        {hasChildren && !isCollapsed && project.children!.map((child) => (
+          <ProjectTreeItem key={child.id} project={child} depth={depth + 1} />
+        ))}
+      </>
+    );
+  };
+
+  // ─── Render ──────────────────────────────────────────────────────────────
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
       <Header />
+      {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Projects panel */}
         <div style={{ width: 280, borderRight: '1px solid #3c3c3c', display: 'flex', flexDirection: 'column' }}>
@@ -123,7 +386,7 @@ export default function ProjectsPage() {
                 disabled={creating || !newProjectName.trim()}
                 style={{ background: creating ? '#3c3c3c' : '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: 12 }}
               >
-                {creating ? '…' : '+'}
+                {creating ? '...' : '+'}
               </button>
             </form>
             {error && (
@@ -135,18 +398,7 @@ export default function ProjectsPage() {
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 16, color: '#666', fontSize: 13 }}>Loading...</div>}
             {projects.map((p) => (
-              <div
-                key={p.id}
-                onClick={() => selectProject(p)}
-                style={{
-                  padding: '10px 16px', cursor: 'pointer', fontSize: 13,
-                  background: selectedProject?.id === p.id ? '#2d2d30' : 'transparent',
-                  color: selectedProject?.id === p.id ? '#d4d4d4' : '#888',
-                  borderLeft: selectedProject?.id === p.id ? '2px solid #569cd6' : '2px solid transparent',
-                }}
-              >
-                {p.name}
-              </div>
+              <ProjectTreeItem key={p.id} project={p} depth={0} />
             ))}
           </div>
         </div>
@@ -156,28 +408,33 @@ export default function ProjectsPage() {
           {selectedProject ? (
             <>
               <div style={{ padding: '16px 20px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600 }}>{selectedProject.name}</span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".sysml,.txt"
-                    multiple
-                    onChange={handleFileInput}
-                    style={{ display: 'none' }}
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ background: '#3c3c3c', color: '#ccc', border: '1px solid #555', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#4a4a4a'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = '#3c3c3c'; }}
-                  >
-                    Upload .sysml
-                  </button>
-                  <button onClick={createFile} style={{ background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
-                    + New File
-                  </button>
-                </div>
+                <span style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600 }}>
+                  {selectedProject.name}
+                  {selectedProject.isSystem && <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                </span>
+                {!selectedProject.isSystem && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".sysml,.txt"
+                      multiple
+                      onChange={handleFileInput}
+                      style={{ display: 'none' }}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ background: '#3c3c3c', color: '#ccc', border: '1px solid #555', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#4a4a4a'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#3c3c3c'; }}
+                    >
+                      Upload .sysml
+                    </button>
+                    <button onClick={createFile} style={{ background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
+                      + New File
+                    </button>
+                  </div>
+                )}
               </div>
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -194,6 +451,7 @@ export default function ProjectsPage() {
                   <div
                     key={file.id}
                     onClick={() => openFile(file)}
+                    onContextMenu={(e) => onFileContextMenu(e, file)}
                     style={{
                       background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6,
                       padding: '14px 18px', cursor: 'pointer', minWidth: 160,

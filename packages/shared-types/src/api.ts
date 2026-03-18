@@ -31,8 +31,13 @@ export interface Project {
   name: string;
   description?: string;
   ownerId: string;
+  parentId: string | null;
+  depth: number;
+  isSystem?: boolean;
   createdAt: string;
   updatedAt: string;
+  children?: Project[];
+  _count?: { files: number; children: number };
 }
 
 export interface SysMLFile {

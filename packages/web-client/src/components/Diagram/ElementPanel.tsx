@@ -79,6 +79,7 @@ const KIND_LABELS: Record<string, string> = {
   decidenode:           'Decide Node',
   startnode:            'Start Node',
   terminatenode:        'Terminate Node',
+  alias:                'Alias',
   stdlib:               'Standard Library',
   default:              'Other',
 };
@@ -111,6 +112,7 @@ const KIND_COLORS: Record<string, string> = {
   decidenode:           '#3a3a2a',
   startnode:            '#222222',
   terminatenode:        '#3a3a3a',
+  alias:                '#2a2040',
   stdlib:               '#0a2018',
   default:              '#252525',
 };

@@ -14,6 +14,25 @@ function makeId(prefix: string, name: string): string {
   return `${prefix}__${name.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 }
 
+/** Replace single-quoted names (e.g. `'My Part'`) with length-preserving \w+ placeholders
+ *  so all existing regexes match without changes. Returns a map to restore original names. */
+function normalizeQuotedNames(src: string): { text: string; nameMap: Map<string, string> } {
+  const nameMap = new Map<string, string>();
+  let counter = 0;
+  const text = src.replace(/'([^']*)'/g, (fullMatch, innerName) => {
+    const key = `_Q${counter++}_`;
+    const padded = key.padEnd(fullMatch.length, '_');
+    nameMap.set(padded, innerName);
+    return padded;
+  });
+  return { text, nameMap };
+}
+
+/** Restore a placeholder back to the original quoted name, or return as-is. */
+function dequote(name: string, nameMap: Map<string, string>): string {
+  return nameMap.get(name) ?? name;
+}
+
 function lineCol(source: string, index: number): { line: number; column: number } {
   const clamped = Math.max(0, Math.min(index, source.length));
   const before = source.slice(0, clamped);
@@ -221,7 +240,10 @@ const VERIFY_PATTERN = /\bverify\s+(?:requirement\s+)?(\w+)\s+by\s+(\w+)\s*;/g;
 const ALLOCATE_PATTERN = /\ballocate\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const BIND_PATTERN = /\bbind\s+(\w+(?:\.\w+)*)\s*=\s*(\w+(?:\.\w+)*)\s*;/g;
 // import PackageName::*;  or  import PackageName::TypeName;
-const IMPORT_PATTERN = /\bimport\s+(\w+)::(\*|\w+)\s*;/g;
+// Supports: public/private/protected visibility, multi-level qualified names, recursive ::**
+const IMPORT_PATTERN = /\b(?:(?:public|private|protected)\s+)?import\s+([\w:]+?)::(\*{1,2}|\w+)\s*;/g;
+// alias Car for Automobile;  or  alias Torque for ISQ::TorqueValue;
+const ALIAS_PATTERN = /\b(?:(?:public|private|protected)\s+)?alias\s+(\w+)\s+for\s+([\w:]+)\s*;/g;
 
 // Extended keyword → SysMLNodeKind mapping
 const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
@@ -246,7 +268,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       diagnostics: [{ severity: 'error', message: `Source exceeds maximum size (${MAX_SOURCE_LENGTH} characters)`, line: 1, column: 1 }],
     };
   }
-  const clean = stripComments(source);
+  const stripped = stripComments(source);
+  const { text: clean, nameMap } = normalizeQuotedNames(stripped);
 
   const nodes: SysMLNode[] = [];
   const connections: SysMLConnection[] = [];
@@ -280,7 +303,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   IMPORT_PATTERN.lastIndex = 0;
   let importMatch: RegExpExecArray | null;
   while ((importMatch = IMPORT_PATTERN.exec(clean)) !== null) {
-    const [, pkgName, member] = importMatch;
+    const [, qualifiedPkg, member] = importMatch;
+    // Extract the top-level package name (first segment of qualified path)
+    const pkgName = qualifiedPkg.includes('::') ? qualifiedPkg.split('::')[0] : qualifiedPkg;
     const pkg = STDLIB_PACKAGES[pkgName];
     if (!pkg) {
       // Point at the package name token, not the whole import statement
@@ -322,11 +347,21 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  /** Resolve a type name that may be qualified (e.g. `Pkg::SubPkg::Name` → look up `Name`). */
+  // Track aliases so we can resolve them during type lookups (populated in step 0d)
+  const aliasMap = new Map<string, string>(); // alias name → target name
+
+  /** Resolve a type name that may be qualified (e.g. `Pkg::SubPkg::Name` → look up `Name`).
+   *  Also resolves aliases to their target types. */
   function resolveType(name: string): SysMLNode | undefined {
     // Try exact match first
     const exact = nodeIndex.get(name);
     if (exact) return exact;
+    // Check aliases
+    const aliasTarget = aliasMap.get(name);
+    if (aliasTarget) {
+      const resolved = nodeIndex.get(aliasTarget);
+      if (resolved) return resolved;
+    }
     // For qualified names like `Pkg::SubPkg::TypeName`, try the last segment
     if (name.includes('::')) {
       const simple = name.split('::').pop()!;
@@ -349,7 +384,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   PACKAGE_PATTERN.lastIndex = 0;
   let pkgMatch: RegExpExecArray | null;
   while ((pkgMatch = PACKAGE_PATTERN.exec(clean)) !== null) {
-    const [, pkgName] = pkgMatch;
+    const pkgName = dequote(pkgMatch[1], nameMap);
     const pkgId = makeId('pkg', pkgName);
     const blockEnd = findBlockEnd(clean, pkgMatch.index + pkgMatch[0].length - 1);
     const { line: pkgLine, column: pkgCol } = lineCol(source, pkgMatch.index);
@@ -395,13 +430,55 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     return packageRanges.find(p => offset > p.start && offset < p.end);
   }
 
+  // ── 0d. Parse alias declarations ────────────────────────────────────────
+
+  ALIAS_PATTERN.lastIndex = 0;
+  let aliasMatch: RegExpExecArray | null;
+  while ((aliasMatch = ALIAS_PATTERN.exec(clean)) !== null) {
+    const aliasName = dequote(aliasMatch[1], nameMap);
+    const target = aliasMatch[2]; // qualified or simple target name
+    const targetSimple = target.includes('::') ? target.split('::').pop()! : target;
+
+    aliasMap.set(aliasName, targetSimple);
+
+    const { line: aLine, column: aCol } = lineCol(source, aliasMatch.index);
+    const aliasNode: SysMLNode = {
+      id: makeId('alias', aliasName),
+      kind: 'Alias',
+      name: aliasName,
+      qualifiedName: `${aliasName} → ${target}`,
+      children: [],
+      attributes: [{ name: 'for', type: target }],
+      connections: [],
+      range: {
+        start: { line: aLine - 1, character: aCol - 1 },
+        end:   { line: aLine - 1, character: aCol - 1 + aliasMatch[0].length },
+      },
+    };
+    nodes.push(aliasNode);
+    nodeIndex.set(aliasName, aliasNode);
+
+    // Composition edge to owner package if inside one
+    const ownerPkg = findOwnerPackage(aliasMatch.index);
+    if (ownerPkg) {
+      connections.push({
+        id: makeId('pkg-member', `${ownerPkg.name}_${aliasName}`),
+        sourceId: ownerPkg.id,
+        targetId: aliasNode.id,
+        kind: 'composition',
+        name: '',
+      });
+    }
+  }
+
   // ── 1. Extract all *Definitions ────────────────────────────────────────
 
   DEF_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = DEF_PATTERN.exec(clean)) !== null) {
-    const [, abstractKw, keyword, name, specializes] = match;
+    const [, abstractKw, keyword, rawName, specializes] = match;
+    const name = dequote(rawName, nameMap);
     const kind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Definition` as SysMLNodeKind;
     const id = makeId('def', name);
 
@@ -538,7 +615,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const pre = clean.slice(Math.max(0, um.index - 7), um.index);
       if (/\b(inout|in|out|def)\s+$/.test(pre)) continue;
       // Skip duplicates already captured by typed pattern
-      const name = um[2];
+      const name = dequote(um[2], nameMap);
       const start = um.index;
       if (usagePositions.some(up => up.start === start)) continue;
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
@@ -548,12 +625,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const performScanRe = new RegExp(PERFORM_PATTERN.source, 'g');
     while ((um = performScanRe.exec(clean)) !== null) {
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
-      usagePositions.push({ name: um[1], start: um.index, end });
+      usagePositions.push({ name: dequote(um[1], nameMap), start: um.index, end });
     }
     const exhibitScanRe = new RegExp(EXHIBIT_PATTERN.source, 'g');
     while ((um = exhibitScanRe.exec(clean)) !== null) {
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
-      usagePositions.push({ name: um[1], start: um.index, end });
+      usagePositions.push({ name: dequote(um[1], nameMap), start: um.index, end });
     }
     usagePositions.sort((a, b) => b.start - a.start);
   }
@@ -633,7 +710,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     PERFORM_PATTERN.lastIndex = 0;
     let pm: RegExpExecArray | null;
     while ((pm = PERFORM_PATTERN.exec(clean)) !== null) {
-      const [, actionName, typeName] = pm;
+      const [, rawActionName, typeName] = pm;
+      const actionName = dequote(rawActionName, nameMap);
       const usagePos = pm.index;
       const blockEnd = findBlockEnd(clean, usagePos + pm[0].length - 1);
       const id = makeId('usage', actionName);
@@ -670,7 +748,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     EXHIBIT_PATTERN.lastIndex = 0;
     let em: RegExpExecArray | null;
     while ((em = EXHIBIT_PATTERN.exec(clean)) !== null) {
-      const [, stateName, typeName] = em;
+      const [, rawStateName, typeName] = em;
+      const stateName = dequote(rawStateName, nameMap);
       const usagePos = em.index;
       const blockEnd = findBlockEnd(clean, usagePos + em[0].length - 1);
       const id = makeId('usage', stateName);
@@ -709,7 +788,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   USAGE_PATTERN.lastIndex = 0;
 
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
-    const [, keyword, usageName, multiplicity, typeName] = match;
+    const [, keyword, rawUsageName, multiplicity, typeName] = match;
+    const usageName = dequote(rawUsageName, nameMap);
 
     // Skip if preceded by 'in', 'out', 'inout', 'perform', 'exhibit', 'entry', 'exit', 'do' — handled separately
     const pre = clean.slice(Math.max(0, match.index - 9), match.index);
@@ -810,7 +890,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   UNTYPED_USAGE_PATTERN.lastIndex = 0;
 
   while ((match = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
-    const [fullMatch, keyword, usageName] = match;
+    const [fullMatch, keyword, rawUsageName] = match;
+    const usageName = dequote(rawUsageName, nameMap);
 
     // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', 'exhibit', 'entry', 'exit', 'do'
     const pre = clean.slice(Math.max(0, match.index - 9), match.index);
@@ -886,7 +967,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   ATTRIBUTE_VALUE_PATTERN.lastIndex = 0;
 
   while ((match = ATTRIBUTE_VALUE_PATTERN.exec(clean)) !== null) {
-    const [, attrName, attrType, attrValue] = match;
+    const [, rawAttrName, attrType, attrValue] = match;
+    const attrName = dequote(rawAttrName, nameMap);
 
     const attrPos = match.index;
     const ownerNode = findOwnerDef(attrPos);
@@ -903,7 +985,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   IN_OUT_PATTERN.lastIndex = 0;
 
   while ((match = IN_OUT_PATTERN.exec(clean)) !== null) {
-    const [, direction, keyword, paramName, typeName] = match;
+    const [, direction, keyword, rawParamName, typeName] = match;
+    const paramName = dequote(rawParamName, nameMap);
 
     const paramPos = match.index;
     // Find enclosing owner: definition or usage
@@ -963,7 +1046,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   IN_OUT_UNTYPED_PATTERN.lastIndex = 0;
 
   while ((match = IN_OUT_UNTYPED_PATTERN.exec(clean)) !== null) {
-    const [, direction, keyword, paramName] = match;
+    const [, direction, keyword, rawParamName] = match;
+    const paramName = dequote(rawParamName, nameMap);
 
     // Skip if already captured by typed IN_OUT_PATTERN (check if `: Type` follows)
     const afterSlice = clean.slice(match.index, match.index + match[0].length + 30);
@@ -1029,7 +1113,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   for (const [pattern, op, connKind, label] of specOpSpecs) {
     pattern.lastIndex = 0;
     while ((match = pattern.exec(clean)) !== null) {
-      const [, keyword, usageName, mult, targetName] = match;
+      const [, keyword, rawUsageName, mult, targetName] = match;
+      const usageName = dequote(rawUsageName, nameMap);
       const pre = clean.slice(Math.max(0, match.index - 7), match.index);
       if (/\b(inout|in|out)\s+$/.test(pre)) continue;
       const usagePos = match.index;
@@ -1076,7 +1161,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     pattern.lastIndex = 0;
     while ((match = pattern.exec(clean)) !== null) {
       const abstractKw = match[abstractGroup];
-      const name = match[nameGroup];
+      const name = dequote(match[nameGroup], nameMap);
       const specializes = match[specGroup];
       const id = makeId('def', name);
       if (definedNames.has(name)) continue;
@@ -1109,7 +1194,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     if (!kind) continue;
     // Re-use parseExtDef inline since EXT_DEF_PATTERN has keyword in group[2]
     const abstractKw = match[1];
-    const name = match[3];
+    const name = dequote(match[3], nameMap);
     const specializes = match[4];
     const id = makeId('def', name);
     if (definedNames.has(name)) continue;
@@ -1151,7 +1236,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   CONTROL_NODE_PATTERN.lastIndex = 0;
   while ((match = CONTROL_NODE_PATTERN.exec(clean)) !== null) {
-    const [, nodeType, nodeName] = match;
+    const [, nodeType, rawNodeName] = match;
+    const nodeName = dequote(rawNodeName, nameMap);
     const kindMap: Record<string, SysMLNodeKind> = {
       fork: 'ForkNode', join: 'JoinNode', merge: 'MergeNode', decide: 'DecideNode',
     };
@@ -1281,7 +1367,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Skip if inside a transition statement — handled by transition parser
     if (isInsideTransition(match.index)) continue;
 
-    const [, fromName, toName] = match;
+    const [, rawFromName, rawToName] = match;
+    const fromName = dequote(rawFromName, nameMap);
+    const toName = dequote(rawToName, nameMap);
     if (SPECIAL_NAMES.has(fromName)) ensureSpecialNode(fromName, match.index);
     if (SPECIAL_NAMES.has(toName)) ensureSpecialNode(toName, match.index);
     const fromNode = resolveNodeAtOffset(fromName, match.index);
@@ -1302,7 +1390,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     firstAloneRe.lastIndex = 0;
     let fm: RegExpExecArray | null;
     while ((fm = firstAloneRe.exec(clean)) !== null) {
-      const name = fm[1];
+      const name = dequote(fm[1], nameMap);
       if (name === 'start' || name === 'done' || name === 'terminate') ensureSpecialNode(name, fm.index);
 
       // Skip if inside a transition statement — handled by transition parser
@@ -1347,26 +1435,26 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       if (/\bdef\s+$/.test(pre)) continue; // skip "action def X"
       if (/\b(?:perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
       const endPos = dm.index + dm[0].length;
-      declPositions.push({ name: dm[1], end: endPos });
+      declPositions.push({ name: dequote(dm[1], nameMap), end: endPos });
     }
     // perform/exhibit declarations also count for succession resolution
     const performDeclRe = /\b(?:perform|exhibit)\s+(?:action\s+|state\s+)?(\w+)(?:\s*:\s*[\w:]+)?\s*[;{]/g;
     performDeclRe.lastIndex = 0;
     let pdm: RegExpExecArray | null;
     while ((pdm = performDeclRe.exec(clean)) !== null) {
-      declPositions.push({ name: pdm[1], end: pdm.index + pdm[0].length });
+      declPositions.push({ name: dequote(pdm[1], nameMap), end: pdm.index + pdm[0].length });
     }
     // Transition declarations also count
     const transDeclRe = /\btransition\s+(\w+)\s*[;{]/g;
     transDeclRe.lastIndex = 0;
     while ((pdm = transDeclRe.exec(clean)) !== null) {
-      declPositions.push({ name: pdm[1], end: pdm.index + pdm[0].length });
+      declPositions.push({ name: dequote(pdm[1], nameMap), end: pdm.index + pdm[0].length });
     }
     // Also "first start;" counts as a declaration of start
     const firstRe = /\bfirst\s+(\w+)\s*;/g;
     firstRe.lastIndex = 0;
     while ((dm = firstRe.exec(clean)) !== null) {
-      declPositions.push({ name: dm[1], end: dm.index + dm[0].length });
+      declPositions.push({ name: dequote(dm[1], nameMap), end: dm.index + dm[0].length });
     }
     // Entry/exit/do declarations: "entry;" or "entry action name;" — for then-resolution
     // Per spec 7.18.2: "entry; then off;" means succession from entry action to off
@@ -1374,7 +1462,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     entryDeclRe.lastIndex = 0;
     while ((dm = entryDeclRe.exec(clean)) !== null) {
       const behaviorKind = dm[1];
-      const actionName = dm[2];
+      const actionName = dm[2] ? dequote(dm[2], nameMap) : undefined;
       const endPos = dm.index + dm[0].length;
       // Only entry actions should serve as sources for "then" successions
       if (behaviorKind === 'entry') {
@@ -1434,7 +1522,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Skip "then" handled by shorthand accept...then parser (position-based)
     if (handledShorthandThenPositions.has(match.index)) continue;
 
-    const toName = match[1];
+    const toName = dequote(match[1], nameMap);
     if (SPECIAL_NAMES.has(toName)) ensureSpecialNode(toName, match.index);
 
     // Find the nearest preceding declaration
@@ -1545,7 +1633,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   IF_THEN_ELSE_PATTERN.lastIndex = 0;
   while ((match = IF_THEN_ELSE_PATTERN.exec(clean)) !== null) {
     if (isInsideTransition(match.index)) continue;
-    const [, guard, thenName, elseName] = match;
+    const [, guard, rawThenName, rawElseName] = match;
+    const thenName = dequote(rawThenName, nameMap);
+    const elseName = dequote(rawElseName, nameMap);
     const pos = match.index;
     handledIfPositions.add(pos);
     validateGuardBoolean(guard, pos);
@@ -1583,7 +1673,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Skip if already handled by IF_THEN_ELSE_PATTERN
     if (handledIfPositions.has(match.index)) continue;
     if (isInsideTransition(match.index)) continue;
-    const [, guard, toName] = match;
+    const [, guard, rawToName] = match;
+    const toName = dequote(rawToName, nameMap);
     const pos = match.index;
     validateGuardBoolean(guard, pos);
     // Find the nearest preceding declaration as the source
@@ -1622,12 +1713,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const ifMatch = body.match(/\bif\s+([\w.]+)/);
       const doMatch = body.match(/\bdo\s+(?:action\s+)?(\w+)/);
 
-      const sourceName = firstMatch?.[1];
-      const targetName = thenMatch?.[1];
-      const triggerText = acceptMatch?.[1];
-      const viaPort = acceptMatch?.[2];
+      const sourceName = firstMatch?.[1] ? dequote(firstMatch[1], nameMap) : undefined;
+      const targetName = thenMatch?.[1] ? dequote(thenMatch[1], nameMap) : undefined;
+      const triggerText = acceptMatch?.[1] ? dequote(acceptMatch[1], nameMap) : undefined;
+      const viaPort = acceptMatch?.[2] ? dequote(acceptMatch[2], nameMap) : undefined;
       const guardExpr = ifMatch?.[1];
-      const effectName = doMatch?.[1];
+      const effectName = doMatch?.[1] ? dequote(doMatch[1], nameMap) : undefined;
 
       // Build label: "trigger via port [guard] / effect"
       const labelParts: string[] = [];
@@ -1663,7 +1754,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     TRANSITION_NAMED_PATTERN.lastIndex = 0;
     let tm: RegExpExecArray | null;
     while ((tm = TRANSITION_NAMED_PATTERN.exec(clean)) !== null) {
-      const transName = tm[1];
+      const transName = dequote(tm[1], nameMap);
       const pos = tm.index;
       // Find the end of the full transition statement (block or semicolon)
       const afterName = clean.indexOf(transName, pos) + transName.length;
@@ -1701,7 +1792,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         const pre = clean.slice(Math.max(0, sm.index - 8), sm.index);
         if (/\bdef\s+$/.test(pre) || /\bexhibit\s+$/.test(pre)) continue;
         const blockEnd = findBlockEnd(clean, sm.index + sm[0].length - 1);
-        stateDeclPositions.push({ name: sm[1], end: blockEnd, pos: sm.index });
+        stateDeclPositions.push({ name: dequote(sm[1], nameMap), end: blockEnd, pos: sm.index });
       }
       stateDeclPositions.sort((a, b) => a.end - b.end);
     }
@@ -1748,7 +1839,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       }
       if (!insideState) continue;
 
-      const [, bodyText, targetName] = stm;
+      const [, bodyText, rawTargetName] = stm;
+    const targetName = dequote(rawTargetName, nameMap);
 
       // Two-step: parse components from the body between "accept" and "then"
       const acceptMatch = bodyText.match(/^(after\s+[\d\[\].\w]+|\w+)/);
@@ -1802,7 +1894,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   for (const [pattern, connKind, label, reverse] of relSpecs) {
     pattern.lastIndex = 0;
     while ((match = pattern.exec(clean)) !== null) {
-      const a = match[1].split('.')[0], b = match[2].split('.')[0];
+      const a = dequote(match[1].split('.')[0], nameMap), b = dequote(match[2].split('.')[0], nameMap);
       const aNode = nodeIndex.get(a), bNode = nodeIndex.get(b);
       if (aNode && bNode) {
         const [src, tgt] = reverse ? [bNode, aNode] : [aNode, bNode];
@@ -1816,7 +1908,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   CONNECT_PATTERN.lastIndex = 0;
 
   while ((match = CONNECT_PATTERN.exec(clean)) !== null) {
-    const [, from, to] = match;
+    const [, rawFrom, rawTo] = match;
+    const from = dequote(rawFrom, nameMap);
+    const to = dequote(rawTo, nameMap);
     const fromRoot = from.split('.')[0];
     const toRoot = to.split('.')[0];
 
@@ -1838,7 +1932,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   FLOW_PATTERN.lastIndex = 0;
 
   while ((match = FLOW_PATTERN.exec(clean)) !== null) {
-    const [, , from, to] = match;
+    const [, , rawFrom, rawTo] = match;
+    const from = dequote(rawFrom, nameMap);
+    const to = dequote(rawTo, nameMap);
     const fromRoot = from.split('.')[0];
     const toRoot = to.split('.')[0];
 

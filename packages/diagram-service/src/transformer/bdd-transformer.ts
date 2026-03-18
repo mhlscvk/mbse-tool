@@ -62,6 +62,7 @@ const KIND_DISPLAY: Record<string, string> = {
   PerformActionUsage:          '«perform»',
   ExhibitStateUsage:           '«exhibit»',
   TransitionUsage:             '«transition»',
+  Alias:                       '«alias»',
 };
 
 const USAGE_KEYWORD_DISPLAY: Record<string, string> = {
