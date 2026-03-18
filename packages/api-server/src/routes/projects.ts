@@ -91,7 +91,7 @@ router.patch('/:id', async (req: AuthRequest, res, next) => {
     if (project.isSystem) {
       res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return;
     }
-    const body = createSchema.partial().parse(req.body);
+    const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
     const updated = await prisma.project.update({
       where: { id: req.params.id, ownerId: req.userId! },
       data: { name: body.name, description: body.description },

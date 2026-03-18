@@ -49,6 +49,10 @@ interface ElementPanelProps {
   diagramSelectedNodeId?: string | null;
   /** Currently selected edge id from the diagram (for cross-highlighting) */
   diagramSelectedEdgeId?: string | null;
+  /** Legend visibility state */
+  showLegend?: boolean;
+  /** Called when user toggles legend visibility */
+  onToggleLegend?: () => void;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -186,6 +190,7 @@ export default function ElementPanel({
   onToggleNode, onToggleGroup, onToggleAll, onToggleEdge, onToggleEdgeGroup,
   fillWidth, onNodeClick, onEdgeClick, viewStorageKey, onRestoreView,
   diagramSelectedNodeId, diagramSelectedEdgeId,
+  showLegend = true, onToggleLegend,
 }: ElementPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -803,6 +808,19 @@ export default function ElementPanel({
       )}
 
       {/* Relationships tab */}
+      {tab === 'relationships' && onToggleLegend && (
+        <div style={{ padding: '6px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: '#aaa' }}>
+            <input
+              type="checkbox"
+              checked={showLegend}
+              onChange={onToggleLegend}
+              style={{ accentColor: '#569cd6', cursor: 'pointer' }}
+            />
+            Show Legend
+          </label>
+        </div>
+      )}
       {tab === 'relationships' && (
         edges.length === 0 ? (
           <div style={{ padding: 12, color: '#555', fontStyle: 'italic' }}>

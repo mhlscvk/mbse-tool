@@ -4,6 +4,7 @@ const KEYWORD_VALUES = new Set([
   'part', 'attribute', 'port', 'action', 'state', 'item', 'in', 'out',
   'requirement', 'constraint', 'interface', 'enum', 'calc', 'allocation',
   'usecase', 'view', 'viewpoint', 'concern', 'rendering', 'perform', 'exhibit', 'ref',
+  'ref part', 'ref attribute', 'ref port', 'ref action', 'ref state', 'ref item',
 ]);
 
 function makeLabel(id: string, text: string): SLabel {
@@ -97,6 +98,7 @@ function nodeToSNode(node: SysMLNode): SNode {
     ? `«${node.qualifiedName?.split('::')[0] ?? 'stdlib'}»`
     : (KIND_DISPLAY[node.kind] ?? `«${node.kind}»`);
   let kindText = node.isAbstract ? `{abstract} ${baseKindText}` : baseKindText;
+  if (node.isRef) kindText = kindText.replace('«', '«ref ');
   if (node.isParallel) kindText += ' {parallel}';
   const kindLabel = makeLabel(`${node.id}__kind`, kindText);
 
@@ -120,8 +122,10 @@ function nodeToSNode(node: SysMLNode): SNode {
     };
   }
 
-  // Comment nodes: folded-corner note shape
+  // Comment/doc nodes: folded-corner note shape
   if (node.kind === 'Comment') {
+    const isDocNode = node.id.startsWith('doc__');
+    const docKindLabel = isDocNode ? makeLabel(`${node.id}__kind`, '«doc»') : kindLabel;
     const bodyText = node.attributes?.[0]?.value ?? '';
     const bodyLabel = makeLabel(`${node.id}__usage__0`, bodyText);
     const bodyW = Math.max(120, textWidth(bodyText, 10) / 2 + 20);
@@ -131,7 +135,7 @@ function nodeToSNode(node: SysMLNode): SNode {
       type: 'node', id: node.id,
       position: { x: 0, y: 0 },
       size: { width: bodyW, height },
-      children: [kindLabel, nameLabel, bodyLabel],
+      children: [docKindLabel, nameLabel, bodyLabel],
       cssClasses: ['comment'],
       data: { range: node.range },
     };

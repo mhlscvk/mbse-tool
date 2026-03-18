@@ -16,6 +16,16 @@
           "name": "Packages-Members",
           "content": "package 'Package Example' {\n  public import ISQ::TorqueValue;\n  private import ScalarValues::*;\n  part def Automobile;\n  alias Car for Automobile;\n  alias Torque for ISQ::TorqueValue;\n}",
           "size": 185
+        },
+        {
+          "name": "Documentation",
+          "content": "package 'Documentation Example' {\n  doc /* This is documentation of the owning package.*/\n  part def Automobile {\n    doc Document1 /* This is documentation of Automobile. */\n  }\n  alias Car for Automobile {\n    doc /* This is documentation of the alias. */\n  }\n  alias Torque for ISQ::TorqueValue;\n}",
+          "size": 300
+        },
+        {
+          "name": "Part_and_Attribute_Definitions",
+          "content": "part def Vehicle {\n  attribute mass : ScalarValues::Real;\n  part eng : Engine;\n  ref part driver : Person;\n}\nattribute def VehicleStatus {\n  private import ScalarValues::*;\n  attribute gearSetting : Integer;\n  attribute acceleratorPosition : Real;\n}\npart def Engine;\npart def Person;\n",
+          "size": 284
         }
       ],
       "children": []

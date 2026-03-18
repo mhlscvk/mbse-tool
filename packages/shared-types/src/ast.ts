@@ -69,6 +69,8 @@ export interface SysMLNode {
   qualifiedName?: string;
   direction?: 'in' | 'out' | 'inout';
   isAbstract?: boolean;
+  /** True for referential features (ref keyword) */
+  isRef?: boolean;
   /** True for parallel state definitions/usages */
   isParallel?: boolean;
   /** Multiplicity text, e.g. "[4]", "[1..*]", "[0..1]" */

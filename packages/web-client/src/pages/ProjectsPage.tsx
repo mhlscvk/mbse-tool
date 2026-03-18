@@ -243,7 +243,7 @@ export default function ProjectsPage() {
       { label: 'Delete', onClick: () => deleteProject(project), danger: true },
     );
     setContextMenu({ x: e.clientX, y: e.clientY, items });
-  }, []);
+  }, [projects, selectedProject]);
 
   // ─── File actions ────────────────────────────────────────────────────────
 
@@ -309,7 +309,8 @@ export default function ProjectsPage() {
 
   // ─── Project Tree Item ───────────────────────────────────────────────────
 
-  const ProjectTreeItem = ({ project, depth }: { project: Project; depth: number }) => {
+  // Stable component ref to avoid unmount/remount on every parent render
+  const ProjectTreeItem = useCallback(({ project, depth }: { project: Project; depth: number }) => {
     const hasChildren = project.children && project.children.length > 0;
     const isCollapsed = collapsed[project.id] ?? false;
     const isSelected = selectedProject?.id === project.id;
@@ -360,7 +361,7 @@ export default function ProjectsPage() {
         ))}
       </>
     );
-  };
+  }, [collapsed, selectedProject, onProjectContextMenu]);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 

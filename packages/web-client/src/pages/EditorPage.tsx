@@ -35,6 +35,9 @@ export default function EditorPage() {
   const [hiddenNodeIds, setHiddenNodeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenNodes`, new Set<string>());
   const [hiddenEdgeIds, setHiddenEdgeIds] = useLocalStorage<Set<string>>(`${lsPrefix}:hiddenEdges`, new Set<string>());
 
+  // Legend visibility
+  const [showLegend, setShowLegend] = useLocalStorage(`${lsPrefix}:showLegend`, true);
+
   // Cross-selection between diagram and element panel
   const [diagramSelectedNodeId, setDiagramSelectedNodeId] = useState<string | null>(null);
   const [diagramSelectedEdgeId, setDiagramSelectedEdgeId] = useState<string | null>(null);
@@ -383,6 +386,8 @@ export default function EditorPage() {
               onRestoreView={(nodes, edges) => { setHiddenNodeIds(nodes); setHiddenEdgeIds(edges); }}
               diagramSelectedNodeId={diagramSelectedNodeId}
               diagramSelectedEdgeId={diagramSelectedEdgeId}
+              showLegend={showLegend}
+              onToggleLegend={() => setShowLegend(!showLegend)}
             />
             <DiagramViewer
               model={diagram}
@@ -419,6 +424,7 @@ export default function EditorPage() {
               selectedEdgeId={diagramSelectedEdgeId}
               onSelectedNodeChange={setDiagramSelectedNodeId}
               onSelectedEdgeChange={setDiagramSelectedEdgeId}
+              showLegend={showLegend}
             />
             {aiOpen && (
               <AiAssistant
@@ -462,7 +468,7 @@ export default function EditorPage() {
           {diagnostics.length === 0 && <span style={{ opacity: 0.7 }}>✓ No problems</span>}
         </button>
         <span style={{ flex: 1 }} />
-        <span>{content.split('\n').length} lines</span>
+        <span>{(content.match(/\n/g) ?? []).length + 1} lines</span>
       </div>
     </div>
   );

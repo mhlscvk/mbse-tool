@@ -28,6 +28,8 @@ interface DiagramViewerProps {
   onSelectedNodeChange?: (id: string | null) => void;
   /** Called when user clicks an edge in the diagram */
   onSelectedEdgeChange?: (id: string | null) => void;
+  /** Show/hide the legend overlay */
+  showLegend?: boolean;
 }
 
 interface ContextMenu {
@@ -196,6 +198,7 @@ export default function DiagramViewer({
   onHideNodes, onHideEdges,
   selectedNodeId: controlledNodeId, selectedEdgeId: controlledEdgeId,
   onSelectedNodeChange, onSelectedEdgeChange,
+  showLegend = true,
 }: DiagramViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -341,9 +344,9 @@ export default function DiagramViewer({
   }, [sizeOverrides]);
 
 
-  const visibleKey = nodes.map((n) => n.id).sort().join(',');
-  const sizesKey = nodes.map((n) => { const s = effectiveSize(n); return `${n.id}:${s.w}x${s.h}`; }).join(',');
-  const edgesKey = edges.map((e) => `${e.sourceId}→${e.targetId}`).sort().join(',');
+  const visibleKey = useMemo(() => nodes.map((n) => n.id).sort().join(','), [nodes]);
+  const sizesKey = useMemo(() => nodes.map((n) => { const s = effectiveSize(n); return `${n.id}:${s.w}x${s.h}`; }).join(','), [nodes, effectiveSize]);
+  const edgesKey = useMemo(() => edges.map((e) => `${e.sourceId}→${e.targetId}`).sort().join(','), [edges]);
   // Stable string key for positions — avoids Map reference changes triggering recomputation
   const positionsKey = useMemo(() => {
     const parts: string[] = [];
@@ -590,19 +593,19 @@ export default function DiagramViewer({
     setLayoutTrigger((n) => n + 1);
   }, [setPositionOverrides]);
 
-  const nodePos = (id: string) => positionOverrides.get(id) ?? positions.get(id) ?? { x: 0, y: 0 };
-  const nodeSz = (id: string) => {
+  const nodePos = useCallback((id: string) => positionOverrides.get(id) ?? positions.get(id) ?? { x: 0, y: 0 }, [positionOverrides, positions]);
+  const nodeSz = useCallback((id: string) => {
     const ibd = layoutSizes.get(id);
     if (ibd) return ibd;
     const n = nodeMap.get(id);
     return n ? effectiveSize(n) : { w: 160, h: 60 };
-  };
+  }, [layoutSizes, nodeMap, effectiveSize]);
 
-  const nodeCenter = (id: string): { x: number; y: number } => {
+  const nodeCenter = useCallback((id: string): { x: number; y: number } => {
     const pos = nodePos(id);
     const sz = nodeSz(id);
     return { x: pos.x + sz.w / 2, y: pos.y + sz.h / 2 };
-  };
+  }, [nodePos, nodeSz]);
 
   // Compute the point on a node's border closest to a target point
   const borderPoint = (
@@ -1756,7 +1759,7 @@ export default function DiagramViewer({
         </g>
 
         {/* SysML v2 General View Legend */}
-        <g transform="translate(10,10)">
+        {showLegend && <g transform="translate(10,10)">
           {/* Node shape legend */}
           <g transform="translate(0,0)">
             <rect width={10} height={6} fill="#2a2a3a" stroke="#6a6a8a" strokeWidth={1} />
@@ -1793,7 +1796,7 @@ export default function DiagramViewer({
               <text x={24} y={11} fill={color} fontSize={9}>{label}</text>
             </g>
           ))}
-        </g>
+        </g>}
       </svg>
 
       {/* Right-click context menu (with backdrop for click-outside dismiss) */}

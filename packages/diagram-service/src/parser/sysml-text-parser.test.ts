@@ -429,6 +429,55 @@ describe('Comments', () => {
   });
 });
 
+describe('Documentation (doc)', () => {
+  it('parses unnamed doc inside package', () => {
+    const code = `package Pkg { doc /* Package documentation. */ }`;
+    const { model } = parse(code);
+    const doc = model.nodes.find(n => n.kind === 'Comment' && n.name === '[doc]');
+    expect(doc).toBeDefined();
+    expect(doc!.attributes[0]?.value).toContain('Package documentation');
+  });
+
+  it('parses named doc inside part def', () => {
+    const code = `part def Automobile { doc Document1 /* This is documentation. */ }`;
+    const { model } = parse(code);
+    const doc = model.nodes.find(n => n.kind === 'Comment' && n.name === 'Document1');
+    expect(doc).toBeDefined();
+    // Doc should be owned by the definition (composition edge)
+    const comp = model.connections.find(c => c.kind === 'composition' && c.targetId === doc!.id);
+    expect(comp).toBeDefined();
+  });
+
+  it('parses doc inside alias body', () => {
+    const code = `part def Automobile; alias Car for Automobile { doc /* Alias documentation. */ }`;
+    const { model } = parse(code);
+    const doc = model.nodes.find(n => n.kind === 'Comment' && n.attributes[0]?.value?.includes('Alias'));
+    expect(doc).toBeDefined();
+    // Should be owned by the alias
+    const comp = model.connections.find(c => c.kind === 'composition' && c.targetId === doc!.id);
+    expect(comp).toBeDefined();
+    expect(comp!.sourceId).toContain('alias');
+  });
+
+  it('parses full Documentation Example from spec', () => {
+    const code = `package 'Documentation Example' {
+      doc /* This is documentation of the owning package. */
+      part def Automobile {
+        doc Document1 /* This is documentation of Automobile. */
+      }
+      alias Car for Automobile {
+        doc /* This is documentation of the alias. */
+      }
+      alias Torque for ISQ::TorqueValue;
+    }`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Package' && n.name === 'Documentation Example')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'PartDefinition' && n.name === 'Automobile')).toBe(true);
+    expect(model.nodes.some(n => n.name === 'Document1')).toBe(true);
+    expect(model.nodes.filter(n => n.kind === 'Comment').length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  6. ACTION FLOW & CONTROL NODES
 // ═══════════════════════════════════════════════════════════════════════════════

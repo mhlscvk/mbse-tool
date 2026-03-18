@@ -27,9 +27,10 @@ describe('Empty and minimal inputs', () => {
     expect(model.nodes).toHaveLength(0);
   });
 
-  it('comment-only input produces empty model', () => {
+  it('comment-only input: line notes stripped, block comments become Comment nodes', () => {
     const { model } = parse('// just a comment\n/* block comment */');
-    expect(model.nodes).toHaveLength(0);
+    expect(model.nodes.filter(n => n.kind === 'Comment')).toHaveLength(1);
+    expect(model.nodes.filter(n => n.kind !== 'Comment')).toHaveLength(0);
   });
 
   it('single semicolon produces empty model', () => {
@@ -177,7 +178,9 @@ describe('Large input handling', () => {
 describe('Comment handling', () => {
   it('block comment inside definition body', () => {
     const { model } = parse('part def A { /* comment */ }');
-    expect(model.nodes[0].name).toBe('A');
+    expect(model.nodes.some(n => n.name === 'A')).toBe(true);
+    // Block comment inside def body (depth 1) becomes a Comment node
+    expect(model.nodes.some(n => n.kind === 'Comment')).toBe(true);
   });
 
   it('line comment before closing brace', () => {

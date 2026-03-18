@@ -9,6 +9,7 @@ interface ExtractedComment {
   about?: string;
   body: string;
   index: number;
+  isDoc?: boolean; // `doc` keyword — owned by parent element
 }
 
 function extractCommentDecls(src: string): { cleaned: string; comments: ExtractedComment[] } {
@@ -26,36 +27,41 @@ function extractCommentDecls(src: string): { cleaned: string; comments: Extracte
     return blockRanges.some(r => pos >= r.start && pos < r.end);
   }
 
-  // Find `comment` keyword NOT inside a /* */ block, followed by optional preamble, then /* body */
-  const commentKwRe = /\bcomment\b/g;
+  // Find `comment` and `doc` keywords NOT inside a /* */ block, followed by optional preamble, then /* body */
+  const commentKwRe = /\b(comment|doc)\b/g;
   let kwMatch: RegExpExecArray | null;
   while ((kwMatch = commentKwRe.exec(src)) !== null) {
-    if (isInsideBlock(kwMatch.index)) continue; // skip "comment" inside /* */
+    if (isInsideBlock(kwMatch.index)) continue;
 
-    // From after "comment", find the next /* ... */
-    const afterKw = src.slice(kwMatch.index + 7); // 7 = "comment".length
+    const keyword = kwMatch[1]; // "comment" or "doc"
+    const kwLen = keyword.length;
+    const afterKw = src.slice(kwMatch.index + kwLen);
     const bodyMatch = afterKw.match(/^([^;{]*?)\/\*([\s\S]*?)\*\//);
     if (!bodyMatch) continue;
 
     const preamble = bodyMatch[1].trim();
     const body = bodyMatch[2].trim();
-    const fullLen = 7 + bodyMatch[0].length;
+    const fullLen = kwLen + bodyMatch[0].length;
 
     let name: string | undefined;
     let about: string | undefined;
 
-    const aboutMatch = preamble.match(/\babout\s+(\w+)/);
-    if (aboutMatch) {
-      about = aboutMatch[1];
-      const beforeAbout = preamble.slice(0, preamble.indexOf('about')).trim();
-      if (beforeAbout && /^\w+$/.test(beforeAbout)) name = beforeAbout;
-    } else if (preamble && /^\w+$/.test(preamble)) {
-      name = preamble;
+    if (keyword === 'comment') {
+      const aboutMatch = preamble.match(/\babout\s+(\w+)/);
+      if (aboutMatch) {
+        about = aboutMatch[1];
+        const beforeAbout = preamble.slice(0, preamble.indexOf('about')).trim();
+        if (beforeAbout && /^\w+$/.test(beforeAbout)) name = beforeAbout;
+      } else if (preamble && /^\w+$/.test(preamble)) {
+        name = preamble;
+      }
+    } else {
+      // doc [Name] /* body */
+      if (preamble && /^\w+$/.test(preamble)) name = preamble;
     }
 
-    comments.push({ name, about, body, index: kwMatch.index });
+    comments.push({ name, about, body, index: kwMatch.index, isDoc: keyword === 'doc' });
 
-    // Replace the entire comment declaration with spaces to preserve offsets
     const spaces = src.slice(kwMatch.index, kwMatch.index + fullLen).replace(/[^\n]/g, ' ');
     result = result.slice(0, kwMatch.index) + spaces + result.slice(kwMatch.index + fullLen);
   }
@@ -81,7 +87,10 @@ function normalizeQuotedNames(src: string): { text: string; nameMap: Map<string,
   let counter = 0;
   const text = src.replace(/'([^']*)'/g, (fullMatch, innerName) => {
     const key = `_Q${counter++}_`;
-    const padded = key.padEnd(fullMatch.length, '_');
+    // Ensure placeholder is exactly fullMatch.length to preserve offsets
+    const padded = key.length >= fullMatch.length
+      ? key.slice(0, fullMatch.length)
+      : key.padEnd(fullMatch.length, '_');
     nameMap.set(padded, innerName);
     return padded;
   });
@@ -250,10 +259,10 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 
 // group[1]=abstract?, group[2]=keyword, group[3]=name, group[4]=specializes target
 const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*(?:parallel\s+)?[{;]/g;
-// group[1]=keyword, group[2]=name, group[3]=multiplicity (optional), group[4]=type
-const USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
+// group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional), group[5]=type
+const USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
-const UNTYPED_USAGE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(\w+)\s*(?:parallel\s+)?[;{]/g;
+const UNTYPED_USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(?:parallel\s+)?[;{]/g;
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
 const IN_OUT_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 const IN_OUT_UNTYPED_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*[;{]/g;
@@ -335,20 +344,22 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   const { cleaned: preStripped, comments: extractedComments } = extractCommentDecls(noLineComments);
   // 3. Extract remaining /* */ block comments as anonymous comment elements
   // Skip those inside { } blocks (alias bodies, etc.)
+  // Pre-compute brace depth at each position (O(n) instead of O(n*m))
+  const braceDepthAt: number[] = new Array(preStripped.length);
+  {
+    let depth = 0;
+    for (let i = 0; i < preStripped.length; i++) {
+      if (preStripped[i] === '{') depth++;
+      else if (preStripped[i] === '}') depth--;
+      braceDepthAt[i] = depth;
+    }
+  }
   const blockCommentRe = /\/\*([\s\S]*?)\*\//g;
   let bcMatch: RegExpExecArray | null;
   while ((bcMatch = blockCommentRe.exec(preStripped)) !== null) {
-    // Check brace depth at this position — skip if inside a { } block
-    const before = preStripped.slice(0, bcMatch.index);
-    let braceDepth = 0;
-    for (const ch of before) {
-      if (ch === '{') braceDepth++;
-      else if (ch === '}') braceDepth--;
-    }
     // Only top-level or package-level block comments become elements
-    // (braceDepth 0 = top level, 1 = inside a package — both are valid)
     // Skip if inside a nested block (alias body, etc.) at depth 2+
-    if (braceDepth >= 2) continue;
+    if (bcMatch.index > 0 && braceDepthAt[bcMatch.index - 1] >= 2) continue;
     const body = bcMatch[1].trim().replace(/^\*\s*/gm, '').trim(); // strip leading * from each line
     if (body) {
       extractedComments.push({ body, index: bcMatch.index });
@@ -564,14 +575,18 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  // ── 0e. Create nodes for extracted comment declarations ──────────────────
+  // ── 0e. Create nodes for extracted comment/doc declarations ──────────────
 
   for (const ec of extractedComments) {
-    const commentName = ec.name ?? (ec.about ? `about ${ec.about}` : `comment_${ec.index}`);
-    const displayName = ec.name ?? (ec.about ? `[about ${ec.about}]` : '[comment]');
+    const isDoc = ec.isDoc ?? false;
+    const prefix = isDoc ? 'doc' : 'comment';
+    const commentName = ec.name ?? (ec.about ? `about ${ec.about}` : `${prefix}_${ec.index}`);
+    const displayName = isDoc
+      ? (ec.name ?? '[doc]')
+      : (ec.name ?? (ec.about ? `[about ${ec.about}]` : '[comment]'));
     const { line: cLine, column: cCol } = lineCol(source, ec.index);
     const commentNode: SysMLNode = {
-      id: makeId('comment', `${commentName}_${ec.index}`),
+      id: makeId(prefix, `${commentName}_${ec.index}`),
       kind: 'Comment',
       name: displayName,
       children: [],
@@ -584,7 +599,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     };
     nodes.push(commentNode);
 
-    // Find owner: check alias ranges first (innermost), then packages
+    // Find owner: alias ranges first, then packages
+    // Doc comments always attach to nearest enclosing element (deferred to section 0e-deferred for defs)
     const ownerAlias = aliasRanges.find(a => ec.index > a.start && ec.index < a.end);
     if (ownerAlias) {
       connections.push({
@@ -594,7 +610,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         kind: 'composition',
         name: '',
       });
-    } else {
+    } else if (!isDoc) {
+      // Regular comments attach to package; doc comments defer to after defs are parsed
       const ownerPkg = findOwnerPackage(ec.index);
       if (ownerPkg) {
         connections.push({
@@ -607,7 +624,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       }
     }
 
-    // "about" edges are deferred to after definitions are parsed (section 0e-deferred)
+    // "about" and doc ownership edges are deferred to after definitions are parsed
   }
 
   // ── 1. Extract all *Definitions ────────────────────────────────────────
@@ -745,7 +762,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     let um: RegExpExecArray | null;
     while ((um = usageScanRe.exec(clean)) !== null) {
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
-      usagePositions.push({ name: um[2], start: um.index, end });
+      usagePositions.push({ name: um[3], start: um.index, end }); // [3]=name (after ref?, keyword)
     }
     // Untyped usages (e.g. `item SourceData { ... }`)
     const untypedScanRe = new RegExp(UNTYPED_USAGE_PATTERN.source, 'g');
@@ -754,7 +771,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const pre = clean.slice(Math.max(0, um.index - 7), um.index);
       if (/\b(inout|in|out|def)\s+$/.test(pre)) continue;
       // Skip duplicates already captured by typed pattern
-      const name = dequote(um[2], nameMap);
+      const name = dequote(um[3], nameMap); // [3]=name (after ref?, keyword)
       const start = um.index;
       if (usagePositions.some(up => up.start === start)) continue;
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
@@ -927,8 +944,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   USAGE_PATTERN.lastIndex = 0;
 
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
-    const [, keyword, rawUsageName, multiplicity, typeName] = match;
+    const [, refKw, keyword, rawUsageName, multiplicity, typeName] = match;
     const usageName = dequote(rawUsageName, nameMap);
+    const isRef = !!refKw;
 
     // Skip if preceded by 'in', 'out', 'inout', 'perform', 'exhibit', 'entry', 'exit', 'do' — handled separately
     const pre = clean.slice(Math.max(0, match.index - 9), match.index);
@@ -955,7 +973,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Store in owner's attributes for compartment rendering (only for def owners)
     const displayName = multiplicity ? `${usageName}${multiplicity}` : usageName;
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: displayName, type: typeSimple, value: keyword });
+      ownerNode.attributes.push({ name: displayName, type: typeSimple, value: isRef ? `ref ${keyword}` : keyword });
     }
 
     // Build the usage SysMLNode
@@ -970,6 +988,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: usageKind,
       name: usageName,
       qualifiedName: typeSimple,   // reuse qualifiedName to carry the type name
+      ...(isRef ? { isRef: true } : {}),
       ...(multiplicity ? { multiplicity } : {}),
       children: [],
       attributes: [],
@@ -1029,8 +1048,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   UNTYPED_USAGE_PATTERN.lastIndex = 0;
 
   while ((match = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
-    const [fullMatch, keyword, rawUsageName] = match;
+    const [fullMatch, refKw, keyword, rawUsageName] = match;
     const usageName = dequote(rawUsageName, nameMap);
+    const isRef = !!refKw;
 
     // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', 'exhibit', 'entry', 'exit', 'do'
     const pre = clean.slice(Math.max(0, match.index - 9), match.index);
@@ -1065,7 +1085,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
 
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: usageName, type: undefined, value: keyword });
+      ownerNode.attributes.push({ name: usageName, type: undefined, value: isRef ? `ref ${keyword}` : keyword });
     }
 
     const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
@@ -1078,6 +1098,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       id: usageId,
       kind: usageKind,
       name: usageName,
+      ...(isRef ? { isRef: true } : {}),
       children: [], attributes: [], connections: [],
       range: {
         start: { line: usageLine - 1, character: usageCol - 1 },
@@ -2042,21 +2063,51 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  // ── 0e-deferred. Create "about" annotation edges (after all definitions are parsed) ──
+  // ── 0e-deferred. Create "about" annotation and doc ownership edges ──
 
   for (const ec of extractedComments) {
-    if (!ec.about) continue;
-    const commentName = ec.name ?? `about ${ec.about}`;
-    const commentId = makeId('comment', `${commentName}_${ec.index}`);
-    const targetNode = nodeIndex.get(ec.about) ?? nodeIndex.get(dequote(ec.about, nameMap));
-    if (targetNode) {
-      connections.push({
-        id: makeId('annotate', `${commentName}_${ec.about}_${ec.index}`),
-        sourceId: commentId,
-        targetId: targetNode.id,
-        kind: 'annotate',
-        name: '«annotate»',
-      });
+    const isDoc = ec.isDoc ?? false;
+    const prefix = isDoc ? 'doc' : 'comment';
+    const commentName = ec.name ?? (ec.about ? `about ${ec.about}` : `${prefix}_${ec.index}`);
+    const commentId = makeId(prefix, `${commentName}_${ec.index}`);
+
+    // "about" annotation edges
+    if (ec.about) {
+      const targetNode = nodeIndex.get(ec.about) ?? nodeIndex.get(dequote(ec.about, nameMap));
+      if (targetNode) {
+        connections.push({
+          id: makeId('annotate', `${commentName}_${ec.about}_${ec.index}`),
+          sourceId: commentId,
+          targetId: targetNode.id,
+          kind: 'annotate',
+          name: '«annotate»',
+        });
+      }
+    }
+
+    // Doc ownership: attach to nearest enclosing definition or package
+    if (isDoc && !aliasRanges.some(a => ec.index > a.start && ec.index < a.end)) {
+      const ownerDef = findOwnerDef(ec.index);
+      if (ownerDef) {
+        connections.push({
+          id: makeId('owns', `${ownerDef.name}_${commentName}_${ec.index}`),
+          sourceId: ownerDef.id,
+          targetId: commentId,
+          kind: 'composition',
+          name: '',
+        });
+      } else {
+        const ownerPkg = findOwnerPackage(ec.index);
+        if (ownerPkg) {
+          connections.push({
+            id: makeId('pkg-member', `${ownerPkg.name}_${commentName}_${ec.index}`),
+            sourceId: ownerPkg.id,
+            targetId: commentId,
+            kind: 'composition',
+            name: '',
+          });
+        }
+      }
     }
   }
 
