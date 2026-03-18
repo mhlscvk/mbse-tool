@@ -10,23 +10,30 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
-  const statusCode = err.statusCode ?? 500;
-  const isDev = process.env.NODE_ENV !== 'production';
+  // Zod validation errors should always be 400, not 500
+  if (err.name === 'ZodError') {
+    res.status(400).json({
+      error: 'ValidationError',
+      message: 'Validation failed',
+      statusCode: 400,
+    });
+    return;
+  }
 
-  // Never leak Prisma/DB internals or stack traces in production
+  const statusCode = err.statusCode ?? 500;
+
+  // Never leak internal details (Prisma queries, file paths, stack traces)
+  // even in development — treat error responses as untrusted output
   let message: string;
   let errorType: string;
 
-  if (statusCode === 500) {
+  if (statusCode >= 500) {
     console.error('[API Error]', err);
-    message = isDev ? err.message : 'Internal server error';
-    errorType = isDev ? (err.name ?? 'Error') : 'Error';
-  } else if (err.name === 'ZodError') {
-    message = 'Validation failed';
-    errorType = 'ValidationError';
+    message = 'Internal server error';
+    errorType = 'Error';
   } else {
-    message = isDev ? err.message : 'Request failed';
-    errorType = isDev ? (err.name ?? 'Error') : 'Error';
+    message = err.message;
+    errorType = err.name ?? 'Error';
   }
 
   res.status(statusCode).json({

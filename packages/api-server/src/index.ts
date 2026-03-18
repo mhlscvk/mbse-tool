@@ -22,8 +22,23 @@ const app = express();
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // CSP handled by Nginx/Cloudflare for the SPA
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", 'https://accounts.google.com'],
+      connectSrc: ["'self'", ...ALLOWED_ORIGINS, 'ws:', 'wss:'],
+      imgSrc: ["'self'", 'data:'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'"],
+      frameSrc: ["'self'", 'https://accounts.google.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
 // HTTPS enforcement in production
@@ -112,7 +127,19 @@ app.use('/api/ai/keys', apiLimiter, aiKeysRoutes);
 
 // MCP endpoint — Streamable HTTP transport for AI client integrations
 // MCP clients (Claude Desktop, Cursor, etc.) are desktop apps, not browsers.
-app.use('/mcp', cors(), mcpLimiter, mcpRoutes);
+// Still restrict CORS to known origins + allow non-browser clients (no Origin header).
+app.use('/mcp', cors({
+  origin: (origin, callback) => {
+    // Desktop apps (Claude, Cursor) send no Origin header — allow those
+    if (!origin) return callback(null, true);
+    // Browser requests must come from allowed origins
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('CORS not allowed'));
+  },
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'Mcp-Session-Id'],
+  exposedHeaders: ['Mcp-Session-Id'],
+}), mcpLimiter, mcpRoutes);
 
 app.use(errorHandler);
 

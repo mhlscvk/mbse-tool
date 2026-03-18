@@ -90,7 +90,10 @@ router.post('/register', async (req, res, next) => {
     body.email = body.email.toLowerCase().trim();
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) {
-      res.status(409).json({ error: 'Conflict', message: 'Email already registered' });
+      // Same response shape as success to prevent email enumeration
+      // Attacker can't distinguish "already registered" from "new registration"
+      await bcrypt.hash(body.password, 12); // burn time to match timing
+      res.status(201).json({ data: { user: { email: body.email }, message: 'Verification email sent. Please check your inbox.' } });
       return;
     }
     const passwordHash = await bcrypt.hash(body.password, 12);

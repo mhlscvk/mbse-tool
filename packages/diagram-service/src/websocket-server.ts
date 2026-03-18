@@ -13,11 +13,18 @@ const MAX_PAYLOAD = 10 * 1024 * 1024; // 10 MB
 const MAX_CONNECTIONS_PER_IP = 20;
 const MAX_MESSAGES_PER_MINUTE = 120;
 
-export function createDiagramWebSocketServer(server: Server): WebSocketServer {
+export function createDiagramWebSocketServer(server: Server, allowedOrigins: string[] = []): WebSocketServer {
   const wss = new WebSocketServer({
     server,
     path: '/diagram',
     maxPayload: MAX_PAYLOAD,
+    verifyClient: ({ origin }, cb) => {
+      if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+        cb(false, 403, 'Origin not allowed');
+        return;
+      }
+      cb(true);
+    },
   });
 
   // Track connections per IP for basic abuse prevention

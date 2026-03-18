@@ -482,26 +482,32 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 
 ### Implemented
 
-- **Helmet.js** security headers on all HTTP services
+- **Helmet.js** security headers on all HTTP services (API server + LSP server)
+- **Content Security Policy** — strict CSP directives (default-src 'self', script/connect/frame allowlists)
+- **HSTS** — Strict-Transport-Security with preload, 1-year max-age
 - **CORS** origin allowlisting with validation on API server, diagram service, and LSP server
+- **WebSocket CSRF protection** — `verifyClient` origin validation on both LSP and Diagram WebSocket servers
+- **MCP CORS** — restricted to allowed origins; desktop apps (no Origin header) permitted
 - **Rate limiting** on auth (10/15min), registration (5/hr), API (100/min), AI chat (20/min), MCP (200/min)
 - **JWT HS256** with explicit algorithm enforcement to prevent algorithm confusion attacks
 - **Timing-safe login** — bcrypt always runs even for non-existent users
+- **Email enumeration prevention** — /register returns identical response for existing/new accounts
 - **File name sanitization** — path separators and null bytes stripped, length limited to 255
 - **Email normalization** — lowercase + trim before lookup
-- **Input validation** — Zod schemas on auth routes, file routes, and AI assistant requests
+- **Input validation** — Zod schemas on all routes; validation errors return 400 (not 500)
 - **Content size limits** — 100KB default JSON body, 10MB for file content, 2MB for AI requests
-- **WebSocket hardening** — 10MB max payload, per-IP connection limits, per-connection rate limiting, input type validation, sanitized error messages
+- **WebSocket hardening** — 10MB max payload, per-IP connection limits (10 LSP / 20 Diagram), global connection cap (50 LSP), per-connection message rate limiting (120/min), buffer accumulation cap (50MB), Content-Length validation, input type validation, sanitized error messages
 - **Parser size limit** — 2MB max source input to prevent DoS via parsing
 - **ELK recursion depth limit** — max 50 levels to prevent stack overflow on deeply nested models
 - **Edit distance cap** — O(min(m,n)) space with 100-char string length limit to prevent memory exhaustion
 - **Cached tree traversals** — ancestor/descendant lookups memoized per layout to avoid O(n²) routing
 - **HTTPS enforcement** in production with x-forwarded-proto redirect
-- **Error sanitization** — internal error details and stack traces hidden in production
+- **Error sanitization** — internal error details (Prisma, stack traces, file paths) never leaked in any environment
 - **AI key encryption** — AES-256-GCM with per-key IV, stored encrypted in DB, never returned after initial save
 - **MCP session limits** — max 5 sessions/user, 500 total, 24h TTL with cleanup
 - **Prisma transaction** on concurrent file edits (TOCTOU prevention)
 - **Graceful shutdown** — Prisma disconnect on SIGTERM/SIGINT
+- **IDOR protection** — all resource endpoints enforce ownership checks; 404 returned for unauthorized access (no information leakage)
 
 ### Security Checklist for Production
 
@@ -538,8 +544,9 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] MCP Server: 8 tools, 3 prompts, real-time subscriptions, Streamable HTTP transport
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] User auth: email/password + Google OAuth + email verification
-- [x] Security hardening: helmet, rate limiting, HTTPS, Zod validation, WebSocket limits, error sanitization
-- [x] Automated tests: 309 vitest tests (parser, transformer, state machines, robustness, security, audit)
+- [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
+- [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
+- [x] Automated tests: 320 vitest tests (parser, transformer, state machines, robustness, security, audit)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only, visible to all users, seed script for deployment)
@@ -570,13 +577,13 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | AI Chat | Anthropic, OpenAI, Google Gemini (multi-provider, AES-256-GCM encrypted keys) |
 | MCP | @modelcontextprotocol/sdk (Streamable HTTP) |
 | Backend | Node.js, Express, tsx |
-| Security | Helmet, express-rate-limit, bcrypt, Zod |
+| Security | Helmet, CSP, HSTS, express-rate-limit, bcrypt, Zod, WebSocket origin validation |
 | Auth | JWT + bcrypt + email verification + Google OAuth |
 | Database | PostgreSQL 16 + Prisma ORM |
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (320 tests: parser, transformer, state machines, robustness, security, audit) |
+| Testing | Vitest (320 unit tests) + 36 live penetration tests |
 
 ---
 

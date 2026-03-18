@@ -163,6 +163,9 @@ importers:
       express:
         specifier: ^4.18.2
         version: 4.22.1
+      helmet:
+        specifier: ^8.1.0
+        version: 8.1.0
       vscode-languageserver:
         specifier: ^9.0.1
         version: 9.0.1
