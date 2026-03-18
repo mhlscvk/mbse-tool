@@ -507,7 +507,8 @@ function AiProviderSection() {
               flex: 1, background: '#1e1e1e', border: '1px solid #3c3c3c', borderRadius: 4,
               padding: '8px 10px', color: '#d4d4d4', fontSize: 13, outline: 'none',
               fontFamily: 'monospace',
-              WebkitTextSecurity: 'disc' as never,
+              // @ts-expect-error — WebkitTextSecurity is a non-standard CSS property for masking input
+              WebkitTextSecurity: 'disc',
             }}
           />
           <button
