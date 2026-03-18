@@ -2,6 +2,66 @@ import type { SysMLModel, SysMLNode, SysMLConnection, SysMLNodeKind, DiagramDiag
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+/** Extract `comment` declarations before stripping. Returns the extracted comments and the source
+ *  with comment declaration bodies replaced by spaces (so offsets stay aligned). */
+interface ExtractedComment {
+  name?: string;
+  about?: string;
+  body: string;
+  index: number;
+}
+
+function extractCommentDecls(src: string): { cleaned: string; comments: ExtractedComment[] } {
+  const comments: ExtractedComment[] = [];
+  let result = src;
+
+  // First, build a set of ranges covered by /* */ blocks so we can skip them
+  const blockRanges: { start: number; end: number }[] = [];
+  const blockRe = /\/\*[\s\S]*?\*\//g;
+  let bm: RegExpExecArray | null;
+  while ((bm = blockRe.exec(src)) !== null) {
+    blockRanges.push({ start: bm.index, end: bm.index + bm[0].length });
+  }
+  function isInsideBlock(pos: number): boolean {
+    return blockRanges.some(r => pos >= r.start && pos < r.end);
+  }
+
+  // Find `comment` keyword NOT inside a /* */ block, followed by optional preamble, then /* body */
+  const commentKwRe = /\bcomment\b/g;
+  let kwMatch: RegExpExecArray | null;
+  while ((kwMatch = commentKwRe.exec(src)) !== null) {
+    if (isInsideBlock(kwMatch.index)) continue; // skip "comment" inside /* */
+
+    // From after "comment", find the next /* ... */
+    const afterKw = src.slice(kwMatch.index + 7); // 7 = "comment".length
+    const bodyMatch = afterKw.match(/^([^;{]*?)\/\*([\s\S]*?)\*\//);
+    if (!bodyMatch) continue;
+
+    const preamble = bodyMatch[1].trim();
+    const body = bodyMatch[2].trim();
+    const fullLen = 7 + bodyMatch[0].length;
+
+    let name: string | undefined;
+    let about: string | undefined;
+
+    const aboutMatch = preamble.match(/\babout\s+(\w+)/);
+    if (aboutMatch) {
+      about = aboutMatch[1];
+      const beforeAbout = preamble.slice(0, preamble.indexOf('about')).trim();
+      if (beforeAbout && /^\w+$/.test(beforeAbout)) name = beforeAbout;
+    } else if (preamble && /^\w+$/.test(preamble)) {
+      name = preamble;
+    }
+
+    comments.push({ name, about, body, index: kwMatch.index });
+
+    // Replace the entire comment declaration with spaces to preserve offsets
+    const spaces = src.slice(kwMatch.index, kwMatch.index + fullLen).replace(/[^\n]/g, ' ');
+    result = result.slice(0, kwMatch.index) + spaces + result.slice(kwMatch.index + fullLen);
+  }
+  return { cleaned: result, comments };
+}
+
 function stripComments(src: string): string {
   // Strip /* ... */ block comments
   src = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -242,8 +302,8 @@ const BIND_PATTERN = /\bbind\s+(\w+(?:\.\w+)*)\s*=\s*(\w+(?:\.\w+)*)\s*;/g;
 // import PackageName::*;  or  import PackageName::TypeName;
 // Supports: public/private/protected visibility, multi-level qualified names, recursive ::**
 const IMPORT_PATTERN = /\b(?:(?:public|private|protected)\s+)?import\s+([\w:]+?)::(\*{1,2}|\w+)\s*;/g;
-// alias Car for Automobile;  or  alias Torque for ISQ::TorqueValue;
-const ALIAS_PATTERN = /\b(?:(?:public|private|protected)\s+)?alias\s+(\w+)\s+for\s+([\w:]+)\s*;/g;
+// alias Car for Automobile;  or  alias Torque for ISQ::TorqueValue;  or  alias Car for Automobile { ... }
+const ALIAS_PATTERN = /\b(?:(?:public|private|protected)\s+)?alias\s+(\w+)\s+for\s+([\w:]+)\s*[;{]/g;
 
 // Extended keyword → SysMLNodeKind mapping
 const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
@@ -268,7 +328,33 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       diagnostics: [{ severity: 'error', message: `Source exceeds maximum size (${MAX_SOURCE_LENGTH} characters)`, line: 1, column: 1 }],
     };
   }
-  const stripped = stripComments(source);
+  // 1. Strip // line comments first (notes — not part of model)
+  // Replace with spaces (not empty) to preserve character offsets for lineCol()
+  const noLineComments = source.replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+  // 2. Extract `comment` declarations before stripping /* */ (they use /* */ as body text)
+  const { cleaned: preStripped, comments: extractedComments } = extractCommentDecls(noLineComments);
+  // 3. Extract remaining /* */ block comments as anonymous comment elements
+  // Skip those inside { } blocks (alias bodies, etc.)
+  const blockCommentRe = /\/\*([\s\S]*?)\*\//g;
+  let bcMatch: RegExpExecArray | null;
+  while ((bcMatch = blockCommentRe.exec(preStripped)) !== null) {
+    // Check brace depth at this position — skip if inside a { } block
+    const before = preStripped.slice(0, bcMatch.index);
+    let braceDepth = 0;
+    for (const ch of before) {
+      if (ch === '{') braceDepth++;
+      else if (ch === '}') braceDepth--;
+    }
+    // Only top-level or package-level block comments become elements
+    // (braceDepth 0 = top level, 1 = inside a package — both are valid)
+    // Skip if inside a nested block (alias body, etc.) at depth 2+
+    if (braceDepth >= 2) continue;
+    const body = bcMatch[1].trim().replace(/^\*\s*/gm, '').trim(); // strip leading * from each line
+    if (body) {
+      extractedComments.push({ body, index: bcMatch.index });
+    }
+  }
+  const stripped = preStripped.replace(/\/\*[\s\S]*?\*\//g, ' ');
   const { text: clean, nameMap } = normalizeQuotedNames(stripped);
 
   const nodes: SysMLNode[] = [];
@@ -432,6 +518,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   // ── 0d. Parse alias declarations ────────────────────────────────────────
 
+  interface AliasRange { id: string; name: string; start: number; end: number }
+  const aliasRanges: AliasRange[] = [];
+
   ALIAS_PATTERN.lastIndex = 0;
   let aliasMatch: RegExpExecArray | null;
   while ((aliasMatch = ALIAS_PATTERN.exec(clean)) !== null) {
@@ -458,6 +547,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodes.push(aliasNode);
     nodeIndex.set(aliasName, aliasNode);
 
+    // Track alias block range for comment ownership
+    const aliasEnd = findBlockEnd(clean, aliasMatch.index + aliasMatch[0].length - 1);
+    aliasRanges.push({ id: aliasNode.id, name: aliasName, start: aliasMatch.index, end: aliasEnd });
+
     // Composition edge to owner package if inside one
     const ownerPkg = findOwnerPackage(aliasMatch.index);
     if (ownerPkg) {
@@ -469,6 +562,52 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         name: '',
       });
     }
+  }
+
+  // ── 0e. Create nodes for extracted comment declarations ──────────────────
+
+  for (const ec of extractedComments) {
+    const commentName = ec.name ?? (ec.about ? `about ${ec.about}` : `comment_${ec.index}`);
+    const displayName = ec.name ?? (ec.about ? `[about ${ec.about}]` : '[comment]');
+    const { line: cLine, column: cCol } = lineCol(source, ec.index);
+    const commentNode: SysMLNode = {
+      id: makeId('comment', `${commentName}_${ec.index}`),
+      kind: 'Comment',
+      name: displayName,
+      children: [],
+      attributes: [{ name: 'text', value: ec.body }],
+      connections: [],
+      range: {
+        start: { line: cLine - 1, character: cCol - 1 },
+        end: { line: cLine - 1, character: cCol - 1 },
+      },
+    };
+    nodes.push(commentNode);
+
+    // Find owner: check alias ranges first (innermost), then packages
+    const ownerAlias = aliasRanges.find(a => ec.index > a.start && ec.index < a.end);
+    if (ownerAlias) {
+      connections.push({
+        id: makeId('owns', `${ownerAlias.name}_${commentName}_${ec.index}`),
+        sourceId: ownerAlias.id,
+        targetId: commentNode.id,
+        kind: 'composition',
+        name: '',
+      });
+    } else {
+      const ownerPkg = findOwnerPackage(ec.index);
+      if (ownerPkg) {
+        connections.push({
+          id: makeId('pkg-member', `${ownerPkg.name}_${commentName}_${ec.index}`),
+          sourceId: ownerPkg.id,
+          targetId: commentNode.id,
+          kind: 'composition',
+          name: '',
+        });
+      }
+    }
+
+    // "about" edges are deferred to after definitions are parsed (section 0e-deferred)
   }
 
   // ── 1. Extract all *Definitions ────────────────────────────────────────
@@ -1900,6 +2039,24 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         const [src, tgt] = reverse ? [bNode, aNode] : [aNode, bNode];
         connections.push({ id: makeId(connKind, `${a}_${b}_${match.index}`), sourceId: src.id, targetId: tgt.id, kind: connKind, name: label });
       }
+    }
+  }
+
+  // ── 0e-deferred. Create "about" annotation edges (after all definitions are parsed) ──
+
+  for (const ec of extractedComments) {
+    if (!ec.about) continue;
+    const commentName = ec.name ?? `about ${ec.about}`;
+    const commentId = makeId('comment', `${commentName}_${ec.index}`);
+    const targetNode = nodeIndex.get(ec.about) ?? nodeIndex.get(dequote(ec.about, nameMap));
+    if (targetNode) {
+      connections.push({
+        id: makeId('annotate', `${commentName}_${ec.about}_${ec.index}`),
+        sourceId: commentId,
+        targetId: targetNode.id,
+        kind: 'annotate',
+        name: '«annotate»',
+      });
     }
   }
 

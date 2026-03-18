@@ -63,6 +63,7 @@ const KIND_DISPLAY: Record<string, string> = {
   ExhibitStateUsage:           '«exhibit»',
   TransitionUsage:             '«transition»',
   Alias:                       '«alias»',
+  Comment:                     '«comment»',
 };
 
 const USAGE_KEYWORD_DISPLAY: Record<string, string> = {
@@ -115,6 +116,23 @@ function nodeToSNode(node: SysMLNode): SNode {
       size: { width, height: 60 },
       children: [kindLabel, nameLabel],
       cssClasses: ['package'],
+      data: { range: node.range },
+    };
+  }
+
+  // Comment nodes: folded-corner note shape
+  if (node.kind === 'Comment') {
+    const bodyText = node.attributes?.[0]?.value ?? '';
+    const bodyLabel = makeLabel(`${node.id}__usage__0`, bodyText);
+    const bodyW = Math.max(120, textWidth(bodyText, 10) / 2 + 20);
+    const lines = Math.ceil(bodyText.length / Math.max(18, Math.floor((bodyW - 16) / 6.5)));
+    const height = 50 + lines * 14;
+    return {
+      type: 'node', id: node.id,
+      position: { x: 0, y: 0 },
+      size: { width: bodyW, height },
+      children: [kindLabel, nameLabel, bodyLabel],
+      cssClasses: ['comment'],
       data: { range: node.range },
     };
   }

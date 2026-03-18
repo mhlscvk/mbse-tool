@@ -364,6 +364,71 @@ describe('Quoted names', () => {
   });
 });
 
+describe('Comments', () => {
+  it('parses unnamed comment declaration', () => {
+    const code = `package Pkg { comment /* This is a comment. */ }`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Comment')).toBe(true);
+  });
+
+  it('parses named comment declaration', () => {
+    const code = `comment Comment1 /* This is a named comment. */`;
+    const { model } = parse(code);
+    const c = model.nodes.find(n => n.kind === 'Comment');
+    expect(c).toBeDefined();
+    expect(c!.name).toBe('Comment1');
+    expect(c!.attributes[0]?.value).toContain('named comment');
+  });
+
+  it('parses comment about target', () => {
+    const code = `part def Automobile; comment about Automobile /* Annotating Automobile. */`;
+    const { model } = parse(code);
+    const c = model.nodes.find(n => n.kind === 'Comment');
+    expect(c).toBeDefined();
+    expect(c!.name).toBe('[about Automobile]');
+  });
+
+  it('treats block comments as visible Comment nodes', () => {
+    const code = `/* just a block comment */ part def Vehicle;`;
+    const { model } = parse(code);
+    expect(model.nodes.filter(n => n.kind === 'Comment').length).toBe(1);
+    expect(model.nodes.some(n => n.name === 'Vehicle')).toBe(true);
+  });
+
+  it('strips line comments but keeps block comments as nodes', () => {
+    const code = `// this is a note (stripped)\n/* block comment (visible) */`;
+    const { model } = parse(code);
+    // Line comments (// notes) are stripped, block comments become Comment nodes
+    expect(model.nodes.filter(n => n.kind === 'Comment').length).toBe(1);
+  });
+
+  it('parses alias with body block', () => {
+    const code = `part def Automobile; alias Car for Automobile { }`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'Car')).toBe(true);
+  });
+
+  it('parses full Comment Example from spec', () => {
+    const code = `package 'Comment Example' {
+      comment /* This is comment, part of the model. */
+      comment Comment1 /* This is a named comment. */
+      comment about Automobile /* Annotating Automobile. */
+      part def Automobile;
+      alias Car for Automobile {
+        /* This is a comment annotating its owning element. */
+      }
+      // This is a note.
+      alias Torque for ISQ::TorqueValue;
+    }`;
+    const { model } = parse(code);
+    expect(model.nodes.some(n => n.kind === 'Package' && n.name === 'Comment Example')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'PartDefinition' && n.name === 'Automobile')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'Car')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'Alias' && n.name === 'Torque')).toBe(true);
+    expect(model.nodes.filter(n => n.kind === 'Comment').length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  6. ACTION FLOW & CONTROL NODES
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -634,7 +699,8 @@ describe('Edge cases', () => {
 
   it('handles comments-only input', () => {
     const { model } = parse('// just a comment\n/* block comment */');
-    expect(model.nodes.length).toBe(0);
+    // Block comments are now visible as Comment nodes; line comments are stripped
+    expect(model.nodes.filter(n => n.kind === 'Comment').length).toBe(1);
   });
 
   it('handles malformed/incomplete syntax gracefully', () => {
@@ -651,7 +717,9 @@ describe('Edge cases', () => {
 
   it('handles special characters in comments', () => {
     const { model } = parse('/* <script>alert("xss")</script> */ part def A;');
-    expect(model.nodes[0].name).toBe('A');
+    expect(model.nodes.some(n => n.name === 'A')).toBe(true);
+    // The block comment also becomes a Comment node (XSS content is just text, not executed)
+    expect(model.nodes.some(n => n.kind === 'Comment')).toBe(true);
   });
 
   it('handles deeply nested definitions', () => {

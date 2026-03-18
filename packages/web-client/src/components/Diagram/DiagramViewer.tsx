@@ -136,6 +136,8 @@ const NODE_COLORS: Record<string, string> = {
   startnode:                   '#222222',
   terminatenode:               '#3a3a3a',
   transitionusage:             '#2a2a2a',
+  alias:                '#2a2040',
+  comment:              '#3a3520',
   stdlib:               '#0a2018',
   default:              '#252525',
 };
@@ -169,6 +171,7 @@ const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: st
   verify:              { stroke: '#60b060', dash: '6,3',     markerEnd: 'url(#arrow-verify)',                                  labelColor: '#60b060' },
   allocate:            { stroke: '#c0a060', dash: '6,3',     markerEnd: 'url(#arrow-allocate)',                                labelColor: '#c0a060' },
   bind:                { stroke: '#9090c0', dash: '4,3',     markerEnd: '',                                                     labelColor: '#9090c0' },
+  annotate:            { stroke: '#a0a060', dash: '4,3',     markerEnd: '',                                                     labelColor: '#a0a060' },
 };
 const DEFAULT_EDGE_STYLE = EDGE_STYLES.association;
 
@@ -184,6 +187,7 @@ const DEF_CLASSES = new Set([
 ]);
 const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';
+const isComment = (cssClass: string) => cssClass === 'comment';
 const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 'stdlib' ? 0 : 10;
 const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
 
@@ -1538,6 +1542,60 @@ export default function DiagramViewer({
               );
             }
 
+            // ── Comment node: folded-corner (note) shape ──
+            if (isComment(cssClass)) {
+              const fold = 14;
+              const bodyLabel = node.children.find((c) => c.id.includes('__usage__'));
+              const bodyText = bodyLabel?.text ?? '';
+              const commentDisplayName = nameLabel?.text ?? '';
+              // Show name if it's a real name (not "[comment]")
+              const showName = commentDisplayName && commentDisplayName !== '[comment]';
+              // Word-wrap the body text into lines
+              const maxChars = Math.max(18, Math.floor((w - 16) / 6.5));
+              const words = bodyText.split(/\s+/);
+              const lines: string[] = [];
+              let line = '';
+              for (const word of words) {
+                if (line && (line + ' ' + word).length > maxChars) { lines.push(line); line = word; }
+                else { line = line ? line + ' ' + word : word; }
+              }
+              if (line) lines.push(line);
+
+              const HEADER_H = showName ? 44 : 22;
+              const LINE_H = 14;
+              const dynamicH = Math.max(h, HEADER_H + lines.length * LINE_H + 12);
+              const dynamicW = Math.max(w, 120);
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#c0a040' : '#8a7a40';
+
+              const foldPath = `M0,0 L${dynamicW - fold},0 L${dynamicW},${fold} L${dynamicW},${dynamicH} L0,${dynamicH} Z`;
+              const foldTriangle = `M${dynamicW - fold},0 L${dynamicW - fold},${fold} L${dynamicW},${fold}`;
+
+              return (
+                <g
+                  key={node.id}
+                  transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <path d={foldPath} fill="#3a3520" stroke={borderColor} strokeWidth={isSelected ? 2 : 1} />
+                  <path d={foldTriangle} fill="#2a2810" stroke={borderColor} strokeWidth={0.5} />
+                  {isSelected && <path d={foldPath} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
+                  {kindLabel && (
+                    <text x={dynamicW / 2} y={15} fill="#c0b060" fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
+                  )}
+                  {showName && (
+                    <text x={dynamicW / 2} y={34} fill="#e8e0c0" fontSize={13} textAnchor="middle" fontWeight="bold">{commentDisplayName}</text>
+                  )}
+                  {lines.map((ln, i) => (
+                    <text key={i} x={8} y={HEADER_H + 4 + (i + 1) * LINE_H - 2} fill="#c0b880" fontSize={10}>{ln}</text>
+                  ))}
+                </g>
+              );
+            }
+
             // ── Leaf / tree-mode node: SysML v2 two-compartment box ──
             // Definitions: sharp corners (rx=0), Usages: rounded corners (rx=10)
             {
@@ -1728,6 +1786,7 @@ export default function DiagramViewer({
             { label: '- -▷ satisfy',            color: '#e06060', dash: '6,3'     },
             { label: '- -▷ verify',             color: '#60b060', dash: '6,3'     },
             { label: '- -▷ allocate',           color: '#c0a060', dash: '6,3'     },
+            { label: '- - annotate',           color: '#a0a060', dash: '4,3'     },
           ].map(({ label, color, dash }, i) => (
             <g key={label} transform={`translate(0,${54 + i * 16})`}>
               <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />

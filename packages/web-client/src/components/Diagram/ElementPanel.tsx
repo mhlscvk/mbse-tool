@@ -80,6 +80,7 @@ const KIND_LABELS: Record<string, string> = {
   startnode:            'Start Node',
   terminatenode:        'Terminate Node',
   alias:                'Alias',
+  comment:              'Comment',
   stdlib:               'Standard Library',
   default:              'Other',
 };
@@ -113,6 +114,7 @@ const KIND_COLORS: Record<string, string> = {
   startnode:            '#222222',
   terminatenode:        '#3a3a3a',
   alias:                '#2a2040',
+  comment:              '#2a3a2a',
   stdlib:               '#0a2018',
   default:              '#252525',
 };
@@ -132,6 +134,7 @@ const EDGE_KIND_LABELS: Record<string, string> = {
   verify:              'Verify',
   allocate:            'Allocate',
   bind:                'Binding',
+  annotate:            'Annotate',
 };
 
 const EDGE_KIND_COLORS: Record<string, string> = {
@@ -149,6 +152,7 @@ const EDGE_KIND_COLORS: Record<string, string> = {
   verify:              '#60b060',
   allocate:            '#c0a060',
   bind:                '#9090c0',
+  annotate:            '#a0a060',
 };
 
 function getNodeName(node: SNode): string {

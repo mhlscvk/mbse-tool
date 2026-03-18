@@ -310,6 +310,10 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && \
 - `abstract` keyword on definitions
 - `ref` keyword for referential parts/items
 - `in` / `out` / `inout` directed features
+- `comment Comment1 /* body */` — named comment (folded-corner note shape)
+- `comment about Target /* body */` — annotation with `«annotate»` dashed edge
+- `/* block comment */` — anonymous comment element (visible in diagram)
+- `// line note` — stripped (not part of model)
 - `import Pkg::*` / `import Pkg::Type`
 - Multiplicity: `[4]`, `[1..*]`, `[*]` (shown in compartments)
 - Enum values, `subject` inside requirements, `doc` strings
@@ -325,6 +329,7 @@ Node shapes per Section 8.2.3 of the spec:
 | Part, Attribute, Item, Port, Connection, Interface, Allocation, Calc, Enum, Requirement, View, Viewpoint, Rendering, Metadata | Square-corner rectangle | Rounded-corner rectangle |
 | State | Square-corner rectangle | Rounded-corner rectangle |
 | Package | Tab-rectangle | Tab-rectangle |
+| Comment | Folded-corner note (yellow) | — |
 | Perform Action | — | Rounded-corner rectangle (`«perform»`) |
 | Exhibit State | — | Rounded-corner rectangle (`«exhibit»`) |
 | Fork / Join | Thick horizontal bar | — |
@@ -349,6 +354,7 @@ Edge styles per Section 8.2.3:
 | Verify | Dashed | — | Open arrowhead |
 | Allocate | Dashed | — | Open arrowhead |
 | Binding | Dashed | — | — |
+| Annotate | Dashed | — | — |
 
 ### Example SysML v2 Model
 
@@ -568,7 +574,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (309 tests: parser, transformer, state machines, robustness, security, audit) |
+| Testing | Vitest (316 tests: parser, transformer, state machines, robustness, security, audit) |
 
 ---
 
@@ -582,9 +588,9 @@ cd packages/diagram-service && pnpm test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 309 tests across 9 test suites:
+**Coverage:** 316 tests across 9 test suites:
 
-- **Parser tests** (78): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
+- **Parser tests** (85): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
 - **Parser audit tests** (34): ReDoS resistance, isParallel false positive prevention, connection dedup correctness, shorthand transitions in state usages, entry/exit/do edge cases, transition components, entry-then succession, no-duplicate-edge verification, regression (action flow, parts, packages, imports, relationships), performance benchmarks
 - **Parser robustness tests** (53): empty/minimal inputs, malformed syntax, special characters, large inputs, comment edge cases, imports, diagnostic quality, source ranges, connection edge cases, rapid parsing, input size limits, control flow
