@@ -162,12 +162,11 @@ export default function EditorPage() {
 
   useEffect(() => {
     if (!projectId || !fileId) return;
-    // Check if project is read-only (system project — admin can still edit)
-    const isAdmin = useAuthStore.getState().user?.role === 'admin';
+    // System projects are always read-only
     api.projects.get(projectId)
       .then((p) => {
         setProjectName(p.name);
-        if (p.isSystem && !isAdmin) setReadOnly(true);
+        if (p.isSystem) setReadOnly(true);
       })
       .catch(() => {});
     api.files.get(projectId, fileId)
