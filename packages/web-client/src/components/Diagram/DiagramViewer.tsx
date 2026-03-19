@@ -1848,13 +1848,18 @@ export default function DiagramViewer({
                 else if (minD === dB) side = 'bottom';
               }
 
-              // Arrow pointing inward (toward parent center)
+              // Direction-aware arrow: in=inward, out=outward, inout=bidirectional, none=inward default
               const s = PORT_BORDER_SIZE;
+              const portDir = node.data?.direction as string | undefined;
               const arrowInward: Record<string, string> = {
                 left:   `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`,
                 right:  `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`,
                 top:    `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`,
                 bottom: `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`,
+              };
+              const arrowOutward: Record<string, string> = {
+                left: arrowInward.right, right: arrowInward.left,
+                top: arrowInward.bottom, bottom: arrowInward.top,
               };
 
               // Label placement outside parent boundary
@@ -1879,8 +1884,14 @@ export default function DiagramViewer({
                     fill={portColor} stroke={borderColor}
                     strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
                   {isSelected && <rect width={s} height={s} rx={2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
-                  {/* Directional arrow inside the port square */}
-                  <path d={arrowInward[side]} fill="none" stroke="#b0a0d0" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Directional arrow: in=inward, out=outward, inout=bidirectional, default=inward */}
+                  {portDir === 'inout' ? (
+                    <path d={`M${s * 0.2},${s * 0.5} L${s * 0.8},${s * 0.5}`} fill="none" stroke="#4090c0" strokeWidth={1.5} strokeLinecap="round" />
+                  ) : (
+                    <path d={(portDir === 'out' ? arrowOutward : arrowInward)[side]} fill="none"
+                      stroke={portDir === 'in' ? '#40c080' : portDir === 'out' ? '#c07030' : '#b0a0d0'}
+                      strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  )}
                   {/* Label outside parent */}
                   <text x={labelProps.x} y={labelProps.y} fill={svgPortText} fontSize={9} textAnchor={labelProps.textAnchor}>
                     {portName}

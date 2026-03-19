@@ -168,9 +168,13 @@ function nodeToSNode(node: SysMLNode): SNode {
   }
 
   if (IS_USAGE.has(node.kind)) {
-    // Action in/out/inout parameters get a special CSS class
+    // Directed usages (in/out/inout): use direction-specific CSS for non-port types,
+    // but keep portusage CSS for ports (they render as boundary nodes in IV)
     if (node.direction === 'in' || node.direction === 'out' || node.direction === 'inout') {
-      const cssClass = node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout';
+      const isPort = node.kind === 'PortUsage';
+      const cssClass = isPort
+        ? 'portusage'
+        : (node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout');
       const width = Math.max(80, textWidth(nameText, 11) + 20);
       return {
         type: 'node', id: node.id,
@@ -178,7 +182,7 @@ function nodeToSNode(node: SysMLNode): SNode {
         size: { width, height: 50 },
         children: [kindLabel, nameLabel],
         cssClasses: [cssClass],
-        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction },
+        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
       };
     }
     // Usage nodes with state behaviors (entry/do/exit) get compartment labels
