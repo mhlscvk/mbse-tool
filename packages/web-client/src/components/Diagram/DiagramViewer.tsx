@@ -246,6 +246,8 @@ const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: st
   satisfy:             { stroke: '#e06060', dash: '6,3',     markerEnd: 'url(#arrow-satisfy)',                                 labelColor: '#e06060' },
   verify:              { stroke: '#60b060', dash: '6,3',     markerEnd: 'url(#arrow-verify)',                                  labelColor: '#60b060' },
   allocate:            { stroke: '#c0a060', dash: '6,3',     markerEnd: 'url(#arrow-allocate)',                                labelColor: '#c0a060' },
+  successionflow:      { stroke: '#4ec9b0', dash: '6,3',     markerEnd: 'url(#arrow-flow-filled)',                             labelColor: '#4ec9b0' },
+  message:             { stroke: '#c0a0e0', dash: undefined, markerEnd: 'url(#arrow-message)',                                labelColor: '#c0a0e0' },
   bind:                { stroke: '#9090c0', dash: '4,3',     markerEnd: 'url(#circle-bind-end)',  markerStart: 'url(#circle-bind-start)', labelColor: '#9090c0' },
   annotate:            { stroke: '#a0a060', dash: '4,3',     markerEnd: '',                                                     labelColor: '#a0a060' },
 };
@@ -1597,6 +1599,10 @@ export default function DiagramViewer({
           {/* ── Allocate: open arrowhead (dashed) ── */}
           <marker id="arrow-allocate" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
             <polyline points="0 0, 9 4, 0 8" fill="none" stroke="#c0a060" strokeWidth="1.5" />
+          </marker>
+          {/* ── Message: filled arrowhead ── */}
+          <marker id="arrow-message" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polygon points="0 0, 9 4, 0 8" fill="#c0a0e0" stroke="#c0a0e0" strokeWidth="1" />
           </marker>
           {/* ── Binding: open circle at both ends (per spec 8.2.3.13) ── */}
           <marker id="circle-bind-end" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">

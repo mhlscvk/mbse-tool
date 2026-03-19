@@ -16,7 +16,7 @@ const IV_NODE_KINDS = new Set([
 ]);
 
 const IV_EDGE_KINDS = new Set([
-  'composition', 'flow', 'bind', 'association', 'typereference',
+  'composition', 'flow', 'successionflow', 'message', 'bind', 'association', 'typereference',
   'subsetting', 'redefinition', 'referencesubsetting',
 ]);
 
@@ -54,7 +54,7 @@ const AFV_NODE_KINDS = new Set([
 ]);
 
 const AFV_EDGE_KINDS = new Set([
-  'succession', 'flow', 'transition', 'composition', 'typereference',
+  'succession', 'flow', 'successionflow', 'transition', 'composition', 'typereference',
 ]);
 
 function filterActionFlowView(model: SysMLModel): FilteredModel {

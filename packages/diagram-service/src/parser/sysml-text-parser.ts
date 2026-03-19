@@ -280,7 +280,12 @@ const UNNAMED_REDEFINE_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?:redefines\\s
 // Conjugated port usage: port p : ~PortDef;
 const CONJUGATED_PORT_PATTERN = /\bport\s+(\w+)\s*:\s*~([\w:]+)\s*[;{]/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
-const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
+// Flow: flow [name] [of Payload] from X.out to Y.in;  OR  flow X.out to Y.in;
+const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?(?:(?:of\s+([\w:]+)\s+)?from\s+)?(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
+// Succession flow: succession flow [name] [of Payload] from X to Y;
+const SUCCESSION_FLOW_PATTERN = /\bsuccession\s+flow\s+(?:(\w+)\s+)?(?:(?:of\s+([\w:]+)\s+)?from\s+)?(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
+// Message: message [name] [of Payload] from X to Y;
+const MESSAGE_PATTERN = /\bmessage\s+(?:(\w+)\s+)?(?:of\s+([\w:]+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // Extended definition patterns (single-word keywords)
 const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|flow|concern|view|viewpoint|rendering|metadata|occurrence)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 // Multi-word definition patterns
@@ -2333,27 +2338,59 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     });
   }
 
-  // ── 4. Extract flow statements ──────────────────────────────────────────
+  // ── 4. Extract flow, succession flow, and message statements ────────────
 
+  // Helper to resolve a dotted name like "action1.item1" to the root node
+  function resolveFlowEnd(raw: string): SysMLNode | undefined {
+    const root = raw.split('.')[0];
+    return nodeIndex.get(root);
+  }
+
+  // Streaming flow: flow [name] [of Payload] [from] X.out to Y.in;
   FLOW_PATTERN.lastIndex = 0;
-
   while ((match = FLOW_PATTERN.exec(clean)) !== null) {
-    const [, , rawFrom, rawTo] = match;
-    const from = dequote(rawFrom, nameMap);
-    const to = dequote(rawTo, nameMap);
-    const fromRoot = from.split('.')[0];
-    const toRoot = to.split('.')[0];
-
-    const sourceNode = nodeIndex.get(fromRoot);
-    const targetNode = nodeIndex.get(toRoot);
+    // Skip if preceded by "succession " — handled by SUCCESSION_FLOW_PATTERN
+    const pre = clean.slice(Math.max(0, match.index - 13), match.index);
+    if (/\bsuccession\s+$/.test(pre)) continue;
+    const [, flowName, payload, rawFrom, rawTo] = match;
+    const sourceNode = resolveFlowEnd(dequote(rawFrom, nameMap));
+    const targetNode = resolveFlowEnd(dequote(rawTo, nameMap));
     if (!sourceNode || !targetNode) continue;
-
+    const label = payload ? `«flow» of ${simpleName(payload)}` : (flowName ? `«flow» ${flowName}` : '«flow»');
     connections.push({
-      id: makeId('flow', `${fromRoot}_${toRoot}_${match.index}`),
-      sourceId: sourceNode.id,
-      targetId: targetNode.id,
-      kind: 'flow',
-      name: '«flow»',
+      id: makeId('flow', `${sourceNode.id}_${targetNode.id}_${match.index}`),
+      sourceId: sourceNode.id, targetId: targetNode.id,
+      kind: 'flow', name: label,
+    });
+  }
+
+  // Succession flow: succession flow [name] [of Payload] [from] X to Y;
+  SUCCESSION_FLOW_PATTERN.lastIndex = 0;
+  while ((match = SUCCESSION_FLOW_PATTERN.exec(clean)) !== null) {
+    const [, flowName, payload, rawFrom, rawTo] = match;
+    const sourceNode = resolveFlowEnd(dequote(rawFrom, nameMap));
+    const targetNode = resolveFlowEnd(dequote(rawTo, nameMap));
+    if (!sourceNode || !targetNode) continue;
+    const label = payload ? `«succession flow» of ${simpleName(payload)}` : (flowName ? `«succession flow» ${flowName}` : '«succession flow»');
+    connections.push({
+      id: makeId('succflow', `${sourceNode.id}_${targetNode.id}_${match.index}`),
+      sourceId: sourceNode.id, targetId: targetNode.id,
+      kind: 'successionflow', name: label,
+    });
+  }
+
+  // Message: message [name] [of Payload] from X to Y;
+  MESSAGE_PATTERN.lastIndex = 0;
+  while ((match = MESSAGE_PATTERN.exec(clean)) !== null) {
+    const [, msgName, payload, rawFrom, rawTo] = match;
+    const sourceNode = resolveFlowEnd(dequote(rawFrom, nameMap));
+    const targetNode = resolveFlowEnd(dequote(rawTo, nameMap));
+    if (!sourceNode || !targetNode) continue;
+    const label = payload ? `«message» of ${simpleName(payload)}` : (msgName ? `«message» ${msgName}` : '«message»');
+    connections.push({
+      id: makeId('message', `${sourceNode.id}_${targetNode.id}_${match.index}`),
+      sourceId: sourceNode.id, targetId: targetNode.id,
+      kind: 'message', name: label,
     });
   }
 
