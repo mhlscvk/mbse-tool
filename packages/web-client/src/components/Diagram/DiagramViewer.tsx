@@ -268,6 +268,7 @@ const isComment = (cssClass: string) => cssClass === 'comment';
 const nodeRadius = (cssClass: string) => (isDefinition(cssClass) && cssClass !== 'statedefinition') || cssClass === 'stdlib' ? 0 : 10;
 const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
 const PORT_CSS = new Set(['portusage', 'portdefinition']);
+const PARAM_CSS = new Set(['actionin', 'actionout', 'actioninout']);
 const PORT_BORDER_SIZE = 16;
 
 export default function DiagramViewer({
@@ -423,6 +424,10 @@ export default function DiagramViewer({
     // In Interconnection View, port nodes are small boundary squares
     const css = node.cssClasses?.[0];
     if (viewType === 'interconnection' && css && PORT_CSS.has(css)) {
+      return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
+    }
+    // In Action Flow View, parameter nodes are small boundary squares (like ports in IV)
+    if (viewType === 'action-flow' && css && PARAM_CSS.has(css)) {
       return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
     }
 
@@ -697,6 +702,39 @@ export default function DiagramViewer({
             newPositions.set(n.id, { x: portCx - half, y: parentPos.y - half });
           } else {
             newPositions.set(n.id, { x: portCx - half, y: parentPos.y + parentSz.h - half });
+          }
+          newIbdSizes.set(n.id, { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE });
+        }
+      }
+
+      // In Action Flow View, snap parameter nodes to parent boundary (like ports in IV)
+      if (viewType === 'action-flow') {
+        const half = PORT_BORDER_SIZE / 2;
+        for (const n of nodes) {
+          if (!PARAM_CSS.has(n.cssClasses?.[0] ?? '')) continue;
+          const pid = parentOf.get(n.id);
+          if (!pid) continue;
+          const parentPos = newPositions.get(pid);
+          const parentSz = newIbdSizes.get(pid);
+          const paramPos = newPositions.get(n.id);
+          if (!parentPos || !parentSz || !paramPos) continue;
+
+          const cx = paramPos.x + half;
+          const cy = paramPos.y + half;
+          const dLeft   = Math.abs(cx - parentPos.x);
+          const dRight  = Math.abs(cx - (parentPos.x + parentSz.w));
+          const dTop    = Math.abs(cy - parentPos.y);
+          const dBottom = Math.abs(cy - (parentPos.y + parentSz.h));
+          const minD = Math.min(dLeft, dRight, dTop, dBottom);
+
+          if (minD === dLeft) {
+            newPositions.set(n.id, { x: parentPos.x - half, y: cy - half });
+          } else if (minD === dRight) {
+            newPositions.set(n.id, { x: parentPos.x + parentSz.w - half, y: cy - half });
+          } else if (minD === dTop) {
+            newPositions.set(n.id, { x: cx - half, y: parentPos.y - half });
+          } else {
+            newPositions.set(n.id, { x: cx - half, y: parentPos.y + parentSz.h - half });
           }
           newIbdSizes.set(n.id, { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE });
         }
@@ -1840,6 +1878,68 @@ export default function DiagramViewer({
                   {/* Label outside parent */}
                   <text x={labelProps.x} y={labelProps.y} fill={svgPortText} fontSize={9} textAnchor={labelProps.textAnchor}>
                     {portName}
+                  </text>
+                </g>
+              );
+            }
+
+            // ── Parameter node in Action Flow View: small square on parent boundary ──
+            if (viewType === 'action-flow' && PARAM_CSS.has(cssClass)) {
+              const isIn = cssClass === 'actionin';
+              const isOut = cssClass === 'actionout';
+              const dirColor = isIn ? '#40c080' : isOut ? '#c07030' : '#4090c0';
+              const borderColor = isSelected ? '#f0c040' : isHovered ? dirColor : '#6a7a7a';
+              const paramColor = NODE_COLORS[cssClass] ?? '#082828';
+              const paramName = nameLabel?.text ?? node.id;
+
+              const pid = parentOf.get(node.id);
+              let side: 'left' | 'right' | 'top' | 'bottom' = 'left';
+              if (pid) {
+                const pp = nodePos(pid);
+                const ps = nodeSz(pid);
+                const cx = pos.x + PORT_BORDER_SIZE / 2;
+                const cy = pos.y + PORT_BORDER_SIZE / 2;
+                const dL = Math.abs(cx - pp.x);
+                const dR = Math.abs(cx - (pp.x + ps.w));
+                const dT = Math.abs(cy - pp.y);
+                const dB = Math.abs(cy - (pp.y + ps.h));
+                const minD = Math.min(dL, dR, dT, dB);
+                if (minD === dR) side = 'right';
+                else if (minD === dT) side = 'top';
+                else if (minD === dB) side = 'bottom';
+              }
+
+              const s = PORT_BORDER_SIZE;
+              // Direction arrow: in=inward, out=outward
+              const arrowIn: Record<string, string> = {
+                left:   `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`,
+                right:  `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`,
+                top:    `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`,
+                bottom: `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`,
+              };
+              const arrowOut: Record<string, string> = {
+                left:   arrowIn.right, right: arrowIn.left, top: arrowIn.bottom, bottom: arrowIn.top,
+              };
+              const arrowPath = isIn ? arrowIn[side] : isOut ? arrowOut[side] : `M${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.5}`;
+
+              const labelProps: { x: number; y: number; textAnchor: 'start' | 'middle' | 'end' } =
+                side === 'left'   ? { x: -4, y: s / 2 + 4, textAnchor: 'end' } :
+                side === 'right'  ? { x: s + 4, y: s / 2 + 4, textAnchor: 'start' } :
+                side === 'top'    ? { x: s / 2, y: -4, textAnchor: 'middle' } :
+                                    { x: s / 2, y: s + 12, textAnchor: 'middle' };
+
+              return (
+                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}>
+                  <rect width={s} height={s} rx={2} fill={paramColor} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
+                  {isSelected && <rect width={s} height={s} rx={2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
+                  <path d={arrowPath} fill="none" stroke={dirColor} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  <text x={labelProps.x} y={labelProps.y} fill={svgPortText} fontSize={9} textAnchor={labelProps.textAnchor}>
+                    {paramName}
                   </text>
                 </g>
               );
