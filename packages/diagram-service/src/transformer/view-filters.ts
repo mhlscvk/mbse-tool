@@ -113,11 +113,34 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
     if (STV_NODE_KINDS.has(node.kind)) keepIds.add(node.id);
   }
 
+  // Build parent map from all composition edges
+  const parentOf = new Map<string, string>();
+  for (const c of model.connections) {
+    if (c.kind === 'composition') parentOf.set(c.targetId, c.sourceId);
+  }
+
+  // Reparent: if a kept node's parent is filtered out, find nearest kept ancestor
+  const reparentEdges: SysMLConnection[] = [];
+  for (const nodeId of keepIds) {
+    const directParent = parentOf.get(nodeId);
+    if (directParent && !keepIds.has(directParent)) {
+      // Walk up to find a kept ancestor
+      let ancestor = parentOf.get(directParent);
+      while (ancestor && !keepIds.has(ancestor)) ancestor = parentOf.get(ancestor);
+      if (ancestor) {
+        reparentEdges.push({ id: `reparent__${nodeId}`, sourceId: ancestor, targetId: nodeId, kind: 'composition', name: '' });
+      }
+    }
+  }
+
   const nodes = model.nodes.filter(n => keepIds.has(n.id));
   const nodeIdSet = new Set(nodes.map(n => n.id));
-  const connections = model.connections.filter(c =>
-    STV_EDGE_KINDS.has(c.kind) && nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId),
-  );
+  const connections = [
+    ...model.connections.filter(c =>
+      STV_EDGE_KINDS.has(c.kind) && nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId),
+    ),
+    ...reparentEdges,
+  ];
 
   return { nodes, connections };
 }
