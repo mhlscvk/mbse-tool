@@ -709,11 +709,13 @@ export default function DiagramViewer({
         }
       }
 
-      // In Action Flow View, snap parameter nodes to parent boundary (like ports in IV)
+      // In Action Flow View, snap parameter nodes to parent boundary
+      // Per spec convention: in params on LEFT, out params on RIGHT, inout on nearest edge
       if (viewType === 'action-flow') {
         const half = PORT_BORDER_SIZE / 2;
         for (const n of nodes) {
-          if (!PARAM_CSS.has(n.cssClasses?.[0] ?? '')) continue;
+          const css = n.cssClasses?.[0] ?? '';
+          if (!PARAM_CSS.has(css)) continue;
           const pid = parentOf.get(n.id);
           if (!pid) continue;
           const parentPos = newPositions.get(pid);
@@ -721,19 +723,31 @@ export default function DiagramViewer({
           const paramPos = newPositions.get(n.id);
           if (!parentPos || !parentSz || !paramPos) continue;
 
-          const cx = paramPos.x + half;
           const cy = paramPos.y + half;
-          const dLeft   = Math.abs(cx - parentPos.x);
-          const dRight  = Math.abs(cx - (parentPos.x + parentSz.w));
-          const dTop    = Math.abs(cy - parentPos.y);
-          const dBottom = Math.abs(cy - (parentPos.y + parentSz.h));
-          const minD = Math.min(dLeft, dRight, dTop, dBottom);
+          const cx = paramPos.x + half;
 
-          if (minD === dLeft) {
+          // Direction-based side: in=left, out=right, inout=nearest
+          const dir = n.data?.direction as string | undefined;
+          let side: 'left' | 'right' | 'top' | 'bottom';
+          if (dir === 'in') {
+            side = 'left';
+          } else if (dir === 'out') {
+            side = 'right';
+          } else {
+            // inout or unknown: snap to nearest edge
+            const dL = Math.abs(cx - parentPos.x);
+            const dR = Math.abs(cx - (parentPos.x + parentSz.w));
+            const dT = Math.abs(cy - parentPos.y);
+            const dB = Math.abs(cy - (parentPos.y + parentSz.h));
+            const minD = Math.min(dL, dR, dT, dB);
+            side = minD === dR ? 'right' : minD === dT ? 'top' : minD === dB ? 'bottom' : 'left';
+          }
+
+          if (side === 'left') {
             newPositions.set(n.id, { x: parentPos.x - half, y: cy - half });
-          } else if (minD === dRight) {
+          } else if (side === 'right') {
             newPositions.set(n.id, { x: parentPos.x + parentSz.w - half, y: cy - half });
-          } else if (minD === dTop) {
+          } else if (side === 'top') {
             newPositions.set(n.id, { x: cx - half, y: parentPos.y - half });
           } else {
             newPositions.set(n.id, { x: cx - half, y: parentPos.y + parentSz.h - half });
