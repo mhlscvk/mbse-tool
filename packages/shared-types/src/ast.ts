@@ -97,7 +97,8 @@ export interface SysMLConnection {
   targetId: string;
   kind: 'association' | 'dependency' | 'composition' | 'flow' | 'succession' | 'transition' | 'typereference'
       | 'subsetting' | 'redefinition' | 'referencesubsetting'
-      | 'satisfy' | 'verify' | 'allocate' | 'bind' | 'annotate';
+      | 'satisfy' | 'verify' | 'allocate' | 'bind' | 'annotate'
+      | 'successionflow' | 'message';
   name?: string;
 }
 
