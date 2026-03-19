@@ -86,9 +86,30 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
   });
 
   const nodeIdSet = new Set(nodes.map(n => n.id));
-  const connections = model.connections.filter(c =>
-    AFV_EDGE_KINDS.has(c.kind) && nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId),
-  );
+
+  // Reparent: if a kept node's parent is filtered out, find nearest kept ancestor
+  const parentOf = new Map<string, string>();
+  for (const c of model.connections) {
+    if (c.kind === 'composition') parentOf.set(c.targetId, c.sourceId);
+  }
+  const reparentEdges: SysMLConnection[] = [];
+  for (const nodeId of nodeIdSet) {
+    const directParent = parentOf.get(nodeId);
+    if (directParent && !nodeIdSet.has(directParent)) {
+      let ancestor = parentOf.get(directParent);
+      while (ancestor && !nodeIdSet.has(ancestor)) ancestor = parentOf.get(ancestor);
+      if (ancestor) {
+        reparentEdges.push({ id: `reparent__${nodeId}`, sourceId: ancestor, targetId: nodeId, kind: 'composition', name: '' });
+      }
+    }
+  }
+
+  const connections = [
+    ...model.connections.filter(c =>
+      AFV_EDGE_KINDS.has(c.kind) && nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId),
+    ),
+    ...reparentEdges,
+  ];
 
   return { nodes, connections };
 }
