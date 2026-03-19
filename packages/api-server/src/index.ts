@@ -18,6 +18,19 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
   .map(o => o.trim())
   .filter(o => /^https?:\/\//.test(o));
 
+// Startup validation: catch misconfigured dotenv (wrong cwd, missing .env)
+if (process.env.NODE_ENV === 'production' && ALLOWED_ORIGINS.every(o => o.includes('localhost'))) {
+  console.error('[API] FATAL: ALLOWED_ORIGINS contains only localhost in production.');
+  console.error('[API] This usually means .env was not loaded — check PM2 cwd or dotenv path.');
+  process.exit(1);
+}
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error('[API] FATAL: JWT_SECRET is not set in production.');
+  process.exit(1);
+}
+
+console.log(`[API] ALLOWED_ORIGINS: ${ALLOWED_ORIGINS.join(', ')}`);
+
 const app = express();
 
 // Security headers

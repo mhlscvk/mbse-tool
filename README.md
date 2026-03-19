@@ -185,9 +185,12 @@ Internet → Nginx (port 80/443, SSL via Let's Encrypt)
 ```bash
 git push origin master
 ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
-  cd packages/api-server && npx prisma migrate deploy && npx prisma generate && \
-  cd ../.. && pnpm run build && pm2 restart all"
+  cd packages/api-server && npx prisma db push --skip-generate && npx prisma generate && \
+  cd ../.. && pnpm run build && pm2 start ecosystem.config.cjs && \
+  bash scripts/health-check.sh"
 ```
+
+> **Important:** Always use `pm2 start ecosystem.config.cjs` (not bare `pm2 restart all`) to ensure correct `cwd` for each service. The ecosystem config sets `cwd` per service so `dotenv` can find `.env` files. Services will abort on startup if `ALLOWED_ORIGINS` is misconfigured in production.
 
 ### Deploy Examples project (seed data)
 
@@ -561,7 +564,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] User auth: email/password + Google OAuth + email verification
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
-- [x] Automated tests: 356 vitest tests (parser, transformer, view filters, state machines, robustness, security, audit)
+- [x] Automated tests: 367 vitest tests (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only, visible to all users, seed script for deployment)
@@ -598,7 +601,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (356 unit tests) + 36 live penetration tests |
+| Testing | Vitest (367 unit tests) + 36 live penetration tests |
 
 ---
 
@@ -612,7 +615,7 @@ cd packages/diagram-service && pnpm test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 356 tests across 10 test suites:
+**Coverage:** 367 tests across 11 test suites:
 
 - **Parser tests** (89): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
@@ -624,6 +627,7 @@ cd packages/diagram-service && pnpm test:watch
 - **Transformer audit tests** (16): sharp/rounded corner compliance, parallel kind text, behavior compartment rendering, transition vs succession edge types, node/edge structure integrity, full spec example pipelines
 - **Transformer robustness tests** (23): empty/minimal models, node structure validation, labels, edge CSS classes, compartments, control nodes, performance, full pipeline integration
 - **View filter tests** (36): GV pass-through, IV structural filtering, AFV behavioral filtering, STV state filtering, cross-view consistency, graph ID tagging, empty model handling, edge kind validation, applyViewFilter direct API
+- **WebSocket server tests** (11): origin verification (accept/reject/empty/multi-origin), viewType protocol (default/requested/invalid/filtering), empty content clear, rate limiting
 
 ---
 
