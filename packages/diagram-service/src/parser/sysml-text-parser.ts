@@ -941,11 +941,11 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   // ── 1c. Extract entry/exit/do behaviors inside state defs and state usages ──
   // These appear as compartment attributes like "entry / actionName" in the diagram.
   {
-    const STATE_BEHAVIOR_RE = /\b(entry|exit|do)\s*(?:action\s+)?(\w+)?\s*[;{]/g;
+    const STATE_BEHAVIOR_RE = /\b(entry|exit|do)\s*(?:action\s+)?(\w+)?(?:\s*:\s*([\w:]+))?\s*[;{]/g;
     STATE_BEHAVIOR_RE.lastIndex = 0;
     let sbm: RegExpExecArray | null;
     while ((sbm = STATE_BEHAVIOR_RE.exec(clean)) !== null) {
-      const [, behaviorKind, actionName] = sbm;
+      const [, behaviorKind, actionName, typeName] = sbm;
       const pos = sbm.index;
 
       // Skip false positives: "do" preceded by "if"
@@ -983,8 +983,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
       if (!ownerState) continue;
 
+      const typeSimple = typeName ? simpleName(typeName) : '';
       const displayText = actionName
-        ? `${behaviorKind} / ${actionName}`
+        ? (typeSimple ? `${behaviorKind} / ${actionName} : ${typeSimple}` : `${behaviorKind} / ${actionName}`)
         : `${behaviorKind}`;
       ownerState.attributes.push({
         name: displayText,
