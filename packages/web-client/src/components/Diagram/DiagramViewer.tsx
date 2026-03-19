@@ -1373,11 +1373,17 @@ export default function DiagramViewer({
   }, [nodes, parentOf, childrenOf]);
 
   if (!model || allNodes.length === 0) {
+    const viewHints: Record<string, string> = {
+      'interconnection': 'No parts, ports, or connections found for this view.',
+      'action-flow': 'No actions, successions, or flows found for this view.',
+      'state-transition': 'No states or transitions found for this view.',
+    };
+    const hint = model
+      ? viewHints[viewType] ?? 'No elements to display for this view.'
+      : 'Start editing to generate a diagram.';
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontSize: 32 }}>&#x2B21;</div>
-        <div>No diagram to display</div>
-        <div style={{ fontSize: 12, color: '#444' }}>Start editing to generate a diagram</div>
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim, flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: 12 }}>{hint}</div>
       </div>
     );
   }
