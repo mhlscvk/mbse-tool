@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import type { TrainingTask, ValidationResult } from '../../training/tasks.js';
+import { useTheme } from '../../store/theme.js';
 
 // ─── Mini markdown renderer: **bold** and `code` ─────────────────────────────
 
-function renderText(text: string): React.ReactNode[] {
+function renderText(text: string, t: ReturnType<typeof useTheme>): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   const lines = text.split('\n');
 
@@ -13,17 +14,17 @@ function renderText(text: string): React.ReactNode[] {
       const key = `${lineIdx}-${partIdx}`;
       if (part.startsWith('**') && part.endsWith('**')) {
         nodes.push(
-          <strong key={key} style={{ color: '#dcdcaa', fontWeight: 600 }}>
+          <strong key={key} style={{ color: t.accent, fontWeight: 600 }}>
             {part.slice(2, -2)}
           </strong>,
         );
       } else if (part.startsWith('`') && part.endsWith('`')) {
         nodes.push(
           <code key={key} style={{
-            background: '#1e1e1e', color: '#9cdcfe',
+            background: t.bgTertiary, color: t.info,
             padding: '1px 5px', borderRadius: 3,
             fontFamily: 'monospace', fontSize: '0.95em',
-            border: '1px solid #333',
+            border: `1px solid ${t.border}`,
           }}>
             {part.slice(1, -1)}
           </code>,
@@ -46,26 +47,6 @@ function renderText(text: string): React.ReactNode[] {
   return nodes;
 }
 
-// ─── Nav button style helper ─────────────────────────────────────────────────
-
-const navBtnBase: React.CSSProperties = {
-  background: '#2d2d30',
-  border: '1px solid #444',
-  borderRadius: 4,
-  color: '#999',
-  fontSize: 12,
-  padding: '5px 10px',
-  cursor: 'pointer',
-  flex: 1,
-  textAlign: 'center',
-};
-
-const navBtnDisabled: React.CSSProperties = {
-  ...navBtnBase,
-  opacity: 0.35,
-  cursor: 'default',
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface TaskCardProps {
@@ -85,6 +66,7 @@ export default function TaskCard({
   task, taskIndex, totalTasks, onValidate, onNext, onPrev, lastResult,
   isCompleted, canGoNext, canGoPrev,
 }: TaskCardProps) {
+  const t = useTheme();
   const [showHint, setShowHint] = useState(false);
 
   // Reset hint when task changes
@@ -93,6 +75,17 @@ export default function TaskCard({
   }, [task.id]);
 
   const isLast = taskIndex + 1 >= totalTasks;
+
+  const navBtnBase: React.CSSProperties = {
+    background: t.btnBg, border: `1px solid ${t.border}`,
+    borderRadius: 4, color: t.textSecondary,
+    fontSize: 12, padding: '5px 10px', cursor: 'pointer',
+    flex: 1, textAlign: 'center',
+  };
+
+  const navBtnDisabled: React.CSSProperties = {
+    ...navBtnBase, opacity: 0.35, cursor: 'default',
+  };
 
   return (
     <div style={{
@@ -106,12 +99,12 @@ export default function TaskCard({
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           marginBottom: 3,
         }}>
-          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+          <div style={{ fontSize: 10, color: t.textDim, textTransform: 'uppercase', letterSpacing: 0.8 }}>
             Task {taskIndex + 1} / {totalTasks}
           </div>
           {isCompleted && (
             <div style={{
-              fontSize: 9, color: '#4ec9b0', background: '#0a2e18',
+              fontSize: 9, color: '#4ec9b0', background: t.bg === '#1e1e1e' ? '#0a2e18' : '#e0f5e8',
               border: '1px solid #0a6e37', borderRadius: 3,
               padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5,
             }}>
@@ -119,7 +112,7 @@ export default function TaskCard({
             </div>
           )}
         </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e8e8', lineHeight: 1.3 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>
           {task.title}
         </div>
       </div>
@@ -130,10 +123,10 @@ export default function TaskCard({
           onClick={canGoPrev ? onPrev : undefined}
           style={canGoPrev ? navBtnBase : navBtnDisabled}
           onMouseEnter={(e) => {
-            if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c';
+            if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = t.btnBgHover;
           }}
           onMouseLeave={(e) => {
-            if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = '#2d2d30';
+            if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = t.btnBg;
           }}
         >
           ← Prev
@@ -142,10 +135,10 @@ export default function TaskCard({
           onClick={canGoNext ? onNext : undefined}
           style={canGoNext ? navBtnBase : navBtnDisabled}
           onMouseEnter={(e) => {
-            if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c';
+            if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = t.btnBgHover;
           }}
           onMouseLeave={(e) => {
-            if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = '#2d2d30';
+            if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = t.btnBg;
           }}
         >
           Next →
@@ -154,22 +147,22 @@ export default function TaskCard({
 
       {/* Instruction */}
       <div style={{
-        fontSize: 12, color: '#ccc', lineHeight: 1.65,
-        borderLeft: '2px solid #3c3c3c', paddingLeft: 10,
+        fontSize: 12, color: t.text, lineHeight: 1.65,
+        borderLeft: `2px solid ${t.border}`, paddingLeft: 10,
       }}>
-        {renderText(task.instruction)}
+        {renderText(task.instruction, t)}
       </div>
 
       {/* Concept box */}
       <div style={{
-        fontSize: 11, background: '#1e2430',
-        border: '1px solid #2a3a4a', borderRadius: 4,
+        fontSize: 11, background: t.bgTertiary,
+        border: `1px solid ${t.border}`, borderRadius: 4,
         padding: '8px 10px',
       }}>
-        <div style={{ color: '#569cd6', fontWeight: 600, marginBottom: 3 }}>
+        <div style={{ color: t.accent, fontWeight: 600, marginBottom: 3 }}>
           {task.concept}
         </div>
-        <div style={{ color: '#8aaccc', lineHeight: 1.5 }}>
+        <div style={{ color: t.textSecondary, lineHeight: 1.5 }}>
           {task.conceptExplanation}
         </div>
       </div>
@@ -181,20 +174,21 @@ export default function TaskCard({
         <button
           onClick={() => setShowHint(true)}
           style={{
-            background: 'none', border: '1px solid #3c3c3c',
-            borderRadius: 3, color: '#666', fontSize: 11,
+            background: 'none', border: `1px solid ${t.border}`,
+            borderRadius: 3, color: t.textDim, fontSize: 11,
             padding: '4px 8px', cursor: 'pointer', textAlign: 'left',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#555'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3c3c3c'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.textSecondary; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.border; }}
         >
           Show hint
         </button>
       ) : (
         <div style={{
-          background: '#1a2b1a', border: '1px solid #2e4a2e',
+          background: t.bg === '#1e1e1e' ? '#1a2b1a' : '#f0f8f0',
+          border: `1px solid ${t.bg === '#1e1e1e' ? '#2e4a2e' : '#a0d0a0'}`,
           borderRadius: 4, padding: '7px 10px',
-          fontSize: 11, color: '#8ec98e', lineHeight: 1.5,
+          fontSize: 11, color: t.bg === '#1e1e1e' ? '#8ec98e' : '#2a6a2a', lineHeight: 1.5,
         }}>
           <span style={{ opacity: 0.7 }}>Hint: </span>{task.hint}
         </div>
@@ -218,12 +212,12 @@ export default function TaskCard({
         <button
           onClick={onValidate}
           style={{
-            background: '#0e639c', border: 'none', borderRadius: 4,
+            background: t.accent, border: 'none', borderRadius: 4,
             color: '#fff', fontSize: 13, fontWeight: 600,
             padding: '9px 16px', cursor: 'pointer', width: '100%',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#1177bb'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#0e639c'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accentHover; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accent; }}
         >
           Check Answer
         </button>

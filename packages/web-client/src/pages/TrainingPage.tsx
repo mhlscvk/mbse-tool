@@ -71,7 +71,7 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
         Training Complete!
       </div>
       <div style={{
-        fontSize: 14, color: '#888', maxWidth: 480,
+        fontSize: 14, color: t.textSecondary, maxWidth: 480,
         textAlign: 'center', lineHeight: 1.7,
       }}>
         You completed 100 training tasks covering the full SysML v2 language — part definitions,
@@ -83,36 +83,36 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
         <button
           onClick={onReview}
           style={{
-            background: '#3c3c3c', border: '1px solid #555',
-            borderRadius: 4, color: '#ccc',
+            background: t.btnBg, border: `1px solid ${t.btnBorder}`,
+            borderRadius: 4, color: t.text,
             padding: '10px 20px', cursor: 'pointer', fontSize: 13,
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#4a4a4a'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBgHover; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBg; }}
         >
           Review Tasks
         </button>
         <button
           onClick={onRestart}
           style={{
-            background: '#3c3c3c', border: '1px solid #555',
-            borderRadius: 4, color: '#ccc',
+            background: t.btnBg, border: `1px solid ${t.btnBorder}`,
+            borderRadius: 4, color: t.text,
             padding: '10px 20px', cursor: 'pointer', fontSize: 13,
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#4a4a4a'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#3c3c3c'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBgHover; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBg; }}
         >
           Start Over
         </button>
         <button
           onClick={() => navigate('/projects')}
           style={{
-            background: '#0e639c', border: 'none', borderRadius: 4,
+            background: t.accent, border: 'none', borderRadius: 4,
             color: '#fff', padding: '10px 22px',
             cursor: 'pointer', fontSize: 13, fontWeight: 600,
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#1177bb'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#0e639c'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accentHover; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accent; }}
         >
           Go to Projects →
         </button>
@@ -403,14 +403,14 @@ export default function TrainingPage() {
                 background:
                   state === 'done' ? '#4ec9b0'
                   : state === 'active' ? '#569cd6'
-                  : '#3c3c3c',
-                border: state === 'active' ? '2px solid #9cdcfe' : '1px solid #444',
+                  : t.btnBg,
+                border: state === 'active' ? `2px solid ${t.accent}` : `1px solid ${t.border}`,
                 transition: 'all 0.2s',
               }}
             />
           ))}
         </div>
-        <span style={{ fontSize: 11, color: '#555' }}>
+        <span style={{ fontSize: 11, color: t.textDim }}>
           {currentLevel} / {TOTAL_LEVELS}
         </span>
 
@@ -423,12 +423,12 @@ export default function TrainingPage() {
         <button
           onClick={() => navigate('/projects')}
           style={{
-            background: 'transparent', color: '#777',
+            background: 'transparent', color: t.textSecondary,
             border: '1px solid #444', borderRadius: 4,
             padding: '3px 10px', cursor: 'pointer', fontSize: 12,
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ccc'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#777'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.text; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textSecondary; }}
         >
           Exit Training
         </button>
@@ -441,7 +441,7 @@ export default function TrainingPage() {
         <div style={{
           width: 260, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
-          borderRight: '1px solid #2e2e2e', overflow: 'hidden',
+          borderRight: `1px solid ${t.border}`, overflow: 'hidden',
         }}>
           {/* Sidebar tab bar */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
@@ -470,7 +470,7 @@ export default function TrainingPage() {
             <>
               <div style={{
                 flex: '0 0 35%', minHeight: 0,
-                borderBottom: '1px solid #2e2e2e', overflow: 'hidden',
+                borderBottom: `1px solid ${t.border}`, overflow: 'hidden',
               }}>
                 <LegendPanel currentLevel={currentLevel} />
               </div>
@@ -578,7 +578,7 @@ export default function TrainingPage() {
           <div style={{
             height: 210, flexShrink: 0,
             display: 'flex', flexDirection: 'column',
-            borderTop: '1px solid #2e2e2e',
+            borderTop: `1px solid ${t.border}`,
           }}>
             <div style={{
               height: 26, flexShrink: 0, background: t.bgTertiary,
@@ -600,7 +600,7 @@ export default function TrainingPage() {
         <div style={{
           width: 272, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
-          borderLeft: '1px solid #2e2e2e',
+          borderLeft: `1px solid ${t.border}`,
         }}>
           <div style={{
             height: 26, flexShrink: 0, background: t.bgTertiary,
@@ -628,15 +628,15 @@ export default function TrainingPage() {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8,
         borderTop: '1px solid',
         background: lastResult
-          ? lastResult.severity === 'success' ? '#0a2e18'
-          : lastResult.severity === 'hint'    ? '#252200'
-          : '#2a0e0e'
-          : '#1a1a1a',
+          ? lastResult.severity === 'success' ? (t.bg === '#1e1e1e' ? '#0a2e18' : '#e8f8f0')
+          : lastResult.severity === 'hint'    ? (t.bg === '#1e1e1e' ? '#252200' : '#f8f5e0')
+          : (t.bg === '#1e1e1e' ? '#2a0e0e' : '#f8e8e8')
+          : t.bgSecondary,
         borderColor: lastResult
           ? lastResult.severity === 'success' ? '#0a6e37'
-          : lastResult.severity === 'hint'    ? '#6a6a00'
-          : '#6a1010'
-          : '#2e2e2e',
+          : lastResult.severity === 'hint'    ? '#8a8a00'
+          : '#a02020'
+          : t.border,
         transition: 'background 0.25s, border-color 0.25s',
       }}>
         {lastResult ? (
@@ -656,7 +656,7 @@ export default function TrainingPage() {
             </span>
           </>
         ) : (
-          <span style={{ fontSize: 12, color: '#444' }}>
+          <span style={{ fontSize: 12, color: t.textDim }}>
             Edit the model in the editor, then click "Check Answer"
           </span>
         )}
