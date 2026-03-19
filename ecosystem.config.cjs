@@ -13,6 +13,15 @@ module.exports = {
       },
     },
     {
+      name: 'lsp',
+      script: 'dist/index.js',
+      cwd: './packages/lsp-server',
+      node_args: '--experimental-specifier-resolution=node',
+      env: {
+        NODE_ENV: 'production',
+      },
+    },
+    {
       name: 'diagram',
       script: 'dist/index.js',
       cwd: './packages/diagram-service',

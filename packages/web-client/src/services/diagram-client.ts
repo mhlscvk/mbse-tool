@@ -1,6 +1,12 @@
 import type { SysMLModel, DiagramMessage, SModelRoot, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
 
-const DIAGRAM_URL = import.meta.env.VITE_DIAGRAM_URL ?? 'ws://localhost:3002/diagram';
+function getDiagramUrl(): string {
+  if (import.meta.env.VITE_DIAGRAM_URL) return import.meta.env.VITE_DIAGRAM_URL;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}/diagram`;
+}
+
+const DIAGRAM_URL = getDiagramUrl();
 
 type DiagramListener = (model: SModelRoot, diagnostics: DiagramDiagnostic[]) => void;
 type ErrorListener = (message: string) => void;
