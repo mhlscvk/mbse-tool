@@ -10,6 +10,7 @@ import mcpRoutes from './routes/mcp.js';
 import mcpTokenRoutes from './routes/mcp-tokens.js';
 import aiChatRoutes from './routes/ai-chat.js';
 import aiKeysRoutes from './routes/ai-keys.js';
+import adminRoutes from './routes/admin.js';
 import { errorHandler } from './middleware/error.js';
 
 const PORT = parseInt(process.env.PORT ?? '3003', 10);
@@ -47,7 +48,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", 'https://accounts.google.com'],
-      connectSrc: ["'self'", ...ALLOWED_ORIGINS, 'ws:', 'wss:'],
+      connectSrc: ["'self'", ...ALLOWED_ORIGINS, ...ALLOWED_ORIGINS.map(o => o.replace(/^http/, 'ws'))],
       imgSrc: ["'self'", 'data:'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
@@ -147,6 +148,7 @@ app.use('/api/projects/:projectId/files', fileRoutes);
 app.use('/api/mcp-tokens', apiLimiter, mcpTokenRoutes);
 app.use('/api/ai', aiChatLimiter, express.json({ limit: '2mb' }), aiChatRoutes);
 app.use('/api/ai/keys', apiLimiter, aiKeysRoutes);
+app.use('/api/admin', apiLimiter, adminRoutes);
 
 // MCP endpoint — Streamable HTTP transport for AI client integrations
 // MCP clients (Claude Desktop, Cursor, etc.) are desktop apps, not browsers.

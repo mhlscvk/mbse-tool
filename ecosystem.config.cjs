@@ -7,7 +7,6 @@ module.exports = {
       name: 'api',
       script: 'dist/index.js',
       cwd: './packages/api-server',
-      node_args: '--experimental-specifier-resolution=node',
       env: {
         NODE_ENV: 'production',
       },
@@ -16,7 +15,6 @@ module.exports = {
       name: 'lsp',
       script: 'dist/index.js',
       cwd: './packages/lsp-server',
-      node_args: '--experimental-specifier-resolution=node',
       env: {
         NODE_ENV: 'production',
       },
@@ -25,7 +23,6 @@ module.exports = {
       name: 'diagram',
       script: 'dist/index.js',
       cwd: './packages/diagram-service',
-      node_args: '--experimental-specifier-resolution=node',
       env: {
         NODE_ENV: 'production',
       },

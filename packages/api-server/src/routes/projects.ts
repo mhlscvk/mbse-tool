@@ -44,6 +44,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
   try {
     const body = createSchema.parse(req.body);
     let depth = 0;
+    let isSystem = false;
+    let ownerId = req.userId!;
 
     if (body.parentId) {
       const parent = await prisma.project.findFirst({
@@ -60,10 +62,14 @@ router.post('/', async (req: AuthRequest, res, next) => {
         res.status(400).json({ error: 'Bad Request', message: 'Maximum nesting depth (3 levels) reached' }); return;
       }
       depth = parent.depth + 1;
+      if (parent.isSystem) {
+        isSystem = true;
+        ownerId = parent.ownerId;
+      }
     }
 
     const project = await prisma.project.create({
-      data: { name: body.name, description: body.description, parentId: body.parentId, ownerId: req.userId!, depth },
+      data: { name: body.name, description: body.description, parentId: body.parentId, ownerId, depth, isSystem },
     });
     res.status(201).json({ data: project });
   } catch (err) { next(err); }

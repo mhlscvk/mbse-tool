@@ -65,20 +65,24 @@ const clients: { id: ClientId; label: string; file: string; generator: (url: str
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'ai-provider' | 'mcp';
-
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: 'account', label: 'Account' },
-  { id: 'ai-provider', label: 'AI Provider' },
-  { id: 'mcp', label: 'MCP' },
-];
+type SettingsTab = 'account' | 'ai-provider' | 'mcp' | 'admin';
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const t = useTheme();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
   const [searchParams] = useSearchParams();
-  const initialTab = TABS.some(tab => tab.id === searchParams.get('tab')) ? searchParams.get('tab') as SettingsTab : 'account';
+
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: 'account', label: 'Account' },
+    { id: 'ai-provider', label: 'AI Provider' },
+    { id: 'mcp', label: 'MCP' },
+    ...(isAdmin ? [{ id: 'admin' as SettingsTab, label: 'Admin' }] : []),
+  ];
+
+  const initialTab = tabs.some(tab => tab.id === searchParams.get('tab')) ? searchParams.get('tab') as SettingsTab : 'account';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   return (
@@ -87,7 +91,7 @@ export default function SettingsPage() {
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${t.border}`, marginBottom: 24 }}>
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -108,6 +112,7 @@ export default function SettingsPage() {
         {activeTab === 'account' && <AccountSection />}
         {activeTab === 'ai-provider' && <AiProviderSection />}
         {activeTab === 'mcp' && <McpSection />}
+        {activeTab === 'admin' && isAdmin && <AdminSection />}
       </div>
     </div>
   );
@@ -705,3 +710,61 @@ const btnSecondary = (t: ThemeColors): React.CSSProperties => ({
   background: t.btnBg, color: t.text, border: 'none', borderRadius: 4,
   padding: '6px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
 });
+
+// ─── Admin Section ──────────────────────────────────────────────────────────
+
+function AdminSection() {
+  const t = useTheme();
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const result = await api.admin.syncExamples();
+      setSyncResult(result.message);
+    } catch (err) {
+      setSyncResult(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div>
+        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 8px' }}>System Examples</h3>
+        <p style={{ color: t.textSecondary, fontSize: 12, margin: '0 0 12px' }}>
+          Re-import example files from the server's prisma/examples/ directory.
+          This replaces all files in the Examples project with the versions on disk.
+        </p>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          style={{
+            background: t.accent, color: '#fff', border: 'none', borderRadius: 4,
+            padding: '8px 16px', fontSize: 12,
+            opacity: syncing ? 0.6 : 1,
+            cursor: syncing ? 'default' : 'pointer',
+          }}
+        >
+          {syncing ? 'Syncing...' : 'Sync Examples from Disk'}
+        </button>
+        {syncResult && (
+          <div style={{ marginTop: 8, fontSize: 12, color: syncResult.includes('failed') ? '#e55' : t.accent }}>
+            {syncResult}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 8px' }}>System Projects</h3>
+        <p style={{ color: t.textSecondary, fontSize: 12, margin: 0 }}>
+          System projects (isSystem) are visible to all users as read-only.
+          As admin, you can create, edit, and delete files in system projects from the Projects page.
+        </p>
+      </div>
+    </div>
+  );
+}

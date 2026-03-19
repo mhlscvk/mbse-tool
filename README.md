@@ -100,10 +100,15 @@ NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:5173
 ```
 
+**`packages/lsp-server/.env`**
+```env
+PORT=3001
+NODE_ENV=development
+ALLOWED_ORIGINS=http://localhost:5173
+```
+
 **`packages/web-client/.env`**
 ```env
-VITE_API_URL=http://localhost:3003/api
-VITE_DIAGRAM_URL=ws://localhost:3002/diagram
 VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
@@ -177,6 +182,7 @@ The app is deployed at **https://systemodel.com** on a Hetzner VPS.
 Internet → Nginx (port 80/443, SSL via Let's Encrypt)
               ├─ systemodel.com         → Vite static build (React SPA)
               ├─ systemodel.com/api/*   → api-server (port 3003)
+              ├─ systemodel.com/lsp     → lsp-server WS (port 3001)
               └─ systemodel.com/diagram → diagram-service WS (port 3002)
 ```
 
@@ -194,17 +200,17 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
 
 ### Deploy Examples project (seed data)
 
+Example `.sysml` files are stored in `packages/api-server/prisma/examples/` as a directory tree (version-controlled, human-readable diffs).
+
 ```bash
-# 1. Export from local database
+# Export from local DB to disk
 cd packages/api-server && npx tsx prisma/seed-examples.ts export
 
-# 2. Push to git (examples-data.json is tracked)
-git add prisma/examples-data.json && git commit -m "Update Examples seed data" && git push
-
-# 3. Import on live server
-ssh root@<VPS_IP> "cd /opt/systemodel && git pull && \
-  cd packages/api-server && npx tsx prisma/seed-examples.ts import"
+# Import from disk to DB (local or live server)
+cd packages/api-server && npx tsx prisma/seed-examples.ts import
 ```
+
+Admins can also sync examples from the Settings > Admin tab on the live site without SSH access.
 
 ---
 
@@ -564,7 +570,8 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] MCP Server: 8 tools, 3 prompts, real-time subscriptions, Streamable HTTP transport
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] User auth: email/password + Google OAuth + email verification + forgot password (email reset link)
-- [x] Settings page with tabbed layout (Account / AI Provider / MCP), password change form
+- [x] Settings page with tabbed layout (Account / AI Provider / MCP / Admin), password change form
+- [x] Admin panel: sync Examples from disk, manage system projects (create/edit/delete files and subprojects)
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
@@ -572,7 +579,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] Automated tests: 406 vitest tests (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
-- [x] System "Examples" project (read-only, visible to all users, seed script for deployment)
+- [x] System "Examples" project (read-only for users, admin-editable, directory-based seed data)
 - [x] Single-quoted names, alias declarations, visibility-prefixed imports, `ref` keyword
 - [x] Comment declarations (`comment`, `doc`, `/* */`), folded-corner note shape, `«annotate»` edges
 - [x] Legend toggle (show/hide via Relations tab checkbox)

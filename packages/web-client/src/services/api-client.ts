@@ -124,6 +124,10 @@ export const api = {
     remove: (provider: string) =>
       request<{ success: boolean }>(`/ai/keys/${provider}`, { method: 'DELETE' }),
   },
+  admin: {
+    syncExamples: () =>
+      request<{ message: string }>('/admin/sync-examples', { method: 'POST' }),
+  },
   mcpTokens: {
     list: () => request<McpTokenInfo[]>('/mcp-tokens'),
     create: (name: string, expiresInDays?: number) =>

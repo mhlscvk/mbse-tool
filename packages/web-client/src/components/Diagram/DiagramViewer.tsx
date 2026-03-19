@@ -1372,21 +1372,17 @@ export default function DiagramViewer({
     return depth;
   }, [nodes, parentOf, childrenOf]);
 
-  if (!model || allNodes.length === 0) {
+  const isEmpty = !model || allNodes.length === 0;
+  const emptyHint = (() => {
+    if (!isEmpty) return '';
+    if (!model) return 'Start editing to generate a diagram.';
     const viewHints: Record<string, string> = {
       'interconnection': 'No parts, ports, or connections found for this view.',
       'action-flow': 'No actions, successions, or flows found for this view.',
       'state-transition': 'No states or transitions found for this view.',
     };
-    const hint = model
-      ? viewHints[viewType] ?? 'No elements to display for this view.'
-      : 'Start editing to generate a diagram.';
-    return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim, flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontSize: 12 }}>{hint}</div>
-      </div>
-    );
-  }
+    return viewHints[viewType] ?? 'No elements to display for this view.';
+  })();
 
   // ── Render helpers ──────────────────────────────────────────────────────────
 
@@ -1493,9 +1489,14 @@ export default function DiagramViewer({
           ⊡ Fit
         </button>
       </div>
+      {isEmpty && (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim }}>
+          <div style={{ fontSize: 12 }}>{emptyHint}</div>
+        </div>
+      )}
       <svg
         ref={svgRef}
-        style={{ width: '100%', height: '100%', background: t.bg, cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default' }}
+        style={{ width: '100%', height: '100%', background: t.bg, cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default', ...(isEmpty ? { display: 'none' } : {}) }}
         onMouseDown={onSvgMouseDown}
         onMouseMove={onSvgMouseMove}
         onMouseUp={onSvgMouseUp}
