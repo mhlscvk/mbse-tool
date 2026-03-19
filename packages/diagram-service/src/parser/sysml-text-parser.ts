@@ -1015,7 +1015,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       nodes.push(performNode);
       nodeIndex.set(actionName, performNode);
 
-      // Composition: owner → perform node
+      // Composition: owner → perform node + add to owner's attributes
       let ownerNode = findOwnerDef(usagePos);
       const enclosingUsage = findOwnerUsage(usagePos, usagePos);
       if (enclosingUsage && (!ownerNode || enclosingUsage.start > (defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1))) {
@@ -1024,6 +1024,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const usagePkg = findOwnerPackage(usagePos);
       if (ownerNode) {
         connections.push({ id: makeId('owns', `${ownerNode.name}_${actionName}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+        if (ownerNode.kind.endsWith('Definition')) {
+          ownerNode.attributes.push({ name: actionName, type: typeName ? simpleName(typeName) : '', value: 'perform' });
+        }
       } else if (usagePkg) {
         connections.push({ id: makeId('owns', `${usagePkg.name}_${actionName}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
       }
@@ -1061,6 +1064,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const usagePkg = findOwnerPackage(usagePos);
       if (ownerNode) {
         connections.push({ id: makeId('owns', `${ownerNode.name}_${stateName}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+        if (ownerNode.kind.endsWith('Definition')) {
+          ownerNode.attributes.push({ name: stateName, type: typeName ? simpleName(typeName) : '', value: 'exhibit' });
+        }
       } else if (usagePkg) {
         connections.push({ id: makeId('owns', `${usagePkg.name}_${stateName}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
       }
