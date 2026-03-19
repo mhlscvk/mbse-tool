@@ -1929,11 +1929,11 @@ export default function DiagramViewer({
                     // Use case: ellipse/oval (spec 8.2.3.25)
                     <ellipse cx={dynamicW / 2} cy={dynamicH / 2} rx={dynamicW / 2} ry={dynamicH / 2} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
                   ) : (
-                    <rect width={dynamicW} height={dynamicH} rx={cssClass === 'actiondefinition' ? dynamicH / 2 : rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})} />
+                    <rect width={dynamicW} height={dynamicH} rx={cssClass === 'actiondefinition' || cssClass === 'actionusage' ? dynamicH / 2 : rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})} />
                   )}
                   {isSelected && (cssClass === 'usecasedefinition' || cssClass === 'usecaseusage'
                     ? <ellipse cx={dynamicW / 2} cy={dynamicH / 2} rx={dynamicW / 2} ry={dynamicH / 2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
-                    : <rect width={dynamicW} height={dynamicH} rx={cssClass === 'actiondefinition' ? dynamicH / 2 : rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
+                    : <rect width={dynamicW} height={dynamicH} rx={cssClass === 'actiondefinition' || cssClass === 'actionusage' ? dynamicH / 2 : rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
                   )}
                   {/* Requirement text icon (spec 8.2.3.21) */}
                   {(cssClass === 'requirementdefinition' || cssClass === 'requirementusage') && (

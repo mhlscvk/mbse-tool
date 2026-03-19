@@ -68,7 +68,7 @@ router.post('/sync-examples', async (_req: AuthRequest, res, next) => {
       }).filter(Boolean) as { name: string; content: string; size: number; projectId: string }[];
 
       if (fileData.length > 0) await prisma.sysMLFile.createMany({ data: fileData });
-      totalFiles += files.length;
+      totalFiles += fileData.length;
     }
 
     res.json({ data: { message: `Examples synced: ${dirs.length} subprojects, ${totalFiles} files` } });
