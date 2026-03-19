@@ -559,7 +559,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
 - [x] If-then-else parsing with dotted guard expressions (`obj.prop.isActive`)
-- [x] OMG-compliant graphical notation per spec Section 8.2.3 (action def/usage pill, state def rounded, use case ellipse, requirement icon, ref dashed border)
+- [x] OMG-compliant graphical notation per spec 8.2.3 (action pill, state rounded, use case ellipse, requirement icon, ref dashed, directed items nested in port defs)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
 - [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV, STV with orphan reparenting (per spec 9.2.20)
@@ -574,7 +574,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] User auth: email/password + Google OAuth + email verification + forgot password (email reset link)
 - [x] Settings page with tabbed layout (Account / AI Provider / MCP / Admin), password change form
-- [x] Admin panel: sync Examples from disk, manage system projects (create/edit/delete files and subprojects)
+- [x] Admin panel: sync Examples from disk (Settings > Admin)
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
@@ -582,13 +582,20 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Automated tests: 406 vitest tests (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
-- [x] System "Examples" project (read-only for users, admin-editable, directory-based seed data)
+- [x] System "Examples" project (read-only for all users, directory-based seed data, 30 files across 8 subprojects)
+- [x] "Copy to My Project" for example files (right-click context menu)
 - [x] Single-quoted names, alias declarations, visibility-prefixed imports, `ref` keyword
 - [x] Comment declarations (`comment`, `doc`, `/* */`), folded-corner note shape, `«annotate»` edges
 - [x] Legend toggle (show/hide via Relations tab checkbox)
-- [x] Training mode (7 levels, progressive SysML v2 tutorial)
+- [x] Training mode (20 levels, 125 tasks — part defs through conditional guards, light/dark theme support)
 - [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
 - [x] Typed redefines (`part x : Type redefines y`), unnamed redefines (`part redefines x[4]`), post-type multiplicity
+- [x] Conjugated ports (`port p : ~PortDef`), binding connections (open circle markers)
+- [x] Succession flow, message, and flow payload edges (`succession flow`, `message of Payload`)
+- [x] Action parameters as boundary nodes in AFV (in=left, out=right, direction arrows)
+- [x] Port direction arrows in IV (in=green inward, out=pink outward, inout=blue bidirectional)
+- [x] Full directed item keywords (`«in item»`, `«out item»` instead of abbreviated `«in»`, `«out»`)
+- [x] Default editor/diagram split 35/65 for better diagram visibility
 - [x] Production deployment (Nginx, SSL, PM2, Hetzner VPS)
 
 ### Planned
