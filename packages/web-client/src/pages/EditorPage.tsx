@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import { diagramClient } from '../services/diagram-client.js';
 import MonacoEditor from '../components/Editor/MonacoEditor.js';
@@ -11,6 +11,7 @@ import Header from '../components/Layout/Header.js';
 import { useLocalStorage } from '../hooks/useLocalStorage.js';
 import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
+import { useRecentFilesStore } from '../store/recent-files.js';
 import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
@@ -18,6 +19,7 @@ const MIN_PANE_PCT = 15; // minimum pane width as % of container
 
 export default function EditorPage() {
   const { projectId, fileId } = useParams<{ projectId: string; fileId: string }>();
+  const navigate = useNavigate();
   const lsPrefix = `systemodel:${projectId ?? ''}:${fileId ?? ''}`;
 
   const [file, setFile] = useState<SysMLFile | null>(null);
@@ -100,6 +102,11 @@ export default function EditorPage() {
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
   const t = useTheme();
+  const [projectName, setProjectName] = useState('');
+  const [siblingFiles, setSiblingFiles] = useState<SysMLFile[]>([]);
+  const [fileSwitcherOpen, setFileSwitcherOpen] = useState(false);
+  const fileSwitcherRef = useRef<HTMLDivElement>(null);
+  const addRecentEntry = useRecentFilesStore((s) => s.addEntry);
 
   // Editor open/close
   const [editorOpen, setEditorOpen] = useLocalStorage(`${lsPrefix}:editorOpen`, true);
@@ -158,17 +165,40 @@ export default function EditorPage() {
     // Check if project is read-only (system project — admin can still edit)
     const isAdmin = useAuthStore.getState().user?.role === 'admin';
     api.projects.get(projectId)
-      .then((p) => { if (p.isSystem && !isAdmin) setReadOnly(true); })
+      .then((p) => {
+        setProjectName(p.name);
+        if (p.isSystem && !isAdmin) setReadOnly(true);
+      })
       .catch(() => {});
     api.files.get(projectId, fileId)
       .then((f) => {
         setFile(f);
         setContent(f.content);
-        // Generate initial diagram from loaded content
         diagramClient.sendText(`file://${fileId}`, f.content, viewType);
       })
       .catch((e) => setError(e.message));
+    // Fetch sibling files for file switcher
+    api.files.list(projectId)
+      .then((list) => setSiblingFiles(list.sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
   }, [projectId, fileId]);
+
+  // Record recent file visit once both file and project name are loaded
+  useEffect(() => {
+    if (file && projectName && projectId && fileId) {
+      addRecentEntry({ projectId, projectName, fileId, fileName: file.name });
+    }
+  }, [file, projectName]);
+
+  // Click-outside to close file switcher
+  useEffect(() => {
+    if (!fileSwitcherOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (fileSwitcherRef.current && !fileSwitcherRef.current.contains(e.target as Node)) setFileSwitcherOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [fileSwitcherOpen]);
 
   const handleChange = useCallback((value: string) => {
     if (readOnly) return;
@@ -209,7 +239,62 @@ export default function EditorPage() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
-      <Header title={`${file.name}${readOnly ? ' (Read Only)' : ''}`} showSave={!readOnly} onSave={handleSave} saving={saving} />
+      <Header
+        title={`${file.name}${readOnly ? ' (Read Only)' : ''}`}
+        titleExtra={siblingFiles.length > 1 ? (
+          <div ref={fileSwitcherRef} style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              onClick={() => setFileSwitcherOpen((v) => !v)}
+              style={{
+                background: 'transparent', border: 'none', color: t.textSecondary,
+                cursor: 'pointer', fontSize: 10, padding: '2px 4px', borderRadius: 3,
+                display: 'flex', alignItems: 'center',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = t.info; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = t.textSecondary; }}
+              title="Switch to another file in this project"
+            >{fileSwitcherOpen ? '\u25B2' : '\u25BC'}</button>
+            {fileSwitcherOpen && (
+              <div style={{
+                position: 'absolute', top: 28, left: -8, zIndex: 9999,
+                background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6,
+                boxShadow: t.shadow, minWidth: 220, maxWidth: 340, padding: '4px 0',
+              }}>
+                <div style={{ padding: '6px 12px', color: t.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {projectName} — Files
+                </div>
+                {siblingFiles.map((sf) => (
+                  <div
+                    key={sf.id}
+                    onClick={() => {
+                      if (sf.id !== fileId) navigate(`/projects/${projectId}/files/${sf.id}`);
+                      setFileSwitcherOpen(false);
+                    }}
+                    style={{
+                      padding: '7px 12px', cursor: sf.id === fileId ? 'default' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      background: sf.id === fileId ? t.accentBg : 'transparent',
+                      fontWeight: sf.id === fileId ? 600 : 400,
+                    }}
+                    onMouseEnter={(e) => { if (sf.id !== fileId) e.currentTarget.style.background = t.bgHover; }}
+                    onMouseLeave={(e) => { if (sf.id !== fileId) e.currentTarget.style.background = sf.id === fileId ? t.accentBg : 'transparent'; }}
+                  >
+                    <span style={{ color: sf.id === fileId ? t.info : t.success, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sf.name}
+                    </span>
+                    <span style={{ color: t.textDim, fontSize: 10, flexShrink: 0, marginLeft: 8 }}>
+                      {(sf.size / 1024).toFixed(1)} KB
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : undefined}
+        showSave={!readOnly}
+        onSave={handleSave}
+        saving={saving}
+      />
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Editor pane */}
         <div style={{
