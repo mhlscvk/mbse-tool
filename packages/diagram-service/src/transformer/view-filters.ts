@@ -97,8 +97,13 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
     const directParent = parentOf.get(nodeId);
     if (directParent && !nodeIdSet.has(directParent)) {
       let ancestor = parentOf.get(directParent);
-      while (ancestor && !nodeIdSet.has(ancestor)) ancestor = parentOf.get(ancestor);
-      if (ancestor) {
+      const visited = new Set<string>();
+      while (ancestor && !nodeIdSet.has(ancestor)) {
+        if (visited.has(ancestor)) break;
+        visited.add(ancestor);
+        ancestor = parentOf.get(ancestor);
+      }
+      if (ancestor && nodeIdSet.has(ancestor)) {
         reparentEdges.push({ id: `reparent__${nodeId}`, sourceId: ancestor, targetId: nodeId, kind: 'composition', name: '' });
       }
     }
@@ -164,24 +169,35 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
   for (const nodeId of keepIds) {
     const directParent = parentOf.get(nodeId);
     if (directParent && !keepIds.has(directParent)) {
-      // Walk up to find a kept ancestor
       let ancestor = parentOf.get(directParent);
-      while (ancestor && !keepIds.has(ancestor)) ancestor = parentOf.get(ancestor);
-      if (ancestor) {
+      const visited = new Set<string>();
+      while (ancestor && !keepIds.has(ancestor)) {
+        if (visited.has(ancestor)) break;
+        visited.add(ancestor);
+        ancestor = parentOf.get(ancestor);
+      }
+      if (ancestor && keepIds.has(ancestor)) {
         reparentEdges.push({ id: `reparent__${nodeId}`, sourceId: ancestor, targetId: nodeId, kind: 'composition', name: '' });
       }
     }
   }
 
   // Build start→entry remap: replace start node edges with entry action node edges
+  // Pre-build parent→entryNodeId map for O(1) lookup
+  const parentToEntryId = new Map<string, string>();
+  for (const node of model.nodes) {
+    if (node.kind === 'EntryActionUsage') {
+      const parent = parentOf.get(node.id);
+      if (parent) parentToEntryId.set(parent, node.id);
+    }
+  }
   const startToEntry = new Map<string, string>();
   for (const node of model.nodes) {
     if (node.kind === 'StartNode') {
       const parent = parentOf.get(node.id);
       if (parent && parentsWithEntry.has(parent)) {
-        // Find the entry action node in the same parent
-        const entryNode = model.nodes.find(n => n.kind === 'EntryActionUsage' && parentOf.get(n.id) === parent);
-        if (entryNode) startToEntry.set(node.id, entryNode.id);
+        const entryId = parentToEntryId.get(parent);
+        if (entryId) startToEntry.set(node.id, entryId);
       }
     }
   }
@@ -217,5 +233,6 @@ const VIEW_FILTERS: Record<ViewType, (model: SysMLModel) => FilteredModel> = {
 };
 
 export function applyViewFilter(model: SysMLModel, viewType: ViewType): FilteredModel {
-  return VIEW_FILTERS[viewType](model);
+  const filter = VIEW_FILTERS[viewType] ?? filterGeneralView;
+  return filter(model);
 }

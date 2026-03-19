@@ -553,14 +553,15 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] Action flow diagrams (start, terminate, fork, join, merge, decide, successions, guards)
 - [x] State machine diagrams (state defs, sub-states, transitions, typed entry/exit/do with compartment display, parallel, shorthand transitions)
 - [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as nested child nodes with compartment display
-- [x] Entry/do/exit actions display in state usage compartments (e.g., `entry / selfTest : PerformSelfTest`)
+- [x] Entry/do/exit as compartment text in GV + graphical nodes (`<<entry action>>`, `<<do action>>`, `<<exit action>>`) in STV
+- [x] STV start circle replaced by entry action node when entry action exists
 - [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
 - [x] If-then-else parsing with dotted guard expressions (`obj.prop.isActive`)
 - [x] OMG-compliant graphical notation per spec Section 8.2.3 (action def/usage pill, state def rounded, use case ellipse, requirement icon, ref dashed border)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
-- [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV, STV (per spec 9.2.20)
+- [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV, STV with orphan reparenting (per spec 9.2.20)
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics
 - [x] Element panel with step-by-step collapse, visibility toggles, saved views
