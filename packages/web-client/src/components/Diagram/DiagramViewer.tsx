@@ -1647,6 +1647,7 @@ export default function DiagramViewer({
                     fill={color} fillOpacity={0.25}
                     stroke={borderColor}
                     strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
+                    {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})}
                   />
                   {/* Title bar background */}
                   <rect width={w} height={40} rx={rx} fill={color} fillOpacity={0.9} />
@@ -1922,7 +1923,7 @@ export default function DiagramViewer({
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <rect width={dynamicW} height={dynamicH} rx={rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
+                  <rect width={dynamicW} height={dynamicH} rx={rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})} />
                   {isSelected && <rect width={dynamicW} height={dynamicH} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
                   {/* Header separator */}
                   <line x1={0} y1={26} x2={dynamicW} y2={26} stroke={borderColor} strokeWidth={0.5} />

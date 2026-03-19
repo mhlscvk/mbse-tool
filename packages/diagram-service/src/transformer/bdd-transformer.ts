@@ -184,7 +184,7 @@ function nodeToSNode(node: SysMLNode): SNode {
       size: { width, height: 50 },
       children: [kindLabel, nameLabel],
       cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-      data: { qualifiedName: node.qualifiedName, range: node.range },
+      data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef },
     };
   }
 
@@ -232,7 +232,7 @@ function nodeToSNode(node: SysMLNode): SNode {
     size: { width, height },
     children: [kindLabel, nameLabel, ...usageLabels],
     cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-    data: { qualifiedName: node.qualifiedName, range: node.range },
+    data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef },
   };
 }
 
