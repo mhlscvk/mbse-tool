@@ -141,6 +141,24 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
     if (c.kind === 'composition') parentOf.set(c.targetId, c.sourceId);
   }
 
+  // Hide start nodes when an entry action node exists in the same parent
+  // (entry action replaces the start circle in STV)
+  const parentsWithEntry = new Set<string>();
+  for (const node of model.nodes) {
+    if (node.kind === 'EntryActionUsage') {
+      const parent = parentOf.get(node.id);
+      if (parent) parentsWithEntry.add(parent);
+    }
+  }
+  for (const node of model.nodes) {
+    if (node.kind === 'StartNode') {
+      const parent = parentOf.get(node.id);
+      if (parent && parentsWithEntry.has(parent)) {
+        keepIds.delete(node.id);
+      }
+    }
+  }
+
   // Reparent: if a kept node's parent is filtered out, find nearest kept ancestor
   const reparentEdges: SysMLConnection[] = [];
   for (const nodeId of keepIds) {
@@ -155,12 +173,30 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
     }
   }
 
+  // Build start→entry remap: replace start node edges with entry action node edges
+  const startToEntry = new Map<string, string>();
+  for (const node of model.nodes) {
+    if (node.kind === 'StartNode') {
+      const parent = parentOf.get(node.id);
+      if (parent && parentsWithEntry.has(parent)) {
+        // Find the entry action node in the same parent
+        const entryNode = model.nodes.find(n => n.kind === 'EntryActionUsage' && parentOf.get(n.id) === parent);
+        if (entryNode) startToEntry.set(node.id, entryNode.id);
+      }
+    }
+  }
+
   const nodes = model.nodes.filter(n => keepIds.has(n.id));
   const nodeIdSet = new Set(nodes.map(n => n.id));
   const connections = [
-    ...model.connections.filter(c =>
-      STV_EDGE_KINDS.has(c.kind) && nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId),
-    ),
+    ...model.connections
+      .filter(c => STV_EDGE_KINDS.has(c.kind))
+      .map(c => ({
+        ...c,
+        sourceId: startToEntry.get(c.sourceId) ?? c.sourceId,
+        targetId: startToEntry.get(c.targetId) ?? c.targetId,
+      }))
+      .filter(c => nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId)),
     ...reparentEdges,
   ];
 
