@@ -225,13 +225,25 @@ export default function ProjectsPage() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download project'));
   };
 
+  const cloneProject = async (project: Project) => {
+    try {
+      await api.projects.clone(project.id);
+      loadProjects();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to copy project');
+    }
+  };
+
   const onProjectContextMenu = useCallback((e: React.MouseEvent, project: Project) => {
     e.preventDefault();
     e.stopPropagation();
-    if (project.isSystem && !isAdmin) {
+    if (project.isSystem) {
       setContextMenu({
         x: e.clientX, y: e.clientY,
-        items: [{ label: 'Download', onClick: () => downloadProject(project) }],
+        items: [
+          { label: 'Copy to My Projects', onClick: () => cloneProject(project) },
+          { label: 'Download', onClick: () => downloadProject(project) },
+        ],
       });
       return;
     }
@@ -322,7 +334,7 @@ export default function ProjectsPage() {
   const onFileContextMenu = useCallback((e: React.MouseEvent, file: SysMLFile) => {
     e.preventDefault();
     e.stopPropagation();
-    if (selectedProject?.isSystem && !isAdmin) {
+    if (selectedProject?.isSystem) {
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [{ label: 'Download', onClick: () => downloadFile(file) }],
@@ -443,10 +455,9 @@ export default function ProjectsPage() {
               <div style={{ padding: '16px 20px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>
                   {selectedProject.name}
-                  {selectedProject.isSystem && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
-                  {selectedProject.isSystem && isAdmin && <span style={{ color: t.info, fontSize: 11, marginLeft: 8 }}>(Admin)</span>}
+                  {selectedProject.isSystem && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
                 </span>
-                {(!selectedProject.isSystem || isAdmin) && (
+                {!selectedProject.isSystem && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input
                       ref={fileInputRef}

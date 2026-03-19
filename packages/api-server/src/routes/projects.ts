@@ -54,9 +54,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
       if (!parent) {
         res.status(404).json({ error: 'Not Found', message: 'Parent project not found' }); return;
       }
-      const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
-      if (parent.isSystem && !isAdmin) {
-        res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return;
+      if (parent.isSystem) {
+        res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
       }
       if (parent.depth >= 2) {
         res.status(400).json({ error: 'Bad Request', message: 'Maximum nesting depth (3 levels) reached' }); return;
@@ -98,8 +97,8 @@ router.patch('/:id', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
     });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem && !isAdmin) {
-      res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return;
+    if (project.isSystem) {
+      res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
     }
     const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
     const updated = await prisma.project.update({
@@ -140,11 +139,36 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
     });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem && !isAdmin) {
-      res.status(403).json({ error: 'Forbidden', message: 'Cannot delete system project' }); return;
+    if (project.isSystem) {
+      res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
     }
     await prisma.project.delete({ where: { id: req.params.id } });
     res.status(204).send();
+  } catch (err) { next(err); }
+});
+
+// Clone a system project (copy all files to a new user-owned project)
+router.post('/:id/clone', async (req: AuthRequest, res, next) => {
+  try {
+    const source = await prisma.project.findFirst({
+      where: { id: req.params.id, isSystem: true },
+      include: { files: { select: { name: true, content: true, size: true } } },
+    });
+    if (!source) { res.status(404).json({ error: 'Not Found', message: 'System project not found' }); return; }
+
+    const clonedProject = await prisma.project.create({
+      data: { name: source.name, ownerId: req.userId!, depth: 0 },
+    });
+
+    if (source.files.length > 0) {
+      await prisma.sysMLFile.createMany({
+        data: source.files.map(f => ({
+          name: f.name, content: f.content, size: f.size, projectId: clonedProject.id,
+        })),
+      });
+    }
+
+    res.status(201).json({ data: clonedProject });
   } catch (err) { next(err); }
 });
 
