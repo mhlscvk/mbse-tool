@@ -113,7 +113,7 @@ export default function EditorPage() {
   const lastSplitPct = useRef(50); // remember split before closing
 
   // Resizable split pane state
-  const [splitPct, setSplitPct] = useLocalStorage(`${lsPrefix}:splitPct`, 50); // editor % width
+  const [splitPct, setSplitPct] = useLocalStorage(`${lsPrefix}:splitPct`, 35); // editor % width
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
