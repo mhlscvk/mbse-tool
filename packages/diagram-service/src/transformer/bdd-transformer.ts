@@ -279,11 +279,21 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
     'PartDefinition', 'AttributeDefinition', 'PortDefinition',
     'ConnectionDefinition',
   ]);
+  // Nodes owned by a package should never be auto-hidden — the user placed them there explicitly
+  const packageChildIds = new Set<string>();
+  const packageNodeIds = new Set(filtered.nodes.filter(n => n.kind === 'Package').map(n => n.id));
+  for (const c of filtered.connections) {
+    if (c.kind === 'composition' && packageNodeIds.has(c.sourceId)) {
+      packageChildIds.add(c.targetId);
+    }
+  }
+
   const hiddenNodeIds = new Set<string>();
   if (viewType === 'general' && hasSuccession) {
     for (const node of filtered.nodes) {
       if (DEFINITION_KINDS.has(node.kind)
           && !behavioralNodeIds.has(node.id)
+          && !packageChildIds.has(node.id)
           && (node.attributes?.length ?? 0) === 0) {
         hiddenNodeIds.add(node.id);
       }
