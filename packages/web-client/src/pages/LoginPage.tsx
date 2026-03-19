@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import { useAuthStore } from '../store/auth.js';
+import { useTheme } from '../store/theme.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
+  const t = useTheme();
 
   // Handle email verification redirect
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function LoginPage() {
       });
       if (googleBtnRef.current) {
         win.google.accounts.id.renderButton(googleBtnRef.current, {
-          theme: 'filled_black',
+          theme: t.googleBtnTheme,
           size: 'large',
           width: 280,
           text: 'continue_with',
@@ -133,17 +135,34 @@ export default function LoginPage() {
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 4,
+    padding: '9px 12px', color: t.text, fontSize: 13, outline: 'none',
+  };
+
   return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e1e1e' }}>
-      <div style={{ background: '#2d2d30', padding: 40, borderRadius: 8, width: 360, border: '1px solid #3c3c3c' }}>
-        <h1 style={{ color: '#A0522D', marginBottom: 8, fontSize: 28, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic' }}>SysteModel</h1>
-        <p style={{ color: '#888', marginBottom: 32, fontSize: 13 }}>SysML v2 Modeling Platform</p>
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.bg }}>
+      <div style={{ background: t.bgSecondary, padding: 40, borderRadius: 8, width: 360, border: `1px solid ${t.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <h1 style={{ color: '#A0522D', fontSize: 28, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic', margin: 0 }}>SysteModel</h1>
+          <button
+            onClick={t.toggle}
+            style={{
+              background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4,
+              color: t.textSecondary, cursor: 'pointer', fontSize: 14, padding: '2px 8px',
+            }}
+            title={t.mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {t.mode === 'dark' ? '\u2600' : '\u263D'}
+          </button>
+        </div>
+        <p style={{ color: t.textSecondary, marginBottom: 32, fontSize: 13 }}>SysML v2 Modeling Platform</p>
 
         <div style={{ display: 'flex', marginBottom: 24, gap: 8 }}>
           {(['login', 'register'] as const).map((m) => (
             <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); }} style={{
               flex: 1, padding: '8px 0', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13,
-              background: mode === m ? '#0e639c' : '#3c3c3c', color: mode === m ? '#fff' : '#888',
+              background: mode === m ? t.accent : t.btnBg, color: mode === m ? '#fff' : t.textSecondary,
             }}>
               {m === 'login' ? 'Sign In' : 'Create Account'}
             </button>
@@ -175,18 +194,18 @@ export default function LoginPage() {
             minLength={mode === 'register' ? 8 : undefined}
             style={inputStyle}
           />
-          {error && <div style={{ color: '#f48771', fontSize: 13 }}>{error}</div>}
+          {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
           {showResend && form.email && (
             <button type="button" onClick={handleResend} style={{
-              background: 'none', border: '1px solid #3c3c3c', borderRadius: 4,
-              color: '#569cd6', fontSize: 12, padding: '6px 0', cursor: 'pointer',
+              background: 'none', border: `1px solid ${t.border}`, borderRadius: 4,
+              color: t.info, fontSize: 12, padding: '6px 0', cursor: 'pointer',
             }}>
               Resend verification email
             </button>
           )}
-          {info && <div style={{ color: '#4ec9b0', fontSize: 13 }}>{info}</div>}
+          {info && <div style={{ color: t.success, fontSize: 13 }}>{info}</div>}
           <button type="submit" disabled={loading} style={{
-            background: loading ? '#3c3c3c' : '#0e639c', color: '#fff',
+            background: loading ? t.btnDisabled : t.accent, color: '#fff',
             border: 'none', borderRadius: 4, padding: '10px 0',
             cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 8,
           }}>
@@ -198,9 +217,9 @@ export default function LoginPage() {
         {GOOGLE_CLIENT_ID && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-              <div style={{ flex: 1, height: 1, background: '#3c3c3c' }} />
-              <span style={{ color: '#666', fontSize: 12 }}>or</span>
-              <div style={{ flex: 1, height: 1, background: '#3c3c3c' }} />
+              <div style={{ flex: 1, height: 1, background: t.border }} />
+              <span style={{ color: t.textMuted, fontSize: 12 }}>or</span>
+              <div style={{ flex: 1, height: 1, background: t.border }} />
             </div>
             <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center' }} />
           </>
@@ -209,8 +228,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  background: '#1e1e1e', border: '1px solid #3c3c3c', borderRadius: 4,
-  padding: '9px 12px', color: '#d4d4d4', fontSize: 13, outline: 'none',
-};

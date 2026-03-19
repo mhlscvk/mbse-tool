@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.js';
+import { useTheme } from '../../store/theme.js';
 
 interface HeaderProps {
   title?: string;
@@ -15,17 +16,24 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
   const location = useLocation();
   const onTrainingPage = location.pathname === '/training';
   const onSettingsPage = location.pathname === '/settings';
+  const t = useTheme();
 
   const handleLogout = () => {
     clearAuth();
     navigate('/login');
   };
 
+  const navBtn: React.CSSProperties = {
+    background: 'transparent', color: t.textSecondary,
+    border: `1px solid ${t.border}`, borderRadius: 4,
+    padding: '3px 10px', cursor: 'pointer', fontSize: 12,
+  };
+
   return (
     <header style={{
       height: 48,
-      background: '#2d2d30',
-      borderBottom: '1px solid #3c3c3c',
+      background: t.bgSecondary,
+      borderBottom: `1px solid ${t.border}`,
       display: 'flex',
       alignItems: 'center',
       padding: '0 16px',
@@ -40,21 +48,32 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
       </span>
       {title && (
         <>
-          <span style={{ color: '#555' }}>/</span>
-          <span style={{ color: '#d4d4d4', fontSize: 14 }}>{title}</span>
+          <span style={{ color: t.textDim }}>/</span>
+          <span style={{ color: t.text, fontSize: 14 }}>{title}</span>
         </>
       )}
       <div style={{ flex: 1 }} />
+      {/* Theme toggle */}
+      <button
+        onClick={t.toggle}
+        style={{
+          background: 'transparent', color: t.textSecondary,
+          border: `1px solid ${t.border}`, borderRadius: 4,
+          padding: '3px 10px', cursor: 'pointer', fontSize: 12,
+          display: 'flex', alignItems: 'center', gap: 5,
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.info; (e.currentTarget as HTMLButtonElement).style.color = t.info; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.border; (e.currentTarget as HTMLButtonElement).style.color = t.textSecondary; }}
+        title={t.mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      >
+        {t.mode === 'dark' ? '\u2600' : '\u263D'} {t.mode === 'dark' ? 'Light' : 'Dark'}
+      </button>
       {!onTrainingPage && (
         <button
           onClick={() => navigate('/training')}
-          style={{
-            background: 'transparent', color: '#888',
-            border: '1px solid #3c3c3c', borderRadius: 4,
-            padding: '3px 10px', cursor: 'pointer', fontSize: 12,
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#569cd6'; (e.currentTarget as HTMLButtonElement).style.color = '#569cd6'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3c3c3c'; (e.currentTarget as HTMLButtonElement).style.color = '#888'; }}
+          style={navBtn}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.info; (e.currentTarget as HTMLButtonElement).style.color = t.info; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.border; (e.currentTarget as HTMLButtonElement).style.color = t.textSecondary; }}
           title="Open interactive SysML v2 training"
         >
           Training
@@ -63,13 +82,9 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
       {!onSettingsPage && user && (
         <button
           onClick={() => navigate('/settings')}
-          style={{
-            background: 'transparent', color: '#888',
-            border: '1px solid #3c3c3c', borderRadius: 4,
-            padding: '3px 10px', cursor: 'pointer', fontSize: 12,
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#569cd6'; (e.currentTarget as HTMLButtonElement).style.color = '#569cd6'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3c3c3c'; (e.currentTarget as HTMLButtonElement).style.color = '#888'; }}
+          style={navBtn}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.info; (e.currentTarget as HTMLButtonElement).style.color = t.info; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.border; (e.currentTarget as HTMLButtonElement).style.color = t.textSecondary; }}
           title="MCP connection settings"
         >
           Settings
@@ -80,7 +95,7 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
           onClick={onSave}
           disabled={saving}
           style={{
-            background: saving ? '#3c3c3c' : '#0e639c',
+            background: saving ? t.btnDisabled : t.accent,
             color: '#fff',
             border: 'none',
             borderRadius: 4,
@@ -94,10 +109,10 @@ export default function Header({ title, showSave, onSave, saving }: HeaderProps)
       )}
       {user && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ color: '#888', fontSize: 13 }}>{user.email}</span>
+          <span style={{ color: t.textSecondary, fontSize: 13 }}>{user.email}</span>
           <button
             onClick={handleLogout}
-            style={{ background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 12 }}
+            style={{ background: 'transparent', color: t.textSecondary, border: `1px solid ${t.btnBorder}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 12 }}
           >
             Logout
           </button>

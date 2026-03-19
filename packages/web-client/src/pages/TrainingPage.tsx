@@ -10,6 +10,7 @@ import TaskCard from '../components/Training/TaskCard.js';
 import { TRAINING_TASKS, TOTAL_LEVELS, COMPLETED_CODE } from '../training/tasks.js';
 import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 import type { ValidationResult } from '../training/tasks.js';
+import { useTheme } from '../store/theme.js';
 
 const TRAINING_URI = 'training://vehicle';
 const STORAGE_KEY_INDEX = 'training:taskIndex';
@@ -58,11 +59,12 @@ function saveTaskCodes(codes: Record<number, string>) {
 
 function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onReview: () => void }) {
   const navigate = useNavigate();
+  const t = useTheme();
   return (
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      background: '#1e1e1e', gap: 20,
+      background: t.bg, gap: 20,
     }}>
       <div style={{ fontSize: 52 }}>🎉</div>
       <div style={{ fontSize: 26, fontWeight: 700, color: '#4ec9b0' }}>
@@ -124,6 +126,7 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
 export default function TrainingPage() {
   const navigate = useNavigate();
   const monacoRef = useRef<MonacoEditorHandle>(null);
+  const t = useTheme();
 
   // Load saved progress on mount
   const saved = useRef(loadProgress());
@@ -367,13 +370,13 @@ export default function TrainingPage() {
   return (
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
-      background: '#1e1e1e', overflow: 'hidden',
+      background: t.bg, overflow: 'hidden',
     }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header style={{
         height: 48, flexShrink: 0,
-        background: '#2d2d30', borderBottom: '1px solid #3c3c3c',
+        background: t.bgSecondary, borderBottom: `1px solid ${t.border}`,
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12,
       }}>
         <span
@@ -382,10 +385,10 @@ export default function TrainingPage() {
         >
           SysteModel
         </span>
-        <span style={{ color: '#444' }}>/</span>
-        <span style={{ color: '#d4d4d4', fontSize: 14 }}>Training Mode</span>
-        <span style={{ color: '#444' }}>—</span>
-        <span style={{ color: '#888', fontSize: 12 }}>{task.levelName}</span>
+        <span style={{ color: t.textDim }}>/</span>
+        <span style={{ color: t.text, fontSize: 14 }}>Training Mode</span>
+        <span style={{ color: t.textDim }}>—</span>
+        <span style={{ color: t.textSecondary, fontSize: 12 }}>{task.levelName}</span>
 
         {/* Level progress dots */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 4 }}>
@@ -441,7 +444,7 @@ export default function TrainingPage() {
           borderRight: '1px solid #2e2e2e', overflow: 'hidden',
         }}>
           {/* Sidebar tab bar */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #3c3c3c', flexShrink: 0 }}>
+          <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
             {([
               { key: 'task' as const, label: 'Task' },
               { key: 'elements' as const, label: `Elements (${allNodes.length})` },
@@ -450,10 +453,10 @@ export default function TrainingPage() {
                 key={key}
                 onClick={() => setLeftTab(key)}
                 style={{
-                  flex: 1, background: leftTab === key ? '#1e1e1e' : '#2d2d2d',
+                  flex: 1, background: leftTab === key ? t.bg : t.bgSecondary,
                   border: 'none',
-                  borderBottom: leftTab === key ? '2px solid #007acc' : '2px solid transparent',
-                  color: leftTab === key ? '#fff' : '#888', cursor: 'pointer',
+                  borderBottom: leftTab === key ? `2px solid ${t.statusBar}` : '2px solid transparent',
+                  color: leftTab === key ? t.text : t.textSecondary, cursor: 'pointer',
                   fontSize: 11, padding: '5px 4px', fontWeight: leftTab === key ? 600 : 400,
                 }}
               >
@@ -539,14 +542,14 @@ export default function TrainingPage() {
         }}>
           {/* Diagram panel label */}
           <div style={{
-            height: 26, flexShrink: 0, background: '#252526',
-            borderBottom: '1px solid #2e2e2e',
+            height: 26, flexShrink: 0, background: t.bgTertiary,
+            borderBottom: `1px solid ${t.borderLight}`,
             display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6,
           }}>
-            <span style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            <span style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
               General View
             </span>
-            <span style={{ fontSize: 10, color: '#3c3c3c' }}>— live</span>
+            <span style={{ fontSize: 10, color: t.border }}>— live</span>
           </div>
 
           {/* Diagram viewer */}
@@ -578,14 +581,14 @@ export default function TrainingPage() {
             borderTop: '1px solid #2e2e2e',
           }}>
             <div style={{
-              height: 26, flexShrink: 0, background: '#252526',
-              borderBottom: '1px solid #2e2e2e',
+              height: 26, flexShrink: 0, background: t.bgTertiary,
+              borderBottom: `1px solid ${t.borderLight}`,
               display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6,
             }}>
-              <span style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              <span style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
                 SysML Editor
               </span>
-              <span style={{ fontSize: 10, color: '#3c3c3c' }}>— type your model here</span>
+              <span style={{ fontSize: 10, color: t.border }}>— type your model here</span>
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               <MonacoEditor ref={monacoRef} value={code} onChange={handleCodeChange} />
@@ -600,14 +603,14 @@ export default function TrainingPage() {
           borderLeft: '1px solid #2e2e2e',
         }}>
           <div style={{
-            height: 26, flexShrink: 0, background: '#252526',
-            borderBottom: '1px solid #2e2e2e',
+            height: 26, flexShrink: 0, background: t.bgTertiary,
+            borderBottom: `1px solid ${t.borderLight}`,
             display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6,
           }}>
-            <span style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            <span style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
               Target Notation
             </span>
-            <span style={{ fontSize: 10, color: '#3c3c3c' }}>— reference</span>
+            <span style={{ fontSize: 10, color: t.border }}>— reference</span>
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
             <MonacoEditor

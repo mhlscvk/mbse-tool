@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { SNode, SEdge } from '@systemodel/shared-types';
+import { useTheme } from '../../store/theme.js';
 
 // ─── Saved Views types & helpers ──────────────────────────────────────────────
 
@@ -193,6 +194,7 @@ export default function ElementPanel({
   diagramSelectedNodeId, diagramSelectedEdgeId,
   showLegend = true, onToggleLegend,
 }: ElementPanelProps) {
+  const t = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [collapsedEdgeGroups, setCollapsedEdgeGroups] = useState<Set<string>>(new Set());
@@ -485,8 +487,8 @@ export default function ElementPanel({
     const allVisible = allIds.every(id => !hiddenNodeIds.has(id));
     const allHidden = allIds.every(id => hiddenNodeIds.has(id));
     const isDiagramSelected = diagramSelectedNodeId === node.id;
-    const defaultBg = isPkg ? (depth === 0 ? '#28283a' : '#24243a') : 'transparent';
-    const rowBg = isDiagramSelected ? '#2a2a10' : defaultBg;
+    const defaultBg = isPkg ? (t.mode === 'dark' ? (depth === 0 ? '#28283a' : '#24243a') : (depth === 0 ? '#e8e8f0' : '#eeeef4')) : 'transparent';
+    const rowBg = isDiagramSelected ? (t.mode === 'dark' ? '#2a2a10' : '#fffde0') : defaultBg;
 
     return (
       <div key={node.id}>
@@ -495,12 +497,12 @@ export default function ElementPanel({
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: `4px 8px 4px ${padLeft}px`,
-            borderBottom: '1px solid #222',
+            borderBottom: `1px solid ${t.borderLight}`,
             background: rowBg,
             cursor: 'pointer', userSelect: 'none',
             opacity: visible ? 1 : 0.45,
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#2a3a4a'; }}
+          onMouseEnter={e => { e.currentTarget.style.background = t.bgHover; }}
           onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
         >
           {/* Collapse toggle — only for nodes with children */}
@@ -560,7 +562,7 @@ export default function ElementPanel({
             style={{
               flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               fontFamily: 'monospace', fontSize: 11,
-              color: isDiagramSelected ? '#f0c040' : visible ? (isPkg ? '#c0c0e0' : '#ddd') : '#555',
+              color: isDiagramSelected ? '#f0c040' : visible ? (isPkg ? t.text : t.text) : t.textDim,
               fontWeight: hasChildren || isDiagramSelected ? 600 : 400,
             }}
           >
@@ -569,8 +571,8 @@ export default function ElementPanel({
 
           {/* Kind badge */}
           <span style={{
-            fontSize: 9, color: isDiagramSelected ? '#f0c040' : '#666', flexShrink: 0,
-            background: '#1a1a1a', borderRadius: 3, padding: '0 4px',
+            fontSize: 9, color: isDiagramSelected ? '#f0c040' : t.textMuted, flexShrink: 0,
+            background: t.bg, borderRadius: 3, padding: '0 4px',
           }}>
             {kindLabel}
           </span>
@@ -600,8 +602,8 @@ export default function ElementPanel({
           {/* Group header */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            padding: '5px 8px', borderBottom: '1px solid #2a2a2a',
-            background: '#2a2a2a', cursor: 'pointer', userSelect: 'none',
+            padding: '5px 8px', borderBottom: `1px solid ${t.borderLight}`,
+            background: t.bgSelected, cursor: 'pointer', userSelect: 'none',
           }}>
             <span
               onClick={() => toggleTreeGroupCollapse(kind)}
@@ -616,7 +618,7 @@ export default function ElementPanel({
             }} />
             <span
               onClick={() => toggleTreeGroupCollapse(kind)}
-              style={{ flex: 1, color: '#bbb', fontWeight: 600, fontSize: 11 }}
+              style={{ flex: 1, color: t.text, fontWeight: 600, fontSize: 11 }}
             >{label} ({groupNodes.length})</span>
             <input
               type="checkbox"
@@ -634,7 +636,7 @@ export default function ElementPanel({
             const visible = !hiddenNodeIds.has(node.id);
             const path = containmentPaths.get(node.id) ?? '';
             const isDiagSel = diagramSelectedNodeId === node.id;
-            const treeBg = isDiagSel ? '#2a2a10' : 'transparent';
+            const treeBg = isDiagSel ? (t.mode === 'dark' ? '#2a2a10' : '#fffde0') : 'transparent';
 
             return (
               <div
@@ -643,7 +645,7 @@ export default function ElementPanel({
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '4px 8px 4px 24px', cursor: 'pointer',
-                  borderBottom: '1px solid #222',
+                  borderBottom: `1px solid ${t.borderLight}`,
                   background: treeBg,
                   opacity: visible ? 1 : 0.45,
                 }}
@@ -659,13 +661,13 @@ export default function ElementPanel({
                 <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
                   <div style={{
                     fontFamily: 'monospace', fontSize: 11,
-                    color: isDiagSel ? '#f0c040' : visible ? '#ddd' : '#555',
+                    color: isDiagSel ? '#f0c040' : visible ? t.text : t.textDim,
                     fontWeight: isDiagSel ? 600 : 400,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>{name}</div>
                   {path && (
                     <div style={{
-                      fontSize: 9, color: '#666', marginTop: 1,
+                      fontSize: 9, color: t.textMuted, marginTop: 1,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{path}</div>
                   )}
@@ -681,7 +683,7 @@ export default function ElementPanel({
   if (collapsed) {
     return (
       <div style={{
-        width: 28, background: '#252526', borderRight: '1px solid #3c3c3c',
+        width: 28, background: t.bgTertiary, borderRight: `1px solid ${t.border}`,
         display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, flexShrink: 0,
       }}>
         <button
@@ -697,16 +699,16 @@ export default function ElementPanel({
     <div style={{
       ...(fillWidth
         ? { flex: 1, minWidth: 0 }
-        : { width: 220, flexShrink: 0, borderRight: '1px solid #3c3c3c' }),
-      background: '#252526',
+        : { width: 220, flexShrink: 0, borderRight: `1px solid ${t.border}` }),
+      background: t.bgTertiary,
       display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 12,
     }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '6px 8px', borderBottom: '1px solid #3c3c3c', background: '#2d2d2d', flexShrink: 0,
+        padding: '6px 8px', borderBottom: `1px solid ${t.border}`, background: t.bgSecondary, flexShrink: 0,
       }}>
-        <span style={{ color: '#ccc', fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+        <span style={{ color: t.text, fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
           {tab === 'elements' ? 'Elements' : tab === 'relationships' ? 'Relations' : 'Views'}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -749,7 +751,7 @@ export default function ElementPanel({
 
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #3c3c3c', flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
         {([
           { key: 'elements' as Tab, label: `Elements (${nodes.length})` },
           { key: 'relationships' as Tab, label: `Relations (${edges.length})` },
@@ -759,9 +761,9 @@ export default function ElementPanel({
             key={key}
             onClick={() => setTab(key)}
             style={{
-              flex: 1, background: tab === key ? '#1e1e1e' : '#2d2d2d',
-              border: 'none', borderBottom: tab === key ? '2px solid #007acc' : '2px solid transparent',
-              color: tab === key ? '#fff' : '#888', cursor: 'pointer',
+              flex: 1, background: tab === key ? t.bg : t.bgSecondary,
+              border: 'none', borderBottom: tab === key ? `2px solid ${t.statusBar}` : '2px solid transparent',
+              color: tab === key ? t.text : t.textSecondary, cursor: 'pointer',
               fontSize: 11, padding: '5px 4px', fontWeight: tab === key ? 600 : 400,
             }}
           >
@@ -773,18 +775,18 @@ export default function ElementPanel({
       {/* View mode toggle — only when Elements tab active */}
       {tab === 'elements' && nodes.length > 0 && (
         <div style={{
-          display: 'flex', gap: 2, padding: '4px 8px', borderBottom: '1px solid #3c3c3c',
-          background: '#2d2d2d', flexShrink: 0,
+          display: 'flex', gap: 2, padding: '4px 8px', borderBottom: `1px solid ${t.border}`,
+          background: t.bgSecondary, flexShrink: 0,
         }}>
           {(['nested', 'tree'] as ViewMode[]).map(mode => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
               style={{
-                flex: 1, border: '1px solid #444', cursor: 'pointer',
+                flex: 1, border: `1px solid ${t.btnBorder}`, cursor: 'pointer',
                 borderRadius: 3, padding: '2px 6px', fontSize: 10,
-                background: viewMode === mode ? '#007acc' : 'transparent',
-                color: viewMode === mode ? '#fff' : '#aaa',
+                background: viewMode === mode ? t.statusBar : 'transparent',
+                color: viewMode === mode ? '#fff' : t.textSecondary,
                 fontWeight: viewMode === mode ? 600 : 400,
               }}
             >{mode === 'nested' ? 'Nested' : 'By Kind'}</button>
@@ -795,7 +797,7 @@ export default function ElementPanel({
       {/* Elements tab */}
       {tab === 'elements' && (
         nodes.length === 0 ? (
-          <div style={{ padding: 12, color: '#555', fontStyle: 'italic' }}>
+          <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic' }}>
             No elements detected.<br />Start typing SysML.
           </div>
         ) : (
@@ -824,7 +826,7 @@ export default function ElementPanel({
       )}
       {tab === 'relationships' && (
         edges.length === 0 ? (
-          <div style={{ padding: 12, color: '#555', fontStyle: 'italic' }}>
+          <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic' }}>
             No relationships detected.
           </div>
         ) : (
@@ -842,8 +844,8 @@ export default function ElementPanel({
                   <div key={kind}>
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '5px 8px', borderBottom: '1px solid #2a2a2a',
-                      background: '#2a2a2a', cursor: 'pointer', userSelect: 'none',
+                      padding: '5px 8px', borderBottom: `1px solid ${t.borderLight}`,
+                      background: t.bgSelected, cursor: 'pointer', userSelect: 'none',
                     }}>
                       <span
                         onClick={() => toggleEdgeGroupCollapse(kind)}
@@ -855,7 +857,7 @@ export default function ElementPanel({
                       </svg>
                       <span
                         onClick={() => toggleEdgeGroupCollapse(kind)}
-                        style={{ flex: 1, color: '#bbb', fontWeight: 600 }}
+                        style={{ flex: 1, color: t.text, fontWeight: 600 }}
                       >{label} ({kindEdges.length})</span>
                       <input
                         type="checkbox"
@@ -870,7 +872,7 @@ export default function ElementPanel({
                     ).map(edge => {
                       const visible = !hiddenEdgeIds.has(edge.id);
                       const edgeDiagSel = diagramSelectedEdgeId === edge.id;
-                      const edgeBg = edgeDiagSel ? '#2a2a10' : visible ? 'transparent' : '#1a1a1a';
+                      const edgeBg = edgeDiagSel ? (t.mode === 'dark' ? '#2a2a10' : '#fffde0') : visible ? 'transparent' : t.bg;
                       return (
                         <div
                           key={edge.id}
@@ -878,7 +880,7 @@ export default function ElementPanel({
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '4px 8px 4px 24px', cursor: 'pointer',
-                            borderBottom: '1px solid #222',
+                            borderBottom: `1px solid ${t.borderLight}`,
                             background: edgeBg,
                             opacity: visible ? 1 : 0.45,
                           }}
@@ -892,7 +894,7 @@ export default function ElementPanel({
                             style={{ cursor: 'pointer', accentColor: color, flexShrink: 0 }}
                           />
                           <span style={{
-                            color: edgeDiagSel ? '#f0c040' : visible ? '#ccc' : '#555',
+                            color: edgeDiagSel ? '#f0c040' : visible ? t.text : t.textDim,
                             fontWeight: edgeDiagSel ? 600 : 400,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             fontFamily: 'monospace', fontSize: 11,
@@ -924,8 +926,8 @@ export default function ElementPanel({
               onKeyDown={(e) => { if (e.key === 'Enter') saveCurrentView(); }}
               placeholder="View name..."
               style={{
-                flex: 1, background: '#1e1e1e', border: '1px solid #444',
-                borderRadius: 3, color: '#ccc', fontSize: 11, padding: '4px 8px',
+                flex: 1, background: t.bgInput, border: `1px solid ${t.btnBorder}`,
+                borderRadius: 3, color: t.text, fontSize: 11, padding: '4px 8px',
                 outline: 'none', minWidth: 0,
               }}
             />
@@ -945,7 +947,7 @@ export default function ElementPanel({
 
           {/* Saved views list */}
           {savedViews.length === 0 ? (
-            <div style={{ padding: 12, color: '#555', fontStyle: 'italic', fontSize: 11 }}>
+            <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic', fontSize: 11 }}>
               No saved views yet. Configure element/relation visibility, then save it as a view above.
             </div>
           ) : (
@@ -962,11 +964,11 @@ export default function ElementPanel({
                       key={view.name}
                       style={{
                         padding: '6px 8px',
-                        borderBottom: '1px solid #222',
+                        borderBottom: `1px solid ${t.borderLight}`,
                         background: isActive ? '#1a3050' : 'transparent',
                         cursor: 'pointer',
                       }}
-                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#2a3a4a'; }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = t.bgHover; }}
                       onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                     >
                       {isRenaming ? (
@@ -982,8 +984,8 @@ export default function ElementPanel({
                             }}
                             onBlur={() => setRenamingIdx(null)}
                             style={{
-                              flex: 1, background: '#1e1e1e', border: '1px solid #007acc',
-                              borderRadius: 3, color: '#ccc', fontSize: 11, padding: '2px 6px',
+                              flex: 1, background: t.bgInput, border: `1px solid ${t.borderFocus}`,
+                              borderRadius: 3, color: t.text, fontSize: 11, padding: '2px 6px',
                               outline: 'none', minWidth: 0,
                             }}
                           />
@@ -1051,7 +1053,7 @@ export default function ElementPanel({
           )}
 
           {/* Show All button at bottom */}
-          <div style={{ padding: '8px', borderTop: '1px solid #3c3c3c', flexShrink: 0 }}>
+          <div style={{ padding: '8px', borderTop: `1px solid ${t.border}`, flexShrink: 0 }}>
             <button
               onClick={() => {
                 if (onRestoreView) onRestoreView(new Set(), new Set());
@@ -1059,8 +1061,8 @@ export default function ElementPanel({
               }}
               style={{
                 width: '100%', padding: '5px 8px',
-                background: '#2d2d30', border: '1px solid #444', borderRadius: 3,
-                color: '#aaa', fontSize: 11, cursor: 'pointer',
+                background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, borderRadius: 3,
+                color: t.textSecondary, fontSize: 11, cursor: 'pointer',
               }}
             >
               Show All (reset)

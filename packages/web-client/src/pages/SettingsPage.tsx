@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../components/Layout/Header.js';
 import { api, type McpTokenInfo, type McpTokenCreated } from '../services/api-client.js';
 import type { AiKeyInfo } from '../services/api-client.js';
+import { useTheme } from '../store/theme.js';
 
 // ─── MCP client config templates ─────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ const clients: { id: ClientId; label: string; file: string; generator: (url: str
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const t = useTheme();
   const [tokens, setTokens] = useState<McpTokenInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -135,27 +137,27 @@ export default function SettingsPage() {
   const client = clients.find(c => c.id === selectedClient)!;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header title="Settings" />
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
 
         {/* ── Section: AI Chat Provider ────────────────────────────────── */}
         <AiProviderSection />
 
-        <div style={{ height: 1, background: '#3c3c3c', margin: '32px 0' }} />
+        <div style={{ height: 1, background: t.border, margin: '32px 0' }} />
 
         {/* ── Section: MCP Connection ─────────────────────────────────── */}
-        <h2 style={{ color: '#569cd6', fontSize: 18, marginBottom: 8 }}>MCP Connection</h2>
-        <p style={{ color: '#888', fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
+        <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>MCP Connection</h2>
+        <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
           Connect your AI client (Claude Desktop, Cursor, VS Code, Windsurf) to systemodel.
           Your AI runs on your own subscription — no API keys stored on our server.
         </p>
 
-        {error && <div style={{ color: '#f48771', fontSize: 13, marginBottom: 16, padding: '8px 12px', background: '#3c1e1e', borderRadius: 4 }}>{error}</div>}
+        {error && <div style={{ color: t.error, fontSize: 13, marginBottom: 16, padding: '8px 12px', background: t.errorBg, borderRadius: 4 }}>{error}</div>}
 
         {/* ── Create Token ────────────────────────────────────────────── */}
-        <div style={{ background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: '#d4d4d4', fontSize: 14, marginBottom: 12 }}>Create Access Token</h3>
+        <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+          <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Create Access Token</h3>
           <form onSubmit={handleCreate} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 180 }}>
               <label style={labelStyle}>Token name</label>
@@ -259,8 +261,8 @@ export default function SettingsPage() {
         )}
 
         {/* ── Active Tokens ───────────────────────────────────────────── */}
-        <div style={{ background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: '#d4d4d4', fontSize: 14, marginBottom: 12 }}>Active Tokens</h3>
+        <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+          <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Active Tokens</h3>
           {loading ? (
             <p style={{ color: '#888', fontSize: 13 }}>Loading...</p>
           ) : activeTokens.length === 0 ? (
@@ -293,8 +295,8 @@ export default function SettingsPage() {
 
         {/* ── Revoked Tokens ──────────────────────────────────────────── */}
         {revokedTokens.length > 0 && (
-          <div style={{ background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-            <h3 style={{ color: '#888', fontSize: 14, marginBottom: 12 }}>Revoked Tokens</h3>
+          <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+            <h3 style={{ color: t.textSecondary, fontSize: 14, marginBottom: 12 }}>Revoked Tokens</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {revokedTokens.map(t => (
                 <div key={t.id} style={{
@@ -315,37 +317,37 @@ export default function SettingsPage() {
         )}
 
         {/* ── How It Works ────────────────────────────────────────────── */}
-        <div style={{ background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: '#d4d4d4', fontSize: 14, marginBottom: 12 }}>How It Works</h3>
-          <div style={{ color: '#888', fontSize: 13, lineHeight: 1.7 }}>
+        <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+          <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>How It Works</h3>
+          <div style={{ color: t.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
             <p style={{ marginBottom: 8 }}>
-              <strong style={{ color: '#d4d4d4' }}>1.</strong> Create an access token above and name it after your AI client.
+              <strong style={{ color: t.text }}>1.</strong> Create an access token above and name it after your AI client.
             </p>
             <p style={{ marginBottom: 8 }}>
-              <strong style={{ color: '#d4d4d4' }}>2.</strong> Copy the generated config into your AI client's configuration file.
+              <strong style={{ color: t.text }}>2.</strong> Copy the generated config into your AI client's configuration file.
             </p>
             <p style={{ marginBottom: 8 }}>
-              <strong style={{ color: '#d4d4d4' }}>3.</strong> Your AI client connects to systemodel via MCP and can read/edit your SysML files.
+              <strong style={{ color: t.text }}>3.</strong> Your AI client connects to systemodel via MCP and can read/edit your SysML files.
             </p>
             <p style={{ marginBottom: 0 }}>
-              <strong style={{ color: '#d4d4d4' }}>4.</strong> AI inference runs on <em>your</em> subscription (Claude Pro, Cursor Pro, etc.) — zero cost to systemodel.
+              <strong style={{ color: t.text }}>4.</strong> AI inference runs on <em>your</em> subscription (Claude Pro, Cursor Pro, etc.) — zero cost to systemodel.
             </p>
           </div>
 
-          <h4 style={{ color: '#d4d4d4', fontSize: 13, marginTop: 16, marginBottom: 8 }}>Available MCP Tools</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12, color: '#888' }}>
-            <span><code style={{ color: '#569cd6' }}>list_projects</code> — List your projects</span>
-            <span><code style={{ color: '#569cd6' }}>list_files</code> — List files in a project</span>
-            <span><code style={{ color: '#569cd6' }}>read_file</code> — Read file content</span>
-            <span><code style={{ color: '#569cd6' }}>create_file</code> — Create a new file</span>
-            <span><code style={{ color: '#569cd6' }}>update_file</code> — Replace file content</span>
-            <span><code style={{ color: '#569cd6' }}>apply_edit</code> — Precise line/col edit</span>
-            <span><code style={{ color: '#569cd6' }}>delete_file</code> — Delete a file</span>
-            <span><code style={{ color: '#569cd6' }}>search_files</code> — Search across files</span>
+          <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Available MCP Tools</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12, color: t.textSecondary }}>
+            <span><code style={{ color: t.info }}>list_projects</code> — List your projects</span>
+            <span><code style={{ color: t.info }}>list_files</code> — List files in a project</span>
+            <span><code style={{ color: t.info }}>read_file</code> — Read file content</span>
+            <span><code style={{ color: t.info }}>create_file</code> — Create a new file</span>
+            <span><code style={{ color: t.info }}>update_file</code> — Replace file content</span>
+            <span><code style={{ color: t.info }}>apply_edit</code> — Precise line/col edit</span>
+            <span><code style={{ color: t.info }}>delete_file</code> — Delete a file</span>
+            <span><code style={{ color: t.info }}>search_files</code> — Search across files</span>
           </div>
 
-          <h4 style={{ color: '#d4d4d4', fontSize: 13, marginTop: 16, marginBottom: 8 }}>Supported AI Clients</h4>
-          <div style={{ color: '#888', fontSize: 12, lineHeight: 1.7 }}>
+          <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Supported AI Clients</h4>
+          <div style={{ color: t.textSecondary, fontSize: 12, lineHeight: 1.7 }}>
             Claude Desktop &middot; Cursor &middot; VS Code (Copilot) &middot; Windsurf &middot; JetBrains &middot; Zed &middot; Claude Code CLI
           </div>
         </div>
@@ -365,6 +367,7 @@ const PROVIDERS: ProviderDef[] = [
 ];
 
 function AiProviderSection() {
+  const t = useTheme();
   const [storedKeys, setStoredKeys] = useState<AiKeyInfo[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDef['id']>('anthropic');
   const [newKey, setNewKey] = useState('');
@@ -427,14 +430,14 @@ function AiProviderSection() {
 
   return (
     <>
-      <h2 style={{ color: '#569cd6', fontSize: 18, marginBottom: 8 }}>AI Chat Provider</h2>
-      <p style={{ color: '#888', fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
+      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>AI Chat Provider</h2>
+      <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
         Connect your AI account to chat from the editor.
         Your API key is encrypted and stored securely on the server.
         You will only see it once when you save it.
       </p>
 
-      <div style={{ background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6, padding: 20, marginBottom: 24 }}>
+      <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
         {/* Provider tabs */}
         <label style={{ display: 'block', color: '#888', fontSize: 11, marginBottom: 6 }}>Provider</label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>

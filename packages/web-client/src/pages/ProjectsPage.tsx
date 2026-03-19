@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import { useAuthStore } from '../store/auth.js';
+import { useTheme } from '../store/theme.js';
 import Header from '../components/Layout/Header.js';
 import type { Project, SysMLFile } from '@systemodel/shared-types';
 
@@ -12,6 +13,7 @@ interface ContextMenuState { x: number; y: number; items: ContextMenuItem[] }
 
 function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const t = useTheme();
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
@@ -25,8 +27,8 @@ function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () =>
       ref={ref}
       style={{
         position: 'fixed', left: menu.x, top: menu.y, zIndex: 9999,
-        background: '#2d2d30', border: '1px solid #555', borderRadius: 4,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: 140, padding: '4px 0',
+        background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, borderRadius: 4,
+        boxShadow: t.shadow, minWidth: 140, padding: '4px 0',
       }}
     >
       {menu.items.map((item, i) => (
@@ -35,9 +37,9 @@ function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () =>
           onClick={() => { item.onClick(); onClose(); }}
           style={{
             padding: '6px 16px', fontSize: 12, cursor: 'pointer',
-            color: item.danger ? '#f48771' : '#d4d4d4',
+            color: item.danger ? t.error : t.text,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#094771'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = t.accentBg; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
         >
           {item.label}
@@ -53,6 +55,7 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
+  const t = useTheme();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<SysMLFile[]>([]);
@@ -171,7 +174,6 @@ export default function ProjectsPage() {
     try {
       await api.projects.create(name.trim(), undefined, parent.id);
       await refreshProjects();
-      // Auto-expand the parent
       setCollapsed((prev) => ({ ...prev, [parent.id]: false }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create subproject');
@@ -227,7 +229,6 @@ export default function ProjectsPage() {
     e.preventDefault();
     e.stopPropagation();
     if (project.isSystem && !isAdmin) {
-      // System projects: download only (non-admin)
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [{ label: 'Download', onClick: () => downloadProject(project) }],
@@ -249,7 +250,6 @@ export default function ProjectsPage() {
 
   // ─── File actions ────────────────────────────────────────────────────────
 
-  /** Collect all leaf projects (that can hold files) for a move-to picker. */
   const collectProjects = useCallback((nodes: Project[], prefix = ''): { id: string; label: string }[] => {
     const result: { id: string; label: string }[] = [];
     for (const p of nodes) {
@@ -264,10 +264,10 @@ export default function ProjectsPage() {
 
   const moveFile = async (file: SysMLFile) => {
     if (!selectedProject) return;
-    const targets = collectProjects(projects).filter((t) => t.id !== selectedProject.id);
+    const targets = collectProjects(projects).filter((tt) => tt.id !== selectedProject.id);
     if (targets.length === 0) { setError('No other projects to move to'); return; }
     const choice = prompt(
-      'Move to project:\n' + targets.map((t, i) => `  ${i + 1}. ${t.label}`).join('\n') + '\n\nEnter number:',
+      'Move to project:\n' + targets.map((tt, i) => `  ${i + 1}. ${tt.label}`).join('\n') + '\n\nEnter number:',
     );
     if (!choice) return;
     const idx = parseInt(choice, 10) - 1;
@@ -323,7 +323,6 @@ export default function ProjectsPage() {
     e.preventDefault();
     e.stopPropagation();
     if (selectedProject?.isSystem && !isAdmin) {
-      // System project files: download only (non-admin)
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [{ label: 'Download', onClick: () => downloadFile(file) }],
@@ -343,7 +342,6 @@ export default function ProjectsPage() {
 
   // ─── Project Tree Item ───────────────────────────────────────────────────
 
-  // Stable component ref to avoid unmount/remount on every parent render
   const ProjectTreeItem = useCallback(({ project, depth }: { project: Project; depth: number }) => {
     const hasChildren = project.children && project.children.length > 0;
     const isCollapsed = collapsed[project.id] ?? false;
@@ -364,17 +362,17 @@ export default function ProjectsPage() {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            background: isSelected ? '#2d2d30' : 'transparent',
-            color: isSelected ? '#d4d4d4' : '#888',
-            borderLeft: isSelected ? '2px solid #569cd6' : '2px solid transparent',
+            background: isSelected ? t.bgSelected : 'transparent',
+            color: isSelected ? t.text : t.textSecondary,
+            borderLeft: isSelected ? `2px solid ${t.info}` : '2px solid transparent',
           }}
-          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#252526'; }}
+          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = t.bgTertiary; }}
           onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
         >
           {hasChildren ? (
             <span
               onClick={(e) => { e.stopPropagation(); toggleCollapse(project.id); }}
-              style={{ cursor: 'pointer', fontSize: 9, width: 14, textAlign: 'center', userSelect: 'none', color: '#888' }}
+              style={{ cursor: 'pointer', fontSize: 9, width: 14, textAlign: 'center', userSelect: 'none', color: t.textSecondary }}
             >
               {isCollapsed ? '\u25B6' : '\u25BC'}
             </span>
@@ -385,7 +383,7 @@ export default function ProjectsPage() {
             {project.name}
           </span>
           {(project._count?.files ?? 0) > 0 && (
-            <span style={{ color: '#555', fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>
+            <span style={{ color: t.textDim, fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>
               {project._count!.files}
             </span>
           )}
@@ -395,43 +393,43 @@ export default function ProjectsPage() {
         ))}
       </>
     );
-  }, [collapsed, selectedProject, onProjectContextMenu]);
+  }, [collapsed, selectedProject, onProjectContextMenu, t]);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header />
       {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Projects panel */}
-        <div style={{ width: 280, borderRight: '1px solid #3c3c3c', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '16px 16px 8px', borderBottom: '1px solid #3c3c3c' }}>
-            <div style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Projects</div>
+        <div style={{ width: 280, borderRight: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px 16px 8px', borderBottom: `1px solid ${t.border}` }}>
+            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Projects</div>
             <form onSubmit={createProject} style={{ display: 'flex', gap: 8 }}>
               <input
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
                 placeholder="New project name"
                 disabled={creating}
-                style={{ flex: 1, background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 4, padding: '6px 8px', color: '#d4d4d4', fontSize: 12, outline: 'none' }}
+                style={{ flex: 1, background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 4, padding: '6px 8px', color: t.text, fontSize: 12, outline: 'none' }}
               />
               <button
                 type="submit"
                 disabled={creating || !newProjectName.trim()}
-                style={{ background: creating ? '#3c3c3c' : '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: 12 }}
+                style={{ background: creating ? t.btnDisabled : t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: 12 }}
               >
                 {creating ? '...' : '+'}
               </button>
             </form>
             {error && (
-              <div style={{ marginTop: 8, color: '#f48771', fontSize: 11, wordBreak: 'break-word' }}>
+              <div style={{ marginTop: 8, color: t.error, fontSize: 11, wordBreak: 'break-word' }}>
                 {error}
               </div>
             )}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading && <div style={{ padding: 16, color: '#666', fontSize: 13 }}>Loading...</div>}
+            {loading && <div style={{ padding: 16, color: t.textMuted, fontSize: 13 }}>Loading...</div>}
             {projects.map((p) => (
               <ProjectTreeItem key={p.id} project={p} depth={0} />
             ))}
@@ -442,11 +440,11 @@ export default function ProjectsPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {selectedProject ? (
             <>
-              <div style={{ padding: '16px 20px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600 }}>
+              <div style={{ padding: '16px 20px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>
                   {selectedProject.name}
-                  {selectedProject.isSystem && !isAdmin && <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
-                  {selectedProject.isSystem && isAdmin && <span style={{ color: '#569cd6', fontSize: 11, marginLeft: 8 }}>(Admin)</span>}
+                  {selectedProject.isSystem && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                  {selectedProject.isSystem && isAdmin && <span style={{ color: t.info, fontSize: 11, marginLeft: 8 }}>(Admin)</span>}
                 </span>
                 {(!selectedProject.isSystem || isAdmin) && (
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -460,13 +458,13 @@ export default function ProjectsPage() {
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      style={{ background: '#3c3c3c', color: '#ccc', border: '1px solid #555', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#4a4a4a'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = '#3c3c3c'; }}
+                      style={{ background: t.btnBg, color: t.text, border: `1px solid ${t.btnBorder}`, borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = t.btnBgHover; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = t.btnBg; }}
                     >
                       Upload .sysml
                     </button>
-                    <button onClick={createFile} style={{ background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
+                    <button onClick={createFile} style={{ background: t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
                       + New File
                     </button>
                   </div>
@@ -479,36 +477,36 @@ export default function ProjectsPage() {
                 style={{
                   flex: 1, overflowY: 'auto', padding: 16,
                   display: 'flex', flexWrap: 'wrap', gap: 12, alignContent: 'flex-start',
-                  border: dragOver ? '2px dashed #569cd6' : '2px dashed transparent',
+                  border: dragOver ? `2px dashed ${t.info}` : '2px dashed transparent',
                   transition: 'border-color 0.15s',
                 }}
               >
-                {files.map((file) => (
+                {[...files].sort((a, b) => a.name.localeCompare(b.name)).map((file) => (
                   <div
                     key={file.id}
                     onClick={() => openFile(file)}
                     onContextMenu={(e) => onFileContextMenu(e, file)}
                     style={{
-                      background: '#2d2d30', border: '1px solid #3c3c3c', borderRadius: 6,
+                      background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6,
                       padding: '14px 18px', cursor: 'pointer', minWidth: 160,
                       transition: 'border-color 0.15s',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#569cd6')}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#3c3c3c')}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = t.info)}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.border)}
                   >
-                    <div style={{ color: '#4ec9b0', fontSize: 13, marginBottom: 4 }}>{file.name}</div>
-                    <div style={{ color: '#666', fontSize: 11 }}>{(file.size / 1024).toFixed(1)} KB</div>
+                    <div style={{ color: t.success, fontSize: 13, marginBottom: 4 }}>{file.name}</div>
+                    <div style={{ color: t.textMuted, fontSize: 11 }}>{(file.size / 1024).toFixed(1)} KB</div>
                   </div>
                 ))}
                 {files.length === 0 && (
-                  <div style={{ color: '#666', fontSize: 13, textAlign: 'center', width: '100%', paddingTop: 40 }}>
+                  <div style={{ color: t.textMuted, fontSize: 13, textAlign: 'center', width: '100%', paddingTop: 40 }}>
                     No files yet. Create a new file or drag & drop .sysml files here.
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: 14 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim, fontSize: 14 }}>
               Select a project to view its files
             </div>
           )}

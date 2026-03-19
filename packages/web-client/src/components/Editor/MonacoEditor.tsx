@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import * as monaco from 'monaco-editor';
+import { useThemeStore, themes } from '../../store/theme.js';
 
 // ─── Register SysML v2 language ────────────────────────────────────────────
 
@@ -99,6 +100,30 @@ monaco.editor.defineTheme('systemodel-dark', {
   },
 });
 
+monaco.editor.defineTheme('systemodel-light', {
+  base: 'vs',
+  inherit: true,
+  rules: [
+    { token: 'keyword', foreground: '0000ff', fontStyle: 'bold' },
+    { token: 'keyword.stdlib', foreground: '795e26', fontStyle: 'bold' },
+    { token: 'type.identifier', foreground: '267f99' },
+    { token: 'comment', foreground: '008000', fontStyle: 'italic' },
+    { token: 'string', foreground: 'a31515' },
+    { token: 'number', foreground: '098658' },
+    { token: 'delimiter', foreground: '000000' },
+    { token: 'delimiter.bracket', foreground: '0431fa' },
+    { token: 'identifier', foreground: '001080' },
+  ],
+  colors: {
+    'editor.background': '#ffffff',
+    'editor.foreground': '#000000',
+    'editorLineNumber.foreground': '#999999',
+    'editorCursor.foreground': '#000000',
+    'editor.lineHighlightBackground': '#f0f0f0',
+    'editorIndentGuide.background1': '#e0e0e0',
+  },
+});
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export interface EditorMarkerFix {
@@ -143,6 +168,8 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
   const valueRef = useRef(value);
   // Stable ref so the code-action provider can always see the latest markers
   const markersRef = useRef<EditorMarker[]>([]);
+  const themeMode = useThemeStore((s) => s.mode);
+  const monacoTheme = themes[themeMode].monacoTheme;
 
   useImperativeHandle(ref, () => ({
     revealRange(startLine: number, startCol: number, endLine: number, endCol: number) {
@@ -168,7 +195,7 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
     const editor = monaco.editor.create(containerRef.current, {
       value,
       language: 'sysml',
-      theme: 'systemodel-dark',
+      theme: monacoTheme,
       readOnly,
       fontSize: 14,
       lineNumbers: 'on',
@@ -247,6 +274,11 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
     });
     return () => disposable.dispose();
   }, []);
+
+  // Sync Monaco theme when it changes
+  useEffect(() => {
+    monaco.editor.setTheme(monacoTheme);
+  }, [monacoTheme]);
 
   // Sync external value changes without resetting cursor
   useEffect(() => {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAiSettings } from '../../store/ai-settings.js';
 import { streamChat, fetchFreeTierStatus, fetchChatHistory, clearChatHistory, type ToolCallDisplay, type FreeTierStatus } from '../../services/ai-client.js';
 import { api, type AiKeyInfo } from '../../services/api-client.js';
+import { useTheme } from '../../store/theme.js';
 
 interface AiAssistantProps {
   onClose: () => void;
@@ -24,6 +25,7 @@ const PROVIDER_COLORS = { anthropic: '#d4a27a', openai: '#74aa9c', gemini: '#428
 export default function AiAssistant({ onClose, projectId, fileId, fileContent, fileName }: AiAssistantProps) {
   const navigate = useNavigate();
   const { provider, setProvider } = useAiSettings();
+  const t = useTheme();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -164,13 +166,13 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
     <div style={{
       width: 320, flexShrink: 0,
       display: 'flex', flexDirection: 'column',
-      background: '#1e1e1e', borderLeft: '1px solid #3c3c3c',
+      background: t.bg, borderLeft: `1px solid ${t.border}`,
       overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '6px 10px', background: '#252526', borderBottom: '1px solid #3c3c3c',
+        padding: '6px 10px', background: t.bgTertiary, borderBottom: `1px solid ${t.border}`,
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -270,8 +272,8 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
       {/* Input */}
       {canChat && (
         <div style={{
-          padding: '8px', borderTop: '1px solid #3c3c3c',
-          background: '#252526', flexShrink: 0,
+          padding: '8px', borderTop: `1px solid ${t.border}`,
+          background: t.bgTertiary, flexShrink: 0,
         }}>
           <div style={{ position: 'relative' }}>
             <textarea

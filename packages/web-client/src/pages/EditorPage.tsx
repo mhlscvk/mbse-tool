@@ -10,6 +10,7 @@ import AiAssistant from '../components/AI/AiAssistant.js';
 import Header from '../components/Layout/Header.js';
 import { useLocalStorage } from '../hooks/useLocalStorage.js';
 import { useAuthStore } from '../store/auth.js';
+import { useTheme } from '../store/theme.js';
 import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
@@ -98,6 +99,7 @@ export default function EditorPage() {
 
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
+  const t = useTheme();
 
   // Editor open/close
   const [editorOpen, setEditorOpen] = useLocalStorage(`${lsPrefix}:editorOpen`, true);
@@ -206,7 +208,7 @@ export default function EditorPage() {
   if (!file) return <div style={{ padding: 32, color: '#666' }}>Loading...</div>;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header title={`${file.name}${readOnly ? ' (Read Only)' : ''}`} showSave={!readOnly} onSave={handleSave} saving={saving} />
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Editor pane */}
@@ -238,37 +240,37 @@ export default function EditorPage() {
           {/* Debug / Problems panel */}
           {debugOpen && (
             <div style={{
-              height: 160, flexShrink: 0, background: '#1a1a1a',
-              borderTop: '1px solid #3c3c3c', overflow: 'auto', fontSize: 12,
+              height: 160, flexShrink: 0, background: t.bg,
+              borderTop: `1px solid ${t.border}`, overflow: 'auto', fontSize: 12,
             }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                padding: '3px 10px', background: '#252526',
-                borderBottom: '1px solid #3c3c3c', position: 'sticky', top: 0,
+                padding: '3px 10px', background: t.bgTertiary,
+                borderBottom: `1px solid ${t.border}`, position: 'sticky', top: 0,
               }}>
-                <span style={{ color: '#ccc', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>Problems</span>
-                <span style={{ color: '#888', fontSize: 11 }}>
+                <span style={{ color: t.text, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>Problems</span>
+                <span style={{ color: t.textSecondary, fontSize: 11 }}>
                   {diagnostics.filter(d => d.severity === 'error').length} errors,&nbsp;
                   {diagnostics.filter(d => d.severity === 'warning').length} warnings
                 </span>
               </div>
               {diagnostics.length === 0 ? (
-                <div style={{ padding: '8px 12px', color: '#555', fontStyle: 'italic' }}>No problems detected.</div>
+                <div style={{ padding: '8px 12px', color: t.textDim, fontStyle: 'italic' }}>No problems detected.</div>
               ) : (
                 diagnostics.map((d, i) => (
                   <div key={i} style={{
-                    padding: '4px 12px 6px', borderBottom: '1px solid #222',
-                    background: d.severity === 'error' ? '#2a1a1a' : d.severity === 'warning' ? '#2a2210' : 'transparent',
+                    padding: '4px 12px 6px', borderBottom: `1px solid ${t.borderLight}`,
+                    background: d.severity === 'error' ? t.errorBg : d.severity === 'warning' ? (t.mode === 'dark' ? '#2a2210' : '#fff8e1') : 'transparent',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                      <span style={{ color: d.severity === 'error' ? '#f48771' : d.severity === 'warning' ? '#cca700' : '#75beff', flexShrink: 0, fontSize: 14 }}>
+                      <span style={{ color: d.severity === 'error' ? t.error : d.severity === 'warning' ? t.warning : t.info, flexShrink: 0, fontSize: 14 }}>
                         {d.severity === 'error' ? '✕' : d.severity === 'warning' ? '⚠' : 'ℹ'}
                       </span>
                       <span
-                        style={{ color: '#d4d4d4', flex: 1, cursor: 'pointer' }}
+                        style={{ color: t.text, flex: 1, cursor: 'pointer' }}
                         onClick={() => monacoRef.current?.revealRange(d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1)}
                       >{d.message}</span>
-                      <span style={{ color: '#555', whiteSpace: 'nowrap' }}>Ln {d.line}, Col {d.column}</span>
+                      <span style={{ color: t.textDim, whiteSpace: 'nowrap' }}>Ln {d.line}, Col {d.column}</span>
                     </div>
                     {d.fixes && d.fixes.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 22, marginTop: 4 }}>
@@ -280,8 +282,8 @@ export default function EditorPage() {
                             )}
                             title={`Apply: ${fix.title}`}
                             style={{
-                              background: '#0e4c8a', border: '1px solid #1a6fc4', borderRadius: 3,
-                              color: '#9cdcfe', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
+                              background: t.accent, border: `1px solid ${t.accentHover}`, borderRadius: 3,
+                              color: '#fff', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
                             }}
                           >
                             ⚡ {fix.title}
@@ -303,9 +305,9 @@ export default function EditorPage() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          background: '#2d2d2d',
-          borderLeft: '1px solid #3c3c3c',
-          borderRight: '1px solid #3c3c3c',
+          background: t.bgSecondary,
+          borderLeft: `1px solid ${t.border}`,
+          borderRight: `1px solid ${t.border}`,
           position: 'relative',
           zIndex: 1,
         }}>
@@ -336,15 +338,15 @@ export default function EditorPage() {
             style={{
               position: 'relative', zIndex: 2,
               marginTop: 'auto', marginBottom: 'auto',
-              background: '#3c3c3c', border: 'none',
-              color: '#ccc', cursor: 'pointer',
+              background: t.btnBg, border: 'none',
+              color: t.text, cursor: 'pointer',
               width: 18, height: 32, borderRadius: 3,
               fontSize: 12, display: 'flex', alignItems: 'center',
               justifyContent: 'center', padding: 0,
               lineHeight: 1,
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#007acc')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#3c3c3c')}
+            onMouseEnter={e => (e.currentTarget.style.background = t.statusBar)}
+            onMouseLeave={e => (e.currentTarget.style.background = t.btnBg)}
           >
             {editorOpen ? '‹' : '›'}
           </button>
@@ -355,24 +357,24 @@ export default function EditorPage() {
           {/* Diagram toolbar */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px',
-            background: '#2d2d2d', borderBottom: '1px solid #3c3c3c', flexShrink: 0,
+            background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11, color: '#ccc', fontWeight: 600, marginRight: 4 }}>
+            <span style={{ fontSize: 11, color: t.text, fontWeight: 600, marginRight: 4 }}>
               {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
             </span>
-            <span style={{ fontSize: 10, color: '#666' }}>SysML v2</span>
+            <span style={{ fontSize: 10, color: t.textMuted }}>SysML v2</span>
             <span style={{ flex: 1 }} />
             <button
               onClick={() => setAiOpen((v) => !v)}
               style={{
-                background: aiOpen ? '#007acc' : '#3c3c3c',
-                border: '1px solid', borderColor: aiOpen ? '#007acc' : '#555',
-                borderRadius: 3, color: '#fff', cursor: 'pointer',
+                background: aiOpen ? t.statusBar : t.btnBg,
+                border: '1px solid', borderColor: aiOpen ? t.statusBar : t.btnBorder,
+                borderRadius: 3, color: aiOpen ? '#fff' : t.text, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 5,
                 padding: '2px 10px', fontSize: 11, fontWeight: aiOpen ? 600 : 400,
               }}
-              onMouseEnter={e => { if (!aiOpen) e.currentTarget.style.background = '#4a4a4a'; }}
-              onMouseLeave={e => { if (!aiOpen) e.currentTarget.style.background = '#3c3c3c'; }}
+              onMouseEnter={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBgHover; }}
+              onMouseLeave={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBg; }}
               title={aiOpen ? 'Close AI chat' : 'Open AI chat'}
             >
               &#10022; AI
@@ -452,7 +454,7 @@ export default function EditorPage() {
         </div>
       </div>
       <div style={{
-        height: 24, background: '#007acc', display: 'flex', alignItems: 'center',
+        height: 24, background: t.statusBar, display: 'flex', alignItems: 'center',
         padding: '0 12px', gap: 12, fontSize: 12, color: '#fff', flexShrink: 0,
       }}>
         <span>SysML v2</span>
@@ -469,12 +471,12 @@ export default function EditorPage() {
           title="Toggle Problems panel"
         >
           {diagnostics.filter(d => d.severity === 'error').length > 0 && (
-            <span style={{ color: '#f88070' }}>
+            <span style={{ color: '#ffc0b0' }}>
               ✕ {diagnostics.filter(d => d.severity === 'error').length}
             </span>
           )}
           {diagnostics.filter(d => d.severity === 'warning').length > 0 && (
-            <span style={{ color: '#cca700' }}>
+            <span style={{ color: '#ffe080' }}>
               ⚠ {diagnostics.filter(d => d.severity === 'warning').length}
             </span>
           )}

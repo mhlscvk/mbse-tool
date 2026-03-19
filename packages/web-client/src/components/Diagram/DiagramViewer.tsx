@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import ELKModule from 'elkjs/lib/elk.bundled.js';
 import type { SModelRoot, SNode, SEdge, ViewType } from '@systemodel/shared-types';
 import { useLocalStorage } from '../../hooks/useLocalStorage.js';
+import { useTheme } from '../../store/theme.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const elk = new (ELKModule as any)();
@@ -83,7 +84,7 @@ function SelectionRectOverlay({ rect, scale }: { rect: SelectionRect; scale: num
 
 const LAYOUT_PADDING = 48;
 
-const NODE_COLORS: Record<string, string> = {
+const NODE_COLORS_DARK: Record<string, string> = {
   package:              '#2a2a3a',
   partdefinition:       '#1c3f6e',
   attributedefinition:  '#1e4d1e',
@@ -104,7 +105,6 @@ const NODE_COLORS: Record<string, string> = {
   actionin:             '#082828',
   actionout:            '#1a1008',
   actioninout:          '#1a2828',
-  // Extended definitions
   requirementdefinition:       '#5a1a1a',
   requirementusage:            '#3a0e0e',
   constraintdefinition:        '#5a2a1a',
@@ -134,7 +134,6 @@ const NODE_COLORS: Record<string, string> = {
   metadatadefinition:          '#3a2a3a',
   occurrencedefinition:        '#2a3a2a',
   occurrenceusage:             '#1a2a1a',
-  // Control nodes
   forknode:                    '#4a4a4a',
   joinnode:                    '#4a4a4a',
   mergenode:                   '#3a3a2a',
@@ -147,6 +146,70 @@ const NODE_COLORS: Record<string, string> = {
   comment:              '#3a3520',
   stdlib:               '#0a2018',
   default:              '#252525',
+};
+
+const NODE_COLORS_LIGHT: Record<string, string> = {
+  package:              '#e0e0ee',
+  partdefinition:       '#c8daf0',
+  attributedefinition:  '#c8e8c8',
+  connectiondefinition: '#f0d8b8',
+  portdefinition:       '#e0c8f0',
+  actiondefinition:     '#b8e8e8',
+  statedefinition:      '#e8e8b8',
+  itemdefinition:       '#f0d8b0',
+  partusage:            '#d8e8f8',
+  attributeusage:       '#d8f0d8',
+  connectionusage:      '#f8e8d0',
+  portusage:            '#e8d8f8',
+  actionusage:                '#d0f0f0',
+  performactionusage:         '#d0f0f0',
+  stateusage:                 '#f0f0d0',
+  exhibitstateusage:          '#f0f0d0',
+  itemusage:            '#f0e8d0',
+  actionin:             '#d0f0f0',
+  actionout:            '#f0e0d0',
+  actioninout:          '#d8f0f0',
+  requirementdefinition:       '#f0c8c8',
+  requirementusage:            '#f8d8d8',
+  constraintdefinition:        '#f0d0c0',
+  constraintusage:             '#f8e0d0',
+  interfacedefinition:         '#d0c8f0',
+  interfaceusage:              '#e0d8f8',
+  enumdefinition:              '#c0e8d8',
+  enumusage:                   '#d0f0e8',
+  calcdefinition:              '#c0e0f0',
+  calcusage:                   '#d0e8f8',
+  allocationdefinition:        '#f0d8b0',
+  allocationusage:             '#f8e8c8',
+  usecasedefinition:           '#c8d8f0',
+  usecaseusage:                '#d8e0f8',
+  analysiscasedefinition:      '#d0e0e8',
+  analysiscaseusage:           '#d8e8f0',
+  verificationcasedefinition:  '#e0d0e8',
+  verificationcaseusage:       '#e8d8f0',
+  concerndefinition:           '#e8d8c8',
+  concernusage:                '#f0e8d8',
+  viewdefinition:              '#c8e8e8',
+  viewusage:                   '#d0f0f0',
+  viewpointdefinition:         '#d0d0e8',
+  viewpointusage:              '#d8d8f0',
+  renderingdefinition:         '#e0e0e0',
+  renderingusage:              '#e8e8e8',
+  metadatadefinition:          '#e0d0e0',
+  occurrencedefinition:        '#d0e0d0',
+  occurrenceusage:             '#d8f0d8',
+  forknode:                    '#c0c0c0',
+  joinnode:                    '#c0c0c0',
+  mergenode:                   '#d0d0c0',
+  decidenode:                  '#d0d0c0',
+  startnode:                   '#b0b0b0',
+  donenode:                    '#b0b0b0',
+  terminatenode:               '#c8c8c8',
+  transitionusage:             '#d8d8d8',
+  alias:                '#d8d0e8',
+  comment:              '#f0e8c0',
+  stdlib:               '#c8e8d8',
+  default:              '#e8e8e8',
 };
 
 // SysML v2.0 compliant edge styles (per OMG spec formal/2025-09-03, Section 8.2.3)
@@ -209,6 +272,29 @@ export default function DiagramViewer({
   viewType = 'general',
   onViewTypeChange,
 }: DiagramViewerProps) {
+  const t = useTheme();
+  const isDark = t.mode === 'dark';
+  const NODE_COLORS = isDark ? NODE_COLORS_DARK : NODE_COLORS_LIGHT;
+  // Themed SVG text/stroke colors
+  const svgText = isDark ? '#e8eef6' : '#1a1a2e';
+  const svgTextSub = isDark ? '#b0c8e8' : '#3a4a6a';
+  const svgTextDim = isDark ? '#888' : '#777';
+  const svgStroke = isDark ? '#4a8ab0' : '#8a8aaa';
+  const svgPkgStroke = isDark ? '#6a6a8a' : '#9a9ab0';
+  const svgPkgText = isDark ? '#d0d0e8' : '#2a2a4a';
+  const svgPkgLabel = isDark ? '#9a9ac0' : '#5a5a8a';
+  const svgCtrlFill = isDark ? '#ccc' : '#555';
+  const svgCtrlStroke = isDark ? '#888' : '#999';
+  const svgPortText = isDark ? '#c0b0e0' : '#5a3a8a';
+  const svgPortStroke = isDark ? '#7a5a9a' : '#9a7aba';
+  const svgCommentText = isDark ? '#e8e0c0' : '#4a4020';
+  const svgCommentBody = isDark ? '#c0b880' : '#6a6040';
+  const svgCommentLabel = isDark ? '#c0b060' : '#7a6a30';
+  const svgCommentStroke = isDark ? '#8a7a40' : '#b0a060';
+  const svgCommentFill = isDark ? '#3a3520' : '#f0e8c0';
+  const svgCommentFold = isDark ? '#2a2810' : '#e0d8b0';
+  const svgAttrText = isDark ? '#b0c8e0' : '#3a5a7a';
+  const svgLegendText = isDark ? '#ccc' : '#333';
   // IV is always nested per SysML v2 spec (Section 9.2.20, 8.2.3.11):
   // "Default compartment for a part" — nested features as nested nodes with boundary ports
   const effectiveViewMode: 'nested' | 'tree' = viewType === 'interconnection' ? 'nested' : viewMode;
@@ -1341,14 +1427,14 @@ export default function DiagramViewer({
                 onClick={() => { if (onViewTypeChange && key !== viewType) onViewTypeChange(key); }}
                 title={title}
                 style={{
-                  background: active ? '#007acc' : '#2d2d2d',
-                  border: '1px solid', borderColor: active ? '#007acc' : '#555',
-                  color: active ? '#fff' : '#ccc',
+                  background: active ? t.statusBar : t.bgSecondary,
+                  border: '1px solid', borderColor: active ? t.statusBar : t.btnBorder,
+                  color: active ? '#fff' : t.text,
                   fontSize: 10, borderRadius: 3, padding: '3px 6px', cursor: 'pointer',
                   fontWeight: active ? 700 : 400, letterSpacing: 0.5,
                 }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#4a4a4a'; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = '#2d2d2d'; }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.btnBgHover; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = t.bgSecondary; }}
               >
                 {label}
               </button>
@@ -1357,7 +1443,7 @@ export default function DiagramViewer({
         </div>
         {/* Layout mode selector — hidden for IV (always nested per spec 8.2.3.11) */}
         {viewType !== 'interconnection' && <>
-          <span style={{ color: '#555', fontSize: 10 }}>|</span>
+          <span style={{ color: t.textDim, fontSize: 10 }}>|</span>
           <div style={{ display: 'flex', gap: 2 }}>
             {(['nested', 'tree'] as const).map(mode => {
               const active = effectiveViewMode === mode;
@@ -1372,14 +1458,14 @@ export default function DiagramViewer({
                   }}
                   title={mode === 'nested' ? 'Nested containment view' : 'Tree view (flat BDD-style)'}
                   style={{
-                    background: active ? '#007acc' : '#2d2d2d',
-                    border: '1px solid', borderColor: active ? '#007acc' : '#555',
-                    color: active ? '#fff' : '#ccc',
+                    background: active ? t.statusBar : t.bgSecondary,
+                    border: '1px solid', borderColor: active ? t.statusBar : t.btnBorder,
+                    color: active ? '#fff' : t.text,
                     fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
                     fontWeight: active ? 600 : 400,
                   }}
-                  onMouseEnter={e => { if (!active) { e.currentTarget.style.background = '#4a4a4a'; } }}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = '#2d2d2d'; } }}
+                  onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.btnBgHover; } }}
+                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = t.bgSecondary; } }}
                 >
                   {mode === 'nested' ? '⊞ Nested' : '⊟ Tree'}
                 </button>
@@ -1391,19 +1477,19 @@ export default function DiagramViewer({
           onClick={fitToWindow}
           title="Fit all visible elements to window"
           style={{
-            background: '#2d2d2d', border: '1px solid #555', color: '#ccc',
+            background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
             fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 4,
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#007acc'; e.currentTarget.style.borderColor = '#007acc'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#2d2d2d'; e.currentTarget.style.borderColor = '#555'; }}
+          onMouseEnter={e => { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.borderColor = t.statusBar; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.borderColor = t.btnBorder; e.currentTarget.style.color = t.text; }}
         >
           ⊡ Fit
         </button>
       </div>
       <svg
         ref={svgRef}
-        style={{ width: '100%', height: '100%', background: '#1e1e1e', cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default' }}
+        style={{ width: '100%', height: '100%', background: t.bg, cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default' }}
         onMouseDown={onSvgMouseDown}
         onMouseMove={onSvgMouseMove}
         onMouseUp={onSvgMouseUp}
@@ -1422,11 +1508,11 @@ export default function DiagramViewer({
         <defs>
           {/* ── Subclassification: hollow triangle at general end ── */}
           <marker id="tri-spec" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto">
-            <polygon points="0 0, 12 5, 0 10" fill="#1e1e1e" stroke="#9e9e9e" strokeWidth="1.5" />
+            <polygon points="0 0, 12 5, 0 10" fill={t.bg} stroke="#9e9e9e" strokeWidth="1.5" />
           </marker>
           {/* ── Typing (defined by): hollow triangle on dashed line ── */}
           <marker id="tri-typeref" markerWidth="14" markerHeight="10" refX="13" refY="5" orient="auto">
-            <polygon points="0 0, 12 5, 0 10" fill="#1e1e1e" stroke="#6a7a8a" strokeWidth="1.5" />
+            <polygon points="0 0, 12 5, 0 10" fill={t.bg} stroke="#6a7a8a" strokeWidth="1.5" />
           </marker>
           {/* ── Subsetting / ref subsetting: open arrow (>) ── */}
           <marker id="arrow-open" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
@@ -1511,7 +1597,7 @@ export default function DiagramViewer({
                   {/* Tab */}
                   <rect width={tabW} height={tabH} fill={color} fillOpacity={0.9}
                     stroke={borderColor} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} />
-                  <text x={tabW / 2} y={tabH - 4} fill="#9a9ac0" fontSize={9} textAnchor="middle" fontStyle="italic">
+                  <text x={tabW / 2} y={tabH - 4} fill={svgPkgLabel} fontSize={9} textAnchor="middle" fontStyle="italic">
                     {kindLabel?.text}
                   </text>
                   {/* Main body below tab */}
@@ -1520,7 +1606,7 @@ export default function DiagramViewer({
                     stroke={borderColor}
                     strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} />
                   {/* Package name */}
-                  <text x={12} y={tabH + 20} fill="#d0d0e8" fontSize={13} fontWeight="bold">
+                  <text x={12} y={tabH + 20} fill={svgPkgText} fontSize={13} fontWeight="bold">
                     {nameLabel?.text}
                   </text>
                   {isSelected && (
@@ -1565,13 +1651,13 @@ export default function DiagramViewer({
                   <line x1={0} y1={40} x2={w} y2={40} stroke={borderColor} strokeWidth={1.5} />
                   {/* SysML v2 keyword label */}
                   {kindLabel && (
-                    <text x={w / 2} y={14} fill="#b0c8e8" fontSize={10} textAnchor="middle" fontStyle="italic">
+                    <text x={w / 2} y={14} fill={svgTextSub} fontSize={10} textAnchor="middle" fontStyle="italic">
                       {kindLabel.text}
                     </text>
                   )}
                   {/* Name label */}
                   {nameLabel && (
-                    <text x={w / 2} y={30} fill="#e8eef6" fontSize={13} textAnchor="middle" fontWeight="bold">
+                    <text x={w / 2} y={30} fill={svgText} fontSize={13} textAnchor="middle" fontWeight="bold">
                       {nameLabel.text}
                     </text>
                   )}
@@ -1594,8 +1680,8 @@ export default function DiagramViewer({
                   onMouseEnter={() => setHoveredNodeId(node.id)}
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}>
-                  <rect width={w} height={h} fill="#aaa" stroke={borderColor} strokeWidth={1.5} rx={2} />
-                  <text x={w / 2} y={h + 14} fill="#888" fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
+                  <rect width={w} height={h} fill={isDark ? '#aaa' : '#666'} stroke={borderColor} strokeWidth={1.5} rx={2} />
+                  <text x={w / 2} y={h + 14} fill={svgTextDim} fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
                 </g>
               );
             }
@@ -1611,7 +1697,7 @@ export default function DiagramViewer({
                   style={{ cursor: 'pointer' }}>
                   <polygon points={`${cx},0 ${w},${cy} ${cx},${h} 0,${cy}`}
                     fill={color} stroke={borderColor} strokeWidth={1.5} />
-                  <text x={cx} y={h + 14} fill="#888" fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
+                  <text x={cx} y={h + 14} fill={svgTextDim} fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
                 </g>
               );
             }
@@ -1628,7 +1714,7 @@ export default function DiagramViewer({
                   onMouseEnter={() => setHoveredNodeId(node.id)}
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}>
-                  <circle cx={cx} cy={cy} r={r} fill="#ccc" stroke={borderColor} strokeWidth={1.5} />
+                  <circle cx={cx} cy={cy} r={r} fill={svgCtrlFill} stroke={borderColor} strokeWidth={1.5} />
                 </g>
               );
             }
@@ -1646,7 +1732,7 @@ export default function DiagramViewer({
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}>
                   <circle cx={cx} cy={cy} r={r} fill="none" stroke={borderColor} strokeWidth={1.5} />
-                  <circle cx={cx} cy={cy} r={r * 0.55} fill="#ccc" stroke="none" />
+                  <circle cx={cx} cy={cy} r={r * 0.55} fill={svgCtrlFill} stroke="none" />
                 </g>
               );
             }
@@ -1730,7 +1816,7 @@ export default function DiagramViewer({
                   {/* Directional arrow inside the port square */}
                   <path d={arrowInward[side]} fill="none" stroke="#b0a0d0" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                   {/* Label outside parent */}
-                  <text x={labelProps.x} y={labelProps.y} fill="#c0b0e0" fontSize={9} textAnchor={labelProps.textAnchor}>
+                  <text x={labelProps.x} y={labelProps.y} fill={svgPortText} fontSize={9} textAnchor={labelProps.textAnchor}>
                     {portName}
                   </text>
                 </g>
@@ -1775,17 +1861,17 @@ export default function DiagramViewer({
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <path d={foldPath} fill="#3a3520" stroke={borderColor} strokeWidth={isSelected ? 2 : 1} />
-                  <path d={foldTriangle} fill="#2a2810" stroke={borderColor} strokeWidth={0.5} />
+                  <path d={foldPath} fill={svgCommentFill} stroke={borderColor} strokeWidth={isSelected ? 2 : 1} />
+                  <path d={foldTriangle} fill={svgCommentFold} stroke={borderColor} strokeWidth={0.5} />
                   {isSelected && <path d={foldPath} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
                   {kindLabel && (
-                    <text x={dynamicW / 2} y={15} fill="#c0b060" fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
+                    <text x={dynamicW / 2} y={15} fill={svgCommentLabel} fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
                   )}
                   {showName && (
-                    <text x={dynamicW / 2} y={34} fill="#e8e0c0" fontSize={13} textAnchor="middle" fontWeight="bold">{commentDisplayName}</text>
+                    <text x={dynamicW / 2} y={34} fill={svgCommentText} fontSize={13} textAnchor="middle" fontWeight="bold">{commentDisplayName}</text>
                   )}
                   {lines.map((ln, i) => (
-                    <text key={i} x={8} y={HEADER_H + 4 + (i + 1) * LINE_H - 2} fill="#c0b880" fontSize={10}>{ln}</text>
+                    <text key={i} x={8} y={HEADER_H + 4 + (i + 1) * LINE_H - 2} fill={svgCommentBody} fontSize={10}>{ln}</text>
                   ))}
                 </g>
               );
@@ -1840,10 +1926,10 @@ export default function DiagramViewer({
                     </text>
                   )}
                   {!isParam && kindLabel && (
-                    <text x={dynamicW / 2} y={17} fill="#b0c0d8" fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
+                    <text x={dynamicW / 2} y={17} fill={svgTextSub} fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
                   )}
                   {nameLabel && (
-                    <text x={dynamicW / 2} y={42} fill="#e8eef6" fontSize={13} textAnchor="middle" fontWeight="bold">{nameLabel.text}</text>
+                    <text x={dynamicW / 2} y={42} fill={svgText} fontSize={13} textAnchor="middle" fontWeight="bold">{nameLabel.text}</text>
                   )}
                   {/* Compartment: attribute/usage rows */}
                   {hasCompartment && (
@@ -1854,7 +1940,7 @@ export default function DiagramViewer({
                           key={label.id}
                           x={8}
                           y={HEADER_H + 6 + (i + 1) * ROW_H - 4}
-                          fill="#b0c8e0"
+                          fill={svgAttrText}
                           fontSize={10}
                           fontFamily="monospace"
                         >
@@ -1901,7 +1987,7 @@ export default function DiagramViewer({
                 {/* Dark outline behind edge for contrast against node backgrounds */}
                 <path
                   d={edgePath(edge)}
-                  stroke="#1e1e1e"
+                  stroke={t.bg}
                   strokeWidth={4}
                   fill="none"
                   opacity={0.6}
@@ -1934,7 +2020,7 @@ export default function DiagramViewer({
                       width={label.text.length * 6.4 + 8}
                       height={14}
                       rx={2}
-                      fill="#1e1e1e"
+                      fill={t.bg}
                       fillOpacity={0.85}
                     />
                     <text x={c.x} y={c.y - 4} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
@@ -1953,27 +2039,27 @@ export default function DiagramViewer({
         {/* SysML v2 View Legend — dynamic per view type */}
         {showLegend && <g transform="translate(10,10)">
           {/* View type label */}
-          <text x={0} y={10} fill="#ccc" fontSize={10} fontWeight={600}>
+          <text x={0} y={10} fill={svgCtrlFill} fontSize={10} fontWeight={600}>
             {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
           </text>
           {/* Node shape legend */}
           <g transform="translate(0,18)">
-            <rect width={10} height={6} fill="#2a2a3a" stroke="#6a6a8a" strokeWidth={1} />
-            <rect y={6} width={14} height={8} fill="#2a2a3a" stroke="#6a6a8a" strokeWidth={1} />
-            <text x={18} y={11} fill="#9a9ac0" fontSize={9}>Package (tab)</text>
+            <rect width={10} height={6} fill={NODE_COLORS.package ?? '#2a2a3a'} stroke={svgPkgStroke} strokeWidth={1} />
+            <rect y={6} width={14} height={8} fill={NODE_COLORS.package ?? '#2a2a3a'} stroke={svgPkgStroke} strokeWidth={1} />
+            <text x={18} y={11} fill={svgPkgLabel} fontSize={9}>Package (tab)</text>
           </g>
           {(viewType === 'general' || viewType === 'interconnection') && <g transform="translate(0,36)">
-            <rect width={12} height={10} rx={0} fill="#1c3f6e" stroke="#4a8ab0" strokeWidth={1} y={2} />
-            <text x={16} y={11} fill="#9ab8d8" fontSize={9}>Definition (sharp)</text>
+            <rect width={12} height={10} rx={0} fill={NODE_COLORS.partdefinition ?? '#1c3f6e'} stroke={svgStroke} strokeWidth={1} y={2} />
+            <text x={16} y={11} fill={svgTextSub} fontSize={9}>Definition (sharp)</text>
           </g>}
           <g transform={`translate(0,${viewType === 'general' || viewType === 'interconnection' ? 52 : 36})`}>
-            <rect width={12} height={10} rx={4} fill="#0a2040" stroke="#4a8ab0" strokeWidth={1} y={2} />
-            <text x={16} y={11} fill="#9ab8d8" fontSize={9}>Usage (rounded)</text>
+            <rect width={12} height={10} rx={4} fill={NODE_COLORS.partusage ?? '#0a2040'} stroke={svgStroke} strokeWidth={1} y={2} />
+            <text x={16} y={11} fill={svgTextSub} fontSize={9}>Usage (rounded)</text>
           </g>
           {viewType === 'interconnection' && <g transform="translate(0,68)">
-            <rect width={10} height={10} rx={1} fill="#1e0a30" stroke="#7a5a9a" strokeWidth={1} y={2} />
-            <path d="M7,4 L4,7 L7,10" fill="none" stroke="#b0a0d0" strokeWidth={1} y={2} />
-            <text x={16} y={11} fill="#c0b0e0" fontSize={9}>Port (boundary)</text>
+            <rect width={10} height={10} rx={1} fill={NODE_COLORS.portusage ?? '#1e0a30'} stroke={svgPortStroke} strokeWidth={1} y={2} />
+            <path d="M7,4 L4,7 L7,10" fill="none" stroke={isDark ? '#b0a0d0' : '#7a5ab0'} strokeWidth={1} y={2} />
+            <text x={16} y={11} fill={svgPortText} fontSize={9}>Port (boundary)</text>
           </g>}
           {/* Edge legend — filtered per view type */}
           {(() => {
@@ -2031,14 +2117,14 @@ export default function DiagramViewer({
           <div
             style={{
               position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 100,
-              background: '#252526', border: '1px solid #454545', borderRadius: 4,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.5)', padding: '4px 0',
-              minWidth: 160, fontSize: 12, color: '#d4d4d4',
+              background: t.bgTertiary, border: `1px solid ${t.btnBorder}`, borderRadius: 4,
+              boxShadow: t.shadow, padding: '4px 0',
+              minWidth: 160, fontSize: 12, color: t.text,
             }}
           >
             {contextMenu.type === 'multi' ? (
               <>
-                <div style={{ padding: '4px 12px', color: '#888', fontSize: 10, borderBottom: '1px solid #333', marginBottom: 2 }}>
+                <div style={{ padding: '4px 12px', color: t.textSecondary, fontSize: 10, borderBottom: `1px solid ${t.border}`, marginBottom: 2 }}>
                   {(contextMenu.nodeIds?.length ?? 0) + (contextMenu.edgeIds?.length ?? 0)} selected items
                 </div>
                 <button
@@ -2053,9 +2139,9 @@ export default function DiagramViewer({
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                     padding: '6px 12px', background: 'none', border: 'none',
-                    color: '#d4d4d4', cursor: 'pointer', textAlign: 'left', fontSize: 12,
+                    color: t.text, cursor: 'pointer', textAlign: 'left', fontSize: 12,
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#094771')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = t.accentBg)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                 >
                   <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {(contextMenu.nodeIds?.length ?? 0) + (contextMenu.edgeIds?.length ?? 0)} selected items
@@ -2063,7 +2149,7 @@ export default function DiagramViewer({
               </>
             ) : (
               <>
-                <div style={{ padding: '4px 12px', color: '#888', fontSize: 10, borderBottom: '1px solid #333', marginBottom: 2 }}>
+                <div style={{ padding: '4px 12px', color: t.textSecondary, fontSize: 10, borderBottom: `1px solid ${t.border}`, marginBottom: 2 }}>
                   {contextMenu.type === 'node' ? 'Element' : 'Relationship'}: {contextMenu.label}
                 </div>
                 <button
@@ -2077,9 +2163,9 @@ export default function DiagramViewer({
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                     padding: '6px 12px', background: 'none', border: 'none',
-                    color: '#d4d4d4', cursor: 'pointer', textAlign: 'left', fontSize: 12,
+                    color: t.text, cursor: 'pointer', textAlign: 'left', fontSize: 12,
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#094771')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = t.accentBg)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                 >
                   <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {contextMenu.type === 'node' ? 'element' : 'relationship'}

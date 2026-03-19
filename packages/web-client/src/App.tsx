@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.js';
+import { useThemeStore } from './store/theme.js';
 import LoginPage from './pages/LoginPage.js';
 import ProjectsPage from './pages/ProjectsPage.js';
 import EditorPage from './pages/EditorPage.js';
@@ -13,6 +14,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const themeMode = useThemeStore((s) => s.mode);
+  useEffect(() => {
+    document.body.classList.toggle('theme-light', themeMode === 'light');
+  }, [themeMode]);
+
   return (
     <BrowserRouter>
       <Routes>
