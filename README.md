@@ -579,7 +579,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 406 vitest tests (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files)
+- [x] Automated tests: 454 vitest tests across 15 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for all users, directory-based seed data, 30 files across 8 subprojects)
