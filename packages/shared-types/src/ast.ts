@@ -32,6 +32,7 @@ export type SysMLNodeKind =
   | 'ViewpointDefinition'
   | 'RenderingDefinition'
   | 'MetadataDefinition'
+  | 'FlowDefinition'
   | 'OccurrenceDefinition'
   // ── Extended usages ──
   | 'RequirementUsage'

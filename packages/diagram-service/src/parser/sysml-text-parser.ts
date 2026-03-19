@@ -264,7 +264,7 @@ const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|stat
 const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence';
 const USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
-const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
+const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
 const IN_OUT_PATTERN = new RegExp(`\\b(in|out|inout)\\s+(${USAGE_KW})\\s+(\\w+)\\s*(?:\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*[;{]`, 'g');
 const IN_OUT_UNTYPED_PATTERN = new RegExp(`\\b(in|out|inout)\\s+(${USAGE_KW})\\s+(\\w+)\\s*[;{]`, 'g');
@@ -329,7 +329,7 @@ const ALIAS_PATTERN = /\b(?:(?:public|private|protected)\s+)?alias\s+(\w+)\s+for
 const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
   requirement: 'RequirementDefinition', constraint: 'ConstraintDefinition',
   interface: 'InterfaceDefinition', enum: 'EnumDefinition', calc: 'CalcDefinition',
-  allocation: 'AllocationDefinition', concern: 'ConcernDefinition',
+  allocation: 'AllocationDefinition', flow: 'FlowDefinition', concern: 'ConcernDefinition',
   view: 'ViewDefinition', viewpoint: 'ViewpointDefinition', rendering: 'RenderingDefinition',
   metadata: 'MetadataDefinition', occurrence: 'OccurrenceDefinition',
 };
