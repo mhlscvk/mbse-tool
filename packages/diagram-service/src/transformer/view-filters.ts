@@ -120,6 +120,7 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
 
 const STV_NODE_KINDS = new Set([
   'StateUsage', 'StateDefinition', 'ExhibitStateUsage', 'TransitionUsage',
+  'EntryActionUsage', 'DoActionUsage', 'ExitActionUsage',
   'ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode',
   'Package',
 ]);

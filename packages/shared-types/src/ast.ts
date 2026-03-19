@@ -51,6 +51,9 @@ export type SysMLNodeKind =
   // ── Behavioral / control ──
   | 'PerformActionUsage'
   | 'ExhibitStateUsage'
+  | 'EntryActionUsage'
+  | 'DoActionUsage'
+  | 'ExitActionUsage'
   | 'TransitionUsage'
   | 'ForkNode'
   | 'JoinNode'

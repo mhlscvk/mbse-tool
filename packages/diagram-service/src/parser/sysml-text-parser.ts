@@ -992,6 +992,43 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         type: undefined,
         value: `__${behaviorKind}__`,
       });
+
+      // Also create a graphical node for STV rendering (entry/do/exit as nested action nodes)
+      const behaviorNodeName = actionName ?? behaviorKind;
+      const behaviorId = makeId('behavior', `${ownerState.name}_${behaviorKind}_${behaviorNodeName}`);
+      const behaviorKindMap: Record<string, string> = { entry: 'EntryActionUsage', do: 'DoActionUsage', exit: 'ExitActionUsage' };
+      const { line: bL, column: bC } = lineCol(source, pos);
+      const bEnd = findBlockEnd(clean, sbm.index + sbm[0].length - 1);
+      const { line: bEL, column: bEC } = lineCol(source, bEnd);
+      const behaviorNode: SysMLNode = {
+        id: behaviorId,
+        kind: behaviorKindMap[behaviorKind] as SysMLNodeKind,
+        name: actionName ? `${behaviorKind} / ${actionName}` : behaviorKind,
+        qualifiedName: typeSimple || undefined,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: bL - 1, character: bC - 1 }, end: { line: bEL - 1, character: bEC - 1 } },
+      };
+      nodes.push(behaviorNode);
+      nodeIndex.set(behaviorId, behaviorNode);
+      connections.push({
+        id: makeId('owns', `${ownerState.name}_${behaviorKind}_${behaviorNodeName}`),
+        sourceId: ownerState.id,
+        targetId: behaviorId,
+        kind: 'composition',
+        name: '',
+      });
+      if (typeName) {
+        const typeNode = resolveType(simpleName(typeName));
+        if (typeNode) {
+          connections.push({
+            id: makeId('typeref', `${behaviorNodeName}_${typeSimple}`),
+            sourceId: behaviorId,
+            targetId: typeNode.id,
+            kind: 'typereference',
+            name: '',
+          });
+        }
+      }
     }
   }
 

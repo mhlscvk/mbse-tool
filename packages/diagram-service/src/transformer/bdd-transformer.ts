@@ -66,6 +66,9 @@ const KIND_DISPLAY: Record<string, string> = {
   DecideNode:                  '«decide»',
   PerformActionUsage:          '«perform»',
   ExhibitStateUsage:           '«exhibit»',
+  EntryActionUsage:            '«entry action»',
+  DoActionUsage:               '«do action»',
+  ExitActionUsage:             '«exit action»',
   TransitionUsage:             '«transition»',
   Alias:                       '«alias»',
   Comment:                     '«comment»',
@@ -87,6 +90,7 @@ const IS_USAGE = new Set([
   'ConcernUsage', 'ViewUsage', 'ViewpointUsage', 'RenderingUsage', 'OccurrenceUsage', 'FlowUsage',
   'TransitionUsage',
   'PerformActionUsage', 'ExhibitStateUsage',
+  'EntryActionUsage', 'DoActionUsage', 'ExitActionUsage',
 ]);
 
 const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode']);
@@ -312,7 +316,15 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
     }
   }
 
+  // Entry/do/exit graphical nodes are only shown in STV — hide in other views
+  const BEHAVIOR_ACTION_KINDS = new Set(['EntryActionUsage', 'DoActionUsage', 'ExitActionUsage']);
+
   const hiddenNodeIds = new Set<string>();
+  if (viewType !== 'state-transition') {
+    for (const node of filtered.nodes) {
+      if (BEHAVIOR_ACTION_KINDS.has(node.kind)) hiddenNodeIds.add(node.id);
+    }
+  }
   if (viewType === 'general' && hasSuccession) {
     for (const node of filtered.nodes) {
       if (DEFINITION_KINDS.has(node.kind)
