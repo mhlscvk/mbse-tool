@@ -716,16 +716,16 @@ const btnSecondary = (t: ThemeColors): React.CSSProperties => ({
 function AdminSection() {
   const t = useTheme();
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<{ message: string; error: boolean } | null>(null);
 
   const handleSync = async () => {
     setSyncing(true);
     setSyncResult(null);
     try {
       const result = await api.admin.syncExamples();
-      setSyncResult(result.message);
+      setSyncResult({ message: result.message, error: false });
     } catch (err) {
-      setSyncResult(err instanceof Error ? err.message : 'Sync failed');
+      setSyncResult({ message: err instanceof Error ? err.message : 'Sync failed', error: true });
     } finally {
       setSyncing(false);
     }
@@ -752,8 +752,8 @@ function AdminSection() {
           {syncing ? 'Syncing...' : 'Sync Examples from Disk'}
         </button>
         {syncResult && (
-          <div style={{ marginTop: 8, fontSize: 12, color: syncResult.includes('failed') ? '#e55' : t.accent }}>
-            {syncResult}
+          <div style={{ marginTop: 8, fontSize: 12, color: syncResult.error ? '#e55' : t.accent }}>
+            {syncResult.message}
           </div>
         )}
       </div>

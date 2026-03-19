@@ -549,14 +549,14 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 ## Features
 
 ### Implemented
-- [x] Full SysML v2.0 parser (30+ definition/usage types, all operators, action flow, state machines)
+- [x] Full SysML v2.0 parser (24 definition types, 20 usage types, all operators, action flow, state machines)
 - [x] Action flow diagrams (start, terminate, fork, join, merge, decide, successions, guards)
 - [x] State machine diagrams (state defs, sub-states, transitions, entry/exit/do, parallel, shorthand transitions)
 - [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as distinct node kinds
 - [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
 - [x] If-then-else parsing with dotted guard expressions (`obj.prop.isActive`)
-- [x] OMG-compliant graphical notation (node shapes, edge styles per spec Section 8.2.3)
+- [x] OMG-compliant graphical notation per spec Section 8.2.3 (element-specific shapes: action def pill, state def rounded, use case ellipse, requirement icon, ref dashed border)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
 - [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV, STV (per spec 9.2.20)
@@ -585,6 +585,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] Legend toggle (show/hide via Relations tab checkbox)
 - [x] Training mode (7 levels, progressive SysML v2 tutorial)
 - [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
+- [x] Typed redefines (`part x : Type redefines y`), unnamed redefines (`part redefines x[4]`), post-type multiplicity
 - [x] Production deployment (Nginx, SSL, PM2, Hetzner VPS)
 
 ### Planned

@@ -837,15 +837,15 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   const usagePositions: UsagePosition[] = [];
   {
     // Typed usages
-    const usageScanRe = new RegExp(USAGE_PATTERN.source, 'g');
+    USAGE_PATTERN.lastIndex = 0;
     let um: RegExpExecArray | null;
-    while ((um = usageScanRe.exec(clean)) !== null) {
+    while ((um = USAGE_PATTERN.exec(clean)) !== null) {
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
       usagePositions.push({ name: um[3], start: um.index, end }); // [3]=name (after ref?, keyword)
     }
     // Untyped usages (e.g. `item SourceData { ... }`)
-    const untypedScanRe = new RegExp(UNTYPED_USAGE_PATTERN.source, 'g');
-    while ((um = untypedScanRe.exec(clean)) !== null) {
+    UNTYPED_USAGE_PATTERN.lastIndex = 0;
+    while ((um = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
       // Skip if preceded by 'in', 'out', 'inout', or 'def'
       const pre = clean.slice(Math.max(0, um.index - 7), um.index);
       if (/\b(inout|in|out|def)\s+$/.test(pre)) continue;
@@ -874,9 +874,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   // These must exist in nodeIndex before section 2 so nested typed usages
   // can find their enclosing container via findOwnerUsage.
   {
-    const containerRe = new RegExp(UNTYPED_USAGE_PATTERN.source, 'g');
+    UNTYPED_USAGE_PATTERN.lastIndex = 0;
     let cm: RegExpExecArray | null;
-    while ((cm = containerRe.exec(clean)) !== null) {
+    while ((cm = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
       // Only pre-create if the match ends with `{` (block body = container)
       if (cm[0][cm[0].length - 1] !== '{') continue;
       const pre = clean.slice(Math.max(0, cm.index - 9), cm.index);
