@@ -290,4 +290,142 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+// ─── Change Password ─────────────────────────────────────────────────────────
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+});
+
+router.put('/password', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Validation', message: parsed.error.issues[0].message });
+      return;
+    }
+    const { currentPassword, newPassword } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) { res.status(404).json({ error: 'Not Found', message: 'User not found' }); return; }
+
+    if (!user.passwordHash) {
+      res.status(400).json({ error: 'Bad Request', message: 'Account uses Google sign-in. No password to change.' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Current password is incorrect' });
+      return;
+    }
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
+
+    res.json({ data: { message: 'Password updated successfully' } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Forgot Password: Request Reset ──────────────────────────────────────────
+
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+    const normalized = email.toLowerCase().trim();
+
+    // Always return same response to prevent email enumeration
+    const genericMsg = 'If an account with that email exists, a password reset link has been sent.';
+
+    const user = await prisma.user.findUnique({ where: { email: normalized } });
+    if (!user || !user.emailVerified || !user.passwordHash) {
+      await bcrypt.hash('dummy', 12);
+      res.json({ data: { message: genericMsg } });
+      return;
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExp = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { verifyToken: resetToken, verifyTokenExp: resetTokenExp },
+    });
+
+    // Send reset email
+    const isDev = process.env.NODE_ENV !== 'production';
+    const baseUrl = process.env.APP_URL ?? (isDev ? 'http://localhost:5173' : 'https://systemodel.com');
+    const resetUrl = `${baseUrl}/login?reset=${resetToken}`;
+
+    if (isDev) {
+      console.log(`[AUTH] Dev mode — password reset link for ${user.email}:\n  ${resetUrl}`);
+    } else {
+      const transporter = getMailTransporter();
+      transporter.sendMail({
+        from: process.env.SMTP_FROM ?? '"Systemodel" <noreply@systemodel.com>',
+        to: user.email,
+        subject: 'Reset your Systemodel password',
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+            <h2 style="color: #569cd6;">Password Reset</h2>
+            <p>Click the button below to reset your password:</p>
+            <a href="${resetUrl}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
+              Reset Password
+            </a>
+            <p style="color: #888; font-size: 13px; margin-top: 24px;">
+              Or copy this link: <br/>${resetUrl}
+            </p>
+            <p style="color: #888; font-size: 12px;">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
+          </div>
+        `,
+      }).catch((err) => {
+        console.error('[AUTH] Failed to send reset email:', err.message);
+      });
+    }
+
+    res.json({ data: { message: genericMsg } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Forgot Password: Reset with Token ───────────────────────────────────────
+
+const resetPasswordSchema = z.object({
+  token: z.string().length(64),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Validation', message: parsed.error.issues[0].message });
+      return;
+    }
+    const { token, newPassword } = parsed.data;
+
+    const user = await prisma.user.findFirst({
+      where: { verifyToken: token },
+    });
+
+    if (!user || !user.verifyTokenExp || user.verifyTokenExp < new Date()) {
+      res.status(400).json({ error: 'Bad Request', message: 'Reset link is invalid or has expired.' });
+      return;
+    }
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: hash, verifyToken: null, verifyTokenExp: null },
+    });
+
+    res.json({ data: { message: 'Password has been reset. You can now sign in.' } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

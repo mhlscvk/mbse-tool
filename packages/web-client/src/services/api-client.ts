@@ -58,6 +58,18 @@ export const api = {
     resendVerify: (email: string) => request<{ message: string }>('/auth/resend-verify', {
       method: 'POST', body: JSON.stringify({ email }),
     }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ message: string }>('/auth/password', {
+        method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }),
+      }),
+    forgotPassword: (email: string) =>
+      request<{ message: string }>('/auth/forgot-password', {
+        method: 'POST', body: JSON.stringify({ email }),
+      }),
+    resetPassword: (token: string, newPassword: string) =>
+      request<{ message: string }>('/auth/reset-password', {
+        method: 'POST', body: JSON.stringify({ token, newPassword }),
+      }),
   },
   projects: {
     list: () => request<import('@systemodel/shared-types').Project[]>('/projects'),

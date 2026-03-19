@@ -184,7 +184,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
           }}>{tierLabel}</span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => navigate('/settings')} title="AI Settings" style={iconBtn}>&#9881;</button>
+          <button onClick={() => navigate('/settings?tab=ai-provider')} title="AI Settings" style={iconBtn}>&#9881;</button>
           {messages.length > 0 && (
             <button onClick={() => { if (fileId) clearChatHistory(fileId); setMessages([]); }} title="Clear chat" style={iconBtn}>&#10227;</button>
           )}
@@ -200,7 +200,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
               {freeStatus.used} / {freeStatus.limit} free messages
             </span>
             <span style={{ fontSize: 10, color: quotaExhausted ? '#f48771' : '#569cd6', cursor: 'pointer' }}
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/settings?tab=ai-provider')}
             >
               {quotaExhausted ? 'Upgrade' : 'Add your key for unlimited'}
             </span>
@@ -224,7 +224,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
             <div style={{ color: '#888', fontSize: 12, lineHeight: 1.6, marginBottom: 16 }}>
               Add your AI provider API key in Settings to start chatting.
             </div>
-            <button onClick={() => navigate('/settings')} style={{
+            <button onClick={() => navigate('/settings?tab=ai-provider')} style={{
               background: '#0e639c', color: '#fff', border: 'none',
               borderRadius: 4, padding: '8px 20px', fontSize: 13, cursor: 'pointer',
             }}>Configure AI Provider</button>

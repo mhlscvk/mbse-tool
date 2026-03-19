@@ -8,24 +8,37 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [form, setForm] = useState({ email: '', password: '', name: '' });
+  const [resetForm, setResetForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [resetToken, setResetToken] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const t = useTheme();
 
-  // Handle email verification redirect
+  // Handle URL params: ?verified=success/expired, ?reset=TOKEN
   useEffect(() => {
     const verified = searchParams.get('verified');
+    const reset = searchParams.get('reset');
     if (verified === 'success') {
       setInfo('Email verified successfully! You can now sign in.');
       setMode('login');
     } else if (verified === 'expired') {
       setError('Verification link expired. Please register again or resend verification.');
+    }
+    if (reset) {
+      if (/^[a-f0-9]{64}$/.test(reset)) {
+        setResetToken(reset);
+        setMode('reset');
+        setInfo('');
+        setError('');
+      } else {
+        setError('Invalid password reset link.');
+      }
     }
   }, [searchParams]);
 
@@ -73,7 +86,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Only load script once
     if (!scriptRef.current) {
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
@@ -89,7 +101,6 @@ export default function LoginPage() {
         scriptRef.current.remove();
         scriptRef.current = null;
       }
-      // Cancel any pending Google prompts
       if (win.google?.accounts?.id?.cancel) {
         win.google.accounts.id.cancel();
       }
@@ -135,9 +146,60 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    if (!form.email.trim()) { setError('Please enter your email address'); return; }
+    setLoading(true);
+    try {
+      const result = await api.auth.forgotPassword(form.email);
+      setInfo(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset email');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    if (resetForm.newPassword !== resetForm.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (resetForm.newPassword.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await api.auth.resetPassword(resetToken, resetForm.newPassword);
+      setInfo(result.message);
+      setResetForm({ newPassword: '', confirmPassword: '' });
+      // Clear the reset token from URL and switch to login
+      setSearchParams({});
+      setMode('login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchMode = (m: 'login' | 'register' | 'forgot') => {
+    setMode(m);
+    setError('');
+    setInfo('');
+    setShowResend(false);
+  };
+
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 4,
-    padding: '9px 12px', color: t.text, fontSize: 13, outline: 'none',
+    padding: '9px 12px', color: t.text, fontSize: 13, outline: 'none', width: '100%',
+    boxSizing: 'border-box',
   };
 
   return (
@@ -158,70 +220,159 @@ export default function LoginPage() {
         </div>
         <p style={{ color: t.textSecondary, marginBottom: 32, fontSize: 13 }}>SysML v2 Modeling Platform</p>
 
-        <div style={{ display: 'flex', marginBottom: 24, gap: 8 }}>
-          {(['login', 'register'] as const).map((m) => (
-            <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); }} style={{
-              flex: 1, padding: '8px 0', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13,
-              background: mode === m ? t.accent : t.btnBg, color: mode === m ? '#fff' : t.textSecondary,
-            }}>
-              {m === 'login' ? 'Sign In' : 'Create Account'}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {mode === 'register' && (
-            <input
-              placeholder="Full name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
-              style={inputStyle}
-            />
-          )}
-          <input
-            type="email" placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            required
-            style={inputStyle}
-          />
-          <input
-            type="password" placeholder="Password"
-            value={form.password}
-            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            required
-            minLength={mode === 'register' ? 8 : undefined}
-            style={inputStyle}
-          />
-          {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
-          {showResend && form.email && (
-            <button type="button" onClick={handleResend} style={{
-              background: 'none', border: `1px solid ${t.border}`, borderRadius: 4,
-              color: t.info, fontSize: 12, padding: '6px 0', cursor: 'pointer',
-            }}>
-              Resend verification email
-            </button>
-          )}
-          {info && <div style={{ color: t.success, fontSize: 13 }}>{info}</div>}
-          <button type="submit" disabled={loading} style={{
-            background: loading ? t.btnDisabled : t.accent, color: '#fff',
-            border: 'none', borderRadius: 4, padding: '10px 0',
-            cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 8,
-          }}>
-            {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
-          </button>
-        </form>
-
-        {/* Google Sign-In */}
-        {GOOGLE_CLIENT_ID && (
+        {/* ── Reset Password Form (from email link) ──────────────────── */}
+        {mode === 'reset' && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-              <div style={{ flex: 1, height: 1, background: t.border }} />
-              <span style={{ color: t.textMuted, fontSize: 12 }}>or</span>
-              <div style={{ flex: 1, height: 1, background: t.border }} />
+            <h2 style={{ color: t.text, fontSize: 16, marginBottom: 16 }}>Set New Password</h2>
+            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input
+                type="password" placeholder="New password (min 8 characters)"
+                value={resetForm.newPassword}
+                onChange={(e) => setResetForm(f => ({ ...f, newPassword: e.target.value }))}
+                required minLength={8}
+                style={inputStyle}
+              />
+              <input
+                type="password" placeholder="Confirm new password"
+                value={resetForm.confirmPassword}
+                onChange={(e) => setResetForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                required minLength={8}
+                style={inputStyle}
+              />
+              {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
+              {info && <div style={{ color: t.success, fontSize: 13 }}>{info}</div>}
+              <button type="submit" disabled={loading} style={{
+                background: loading ? t.btnDisabled : t.accent, color: '#fff',
+                border: 'none', borderRadius: 4, padding: '10px 0',
+                cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 4,
+              }}>
+                {loading ? 'Please wait...' : 'Reset Password'}
+              </button>
+            </form>
+            <button
+              onClick={() => { switchMode('login'); setSearchParams({}); }}
+              style={{ background: 'none', border: 'none', color: t.info, cursor: 'pointer', fontSize: 12, marginTop: 16, padding: 0 }}
+            >
+              Back to Sign In
+            </button>
+          </>
+        )}
+
+        {/* ── Forgot Password Form ───────────────────────────────────── */}
+        {mode === 'forgot' && (
+          <>
+            <h2 style={{ color: t.text, fontSize: 16, marginBottom: 8 }}>Forgot Password</h2>
+            <p style={{ color: t.textSecondary, fontSize: 12, marginBottom: 16, lineHeight: 1.5 }}>
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+            <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input
+                type="email" placeholder="Email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                required
+                style={inputStyle}
+              />
+              {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
+              {info && <div style={{ color: t.success, fontSize: 13 }}>{info}</div>}
+              <button type="submit" disabled={loading} style={{
+                background: loading ? t.btnDisabled : t.accent, color: '#fff',
+                border: 'none', borderRadius: 4, padding: '10px 0',
+                cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 4,
+              }}>
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </form>
+            <button
+              onClick={() => switchMode('login')}
+              style={{ background: 'none', border: 'none', color: t.info, cursor: 'pointer', fontSize: 12, marginTop: 16, padding: 0 }}
+            >
+              Back to Sign In
+            </button>
+          </>
+        )}
+
+        {/* ── Login / Register Form ──────────────────────────────────── */}
+        {(mode === 'login' || mode === 'register') && (
+          <>
+            <div style={{ display: 'flex', marginBottom: 24, gap: 8 }}>
+              {(['login', 'register'] as const).map((m) => (
+                <button key={m} onClick={() => switchMode(m)} style={{
+                  flex: 1, padding: '8px 0', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13,
+                  background: mode === m ? t.accent : t.btnBg, color: mode === m ? '#fff' : t.textSecondary,
+                }}>
+                  {m === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
+              ))}
             </div>
-            <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center' }} />
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {mode === 'register' && (
+                <input
+                  placeholder="Full name"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  required
+                  style={inputStyle}
+                />
+              )}
+              <input
+                type="email" placeholder="Email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                required
+                style={inputStyle}
+              />
+              <input
+                type="password" placeholder="Password"
+                value={form.password}
+                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                required
+                minLength={mode === 'register' ? 8 : undefined}
+                style={inputStyle}
+              />
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  onClick={() => switchMode('forgot')}
+                  style={{
+                    background: 'none', border: 'none', color: t.info, cursor: 'pointer',
+                    fontSize: 12, padding: 0, textAlign: 'right', marginTop: -4,
+                  }}
+                >
+                  Forgot password?
+                </button>
+              )}
+              {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
+              {showResend && form.email && (
+                <button type="button" onClick={handleResend} style={{
+                  background: 'none', border: `1px solid ${t.border}`, borderRadius: 4,
+                  color: t.info, fontSize: 12, padding: '6px 0', cursor: 'pointer',
+                }}>
+                  Resend verification email
+                </button>
+              )}
+              {info && <div style={{ color: t.success, fontSize: 13 }}>{info}</div>}
+              <button type="submit" disabled={loading} style={{
+                background: loading ? t.btnDisabled : t.accent, color: '#fff',
+                border: 'none', borderRadius: 4, padding: '10px 0',
+                cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 8,
+              }}>
+                {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            </form>
+
+            {/* Google Sign-In */}
+            {GOOGLE_CLIENT_ID && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+                  <div style={{ flex: 1, height: 1, background: t.border }} />
+                  <span style={{ color: t.textMuted, fontSize: 12 }}>or</span>
+                  <div style={{ flex: 1, height: 1, background: t.border }} />
+                </div>
+                <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center' }} />
+              </>
+            )}
           </>
         )}
       </div>

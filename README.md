@@ -506,7 +506,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - **CORS** origin allowlisting with validation on API server, diagram service, and LSP server
 - **WebSocket CSRF protection** — `verifyClient` origin validation on both LSP and Diagram WebSocket servers
 - **MCP CORS** — restricted to allowed origins; desktop apps (no Origin header) permitted
-- **Rate limiting** on auth (10/15min), registration (5/hr), API (100/min), AI chat (20/min), MCP (200/min)
+- **Rate limiting** on auth (10/15min), registration (5/hr), forgot/reset password (10/15min), API (100/min), AI chat (20/min), MCP (200/min)
 - **JWT HS256** with explicit algorithm enforcement to prevent algorithm confusion attacks
 - **Timing-safe login** — bcrypt always runs even for non-existent users
 - **Email enumeration prevention** — /register returns identical response for existing/new accounts
@@ -563,7 +563,8 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] AI Chat: hybrid free tier (Haiku) + own-key unlimited (Claude/GPT/Gemini), encrypted key storage
 - [x] MCP Server: 8 tools, 3 prompts, real-time subscriptions, Streamable HTTP transport
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
-- [x] User auth: email/password + Google OAuth + email verification
+- [x] User auth: email/password + Google OAuth + email verification + forgot password (email reset link)
+- [x] Settings page with tabbed layout (Account / AI Provider / MCP), password change form
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation

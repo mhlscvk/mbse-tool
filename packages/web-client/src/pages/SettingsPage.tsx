@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Layout/Header.js';
 import { api, type McpTokenInfo, type McpTokenCreated } from '../services/api-client.js';
 import type { AiKeyInfo } from '../services/api-client.js';
-import { useTheme } from '../store/theme.js';
+import { useTheme, type ThemeColors } from '../store/theme.js';
+import { useAuthStore } from '../store/auth.js';
 
 // ─── MCP client config templates ─────────────────────────────────────────────
 
@@ -61,9 +63,165 @@ const clients: { id: ClientId; label: string; file: string; generator: (url: str
   { id: 'windsurf', label: 'Windsurf', file: '~/.codeium/windsurf/mcp_config.json', generator: windsurfConfig },
 ];
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+type SettingsTab = 'account' | 'ai-provider' | 'mcp';
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'account', label: 'Account' },
+  { id: 'ai-provider', label: 'AI Provider' },
+  { id: 'mcp', label: 'MCP' },
+];
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const t = useTheme();
+  const [searchParams] = useSearchParams();
+  const initialTab = TABS.some(tab => tab.id === searchParams.get('tab')) ? searchParams.get('tab') as SettingsTab : 'account';
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
+      <Header title="Settings" />
+      <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${t.border}`, marginBottom: 24 }}>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                background: 'transparent', border: 'none',
+                borderBottom: activeTab === tab.id ? `2px solid ${t.accent}` : '2px solid transparent',
+                padding: '10px 20px', fontSize: 13, cursor: 'pointer',
+                color: activeTab === tab.id ? t.text : t.textSecondary,
+                fontWeight: activeTab === tab.id ? 600 : 400,
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {activeTab === 'account' && <AccountSection />}
+        {activeTab === 'ai-provider' && <AiProviderSection />}
+        {activeTab === 'mcp' && <McpSection />}
+      </div>
+    </div>
+  );
+}
+
+// ─── Account Section ─────────────────────────────────────────────────────────
+
+function AccountSection() {
+  const t = useTheme();
+  const user = useAuthStore(s => s.user);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return; }
+    if (newPassword.length < 8) { setError('Password must be at least 8 characters'); return; }
+    setSaving(true);
+    try {
+      const result = await api.auth.changePassword(currentPassword, newPassword);
+      setSuccess(result.message);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const iStyle = inputStyle(t);
+
+  return (
+    <>
+      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>Account</h2>
+      <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
+        Your account details and password management.
+      </p>
+
+      {/* Account info */}
+      <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Profile</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', fontSize: 13 }}>
+          <span style={{ color: t.textSecondary }}>Email</span>
+          <span style={{ color: t.text }}>{user?.email ?? '—'}</span>
+          <span style={{ color: t.textSecondary }}>Name</span>
+          <span style={{ color: t.text }}>{user?.name ?? '—'}</span>
+          <span style={{ color: t.textSecondary }}>Role</span>
+          <span style={{ color: t.text, textTransform: 'capitalize' }}>{user?.role ?? '—'}</span>
+        </div>
+      </div>
+
+      {/* Change password */}
+      <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Change Password</h3>
+        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360 }}>
+          <div>
+            <label style={lStyle(t)}>Current Password</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              required
+              style={iStyle}
+            />
+          </div>
+          <div>
+            <label style={lStyle(t)}>New Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              required
+              minLength={8}
+              style={iStyle}
+            />
+          </div>
+          <div>
+            <label style={lStyle(t)}>Confirm New Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+              style={iStyle}
+            />
+          </div>
+          {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
+          {success && <div style={{ color: t.success, fontSize: 13 }}>{success}</div>}
+          <button type="submit" disabled={saving} style={{
+            background: saving ? t.btnDisabled : t.accent, color: '#fff',
+            border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 13,
+            cursor: saving ? 'not-allowed' : 'pointer', alignSelf: 'flex-start',
+            whiteSpace: 'nowrap' as const,
+          }}>
+            {saving ? 'Updating...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+    </>
+  );
+}
+
+// ─── MCP Section ─────────────────────────────────────────────────────────────
+
+function McpSection() {
   const t = useTheme();
   const [tokens, setTokens] = useState<McpTokenInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,9 +233,6 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientId>('claude');
 
-  // In production (behind reverse proxy), API is on the same origin.
-  // In development, Vite proxies /api to localhost:3003, but MCP clients
-  // connect directly so we need the actual API port.
   const isDev = window.location.port === '5173';
   const serverUrl = isDev
     ? window.location.origin.replace(/:\d+$/, ':3003')
@@ -132,227 +287,217 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const activeTokens = tokens.filter(t => !t.revoked);
-  const revokedTokens = tokens.filter(t => t.revoked);
+  const activeTokens = tokens.filter(tk => !tk.revoked);
+  const revokedTokens = tokens.filter(tk => tk.revoked);
   const client = clients.find(c => c.id === selectedClient)!;
 
+  const iStyle = inputStyle(t);
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
-      <Header title="Settings" />
-      <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
+    <>
+      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>MCP Connection</h2>
+      <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
+        Connect your AI client (Claude Desktop, Cursor, VS Code, Windsurf) to systemodel.
+        Your AI runs on your own subscription — no API keys stored on our server.
+      </p>
 
-        {/* ── Section: AI Chat Provider ────────────────────────────────── */}
-        <AiProviderSection />
+      {error && <div style={{ color: t.error, fontSize: 13, marginBottom: 16, padding: '8px 12px', background: t.errorBg, borderRadius: 4 }}>{error}</div>}
 
-        <div style={{ height: 1, background: t.border, margin: '32px 0' }} />
+      {/* Create Token */}
+      <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Create Access Token</h3>
+        <form onSubmit={handleCreate} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label style={lStyle(t)}>Token name</label>
+            <input
+              value={newTokenName}
+              onChange={e => setNewTokenName(e.target.value)}
+              placeholder="e.g. Claude Desktop"
+              required
+              style={iStyle}
+            />
+          </div>
+          <div style={{ width: 140 }}>
+            <label style={lStyle(t)}>Expires in (days)</label>
+            <input
+              type="number"
+              value={expiresInDays}
+              onChange={e => setExpiresInDays(e.target.value ? parseInt(e.target.value) : '')}
+              placeholder="Never"
+              min={1}
+              max={365}
+              style={iStyle}
+            />
+          </div>
+          <button type="submit" disabled={creating || !newTokenName} style={{
+            background: t.accent, color: '#fff', border: 'none', borderRadius: 4,
+            padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' as const,
+            opacity: creating || !newTokenName ? 0.5 : 1,
+            cursor: creating || !newTokenName ? 'not-allowed' : 'pointer',
+          }}>
+            {creating ? 'Creating...' : 'Create Token'}
+          </button>
+        </form>
+      </div>
 
-        {/* ── Section: MCP Connection ─────────────────────────────────── */}
-        <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>MCP Connection</h2>
-        <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
-          Connect your AI client (Claude Desktop, Cursor, VS Code, Windsurf) to systemodel.
-          Your AI runs on your own subscription — no API keys stored on our server.
-        </p>
-
-        {error && <div style={{ color: t.error, fontSize: 13, marginBottom: 16, padding: '8px 12px', background: t.errorBg, borderRadius: 4 }}>{error}</div>}
-
-        {/* ── Create Token ────────────────────────────────────────────── */}
-        <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Create Access Token</h3>
-          <form onSubmit={handleCreate} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <label style={labelStyle}>Token name</label>
-              <input
-                value={newTokenName}
-                onChange={e => setNewTokenName(e.target.value)}
-                placeholder="e.g. Claude Desktop"
-                required
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ width: 140 }}>
-              <label style={labelStyle}>Expires in (days)</label>
-              <input
-                type="number"
-                value={expiresInDays}
-                onChange={e => setExpiresInDays(e.target.value ? parseInt(e.target.value) : '')}
-                placeholder="Never"
-                min={1}
-                max={365}
-                style={inputStyle}
-              />
-            </div>
-            <button type="submit" disabled={creating || !newTokenName} style={{
-              ...btnPrimary,
-              opacity: creating || !newTokenName ? 0.5 : 1,
-              cursor: creating || !newTokenName ? 'not-allowed' : 'pointer',
+      {/* Newly Created Token */}
+      {newlyCreated && (
+        <div style={{ background: t.successBg, border: `1px solid ${t.success}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+          <h3 style={{ color: t.success, fontSize: 14, marginBottom: 8 }}>Token Created — Copy It Now</h3>
+          <p style={{ color: t.textSecondary, fontSize: 12, marginBottom: 12 }}>
+            This token will not be shown again. Store it securely.
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <code style={{
+              flex: 1, background: t.bgInput, color: t.success, padding: '10px 12px',
+              borderRadius: 4, fontSize: 13, wordBreak: 'break-all', fontFamily: 'monospace',
             }}>
-              {creating ? 'Creating...' : 'Create Token'}
+              {newlyCreated.token}
+            </code>
+            <button onClick={() => copyToClipboard(newlyCreated.token, 'token')} style={btnSecondary(t)}>
+              {copied === 'token' ? 'Copied!' : 'Copy'}
             </button>
-          </form>
-        </div>
+          </div>
 
-        {/* ── Newly Created Token (shown once) ────────────────────────── */}
-        {newlyCreated && (
-          <div style={{ background: '#1a3a1a', border: '1px solid #4ec9b0', borderRadius: 6, padding: 20, marginBottom: 24 }}>
-            <h3 style={{ color: '#4ec9b0', fontSize: 14, marginBottom: 8 }}>Token Created — Copy It Now</h3>
-            <p style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
-              This token will not be shown again. Store it securely.
+          {/* Client Config Generator */}
+          <div style={{ marginTop: 16 }}>
+            <label style={lStyle(t)}>Generate config for:</label>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12, marginTop: 6 }}>
+              {clients.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedClient(c.id)}
+                  style={{
+                    border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 12, cursor: 'pointer',
+                    background: selectedClient === c.id ? t.accent : t.btnBg,
+                    color: selectedClient === c.id ? '#fff' : t.textSecondary,
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <p style={{ color: t.textSecondary, fontSize: 12, marginBottom: 8 }}>
+              Paste into <code style={{ color: t.info }}>{client.file}</code>:
             </p>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <code style={{
-                flex: 1, background: '#1e1e1e', color: '#4ec9b0', padding: '10px 12px',
-                borderRadius: 4, fontSize: 13, wordBreak: 'break-all', fontFamily: 'monospace',
+            <div style={{ position: 'relative' }}>
+              <pre style={{
+                background: t.bgInput, color: t.text, padding: '12px 14px',
+                borderRadius: 4, fontSize: 12, overflow: 'auto', margin: 0,
+                fontFamily: 'monospace', lineHeight: 1.5, border: `1px solid ${t.border}`,
               }}>
-                {newlyCreated.token}
-              </code>
+                {client.generator(serverUrl, newlyCreated.token)}
+              </pre>
               <button
-                onClick={() => copyToClipboard(newlyCreated.token, 'token')}
-                style={btnSecondary}
+                onClick={() => copyToClipboard(client.generator(serverUrl, newlyCreated.token), 'config')}
+                style={{ ...btnSecondary(t), position: 'absolute', top: 8, right: 8 }}
               >
-                {copied === 'token' ? 'Copied!' : 'Copy'}
+                {copied === 'config' ? 'Copied!' : 'Copy Config'}
               </button>
             </div>
+          </div>
 
-            {/* ── Client Config Generator ────────────────────────────── */}
-            <div style={{ marginTop: 16 }}>
-              <label style={labelStyle}>Generate config for:</label>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 12, marginTop: 6 }}>
-                {clients.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedClient(c.id)}
-                    style={{
-                      ...btnTab,
-                      background: selectedClient === c.id ? '#0e639c' : '#3c3c3c',
-                      color: selectedClient === c.id ? '#fff' : '#888',
-                    }}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-              <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>
-                Paste into <code style={{ color: '#569cd6' }}>{client.file}</code>:
-              </p>
-              <div style={{ position: 'relative' }}>
-                <pre style={{
-                  background: '#1e1e1e', color: '#d4d4d4', padding: '12px 14px',
-                  borderRadius: 4, fontSize: 12, overflow: 'auto', margin: 0,
-                  fontFamily: 'monospace', lineHeight: 1.5,
+          <button onClick={() => setNewlyCreated(null)} style={{ ...btnSecondary(t), marginTop: 12 }}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Active Tokens */}
+      <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Active Tokens</h3>
+        {loading ? (
+          <p style={{ color: t.textSecondary, fontSize: 13 }}>Loading...</p>
+        ) : activeTokens.length === 0 ? (
+          <p style={{ color: t.textSecondary, fontSize: 13 }}>No active tokens. Create one above to connect your AI client.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {activeTokens.map(tk => (
+              <div key={tk.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                background: t.bgInput, borderRadius: 4,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: t.text, fontSize: 13, fontWeight: 500 }}>{tk.name}</div>
+                  <div style={{ color: t.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    <code style={{ fontFamily: 'monospace' }}>{tk.token}</code>
+                    {' '}&middot;{' '}
+                    Created {new Date(tk.createdAt).toLocaleDateString()}
+                    {tk.lastUsed && <> &middot; Last used {new Date(tk.lastUsed).toLocaleDateString()}</>}
+                    {tk.expiresAt && <> &middot; Expires {new Date(tk.expiresAt).toLocaleDateString()}</>}
+                  </div>
+                </div>
+                <button onClick={() => handleRevoke(tk.id)} style={{
+                  background: 'transparent', color: t.error, border: `1px solid ${t.error}`, borderRadius: 4,
+                  padding: '4px 10px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' as const,
                 }}>
-                  {client.generator(serverUrl, newlyCreated.token)}
-                </pre>
-                <button
-                  onClick={() => copyToClipboard(client.generator(serverUrl, newlyCreated.token), 'config')}
-                  style={{ ...btnSecondary, position: 'absolute', top: 8, right: 8 }}
-                >
-                  {copied === 'config' ? 'Copied!' : 'Copy Config'}
+                  Revoke
                 </button>
               </div>
-            </div>
-
-            <button
-              onClick={() => setNewlyCreated(null)}
-              style={{ ...btnSecondary, marginTop: 12 }}
-            >
-              Dismiss
-            </button>
+            ))}
           </div>
         )}
+      </div>
 
-        {/* ── Active Tokens ───────────────────────────────────────────── */}
+      {/* Revoked Tokens */}
+      {revokedTokens.length > 0 && (
         <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Active Tokens</h3>
-          {loading ? (
-            <p style={{ color: '#888', fontSize: 13 }}>Loading...</p>
-          ) : activeTokens.length === 0 ? (
-            <p style={{ color: '#888', fontSize: 13 }}>No active tokens. Create one above to connect your AI client.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {activeTokens.map(t => (
-                <div key={t.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                  background: '#1e1e1e', borderRadius: 4,
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 500 }}>{t.name}</div>
-                    <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
-                      <code style={{ fontFamily: 'monospace' }}>{t.token}</code>
-                      {' '}&middot;{' '}
-                      Created {new Date(t.createdAt).toLocaleDateString()}
-                      {t.lastUsed && <> &middot; Last used {new Date(t.lastUsed).toLocaleDateString()}</>}
-                      {t.expiresAt && <> &middot; Expires {new Date(t.expiresAt).toLocaleDateString()}</>}
-                    </div>
+          <h3 style={{ color: t.textSecondary, fontSize: 14, marginBottom: 12 }}>Revoked Tokens</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {revokedTokens.map(tk => (
+              <div key={tk.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+                background: t.bgInput, borderRadius: 4, opacity: 0.5,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: t.textSecondary, fontSize: 13 }}>{tk.name}</div>
+                  <div style={{ color: t.textMuted, fontSize: 11 }}>
+                    <code style={{ fontFamily: 'monospace' }}>{tk.token}</code>
+                    {' '}&middot;{' '}Revoked
                   </div>
-                  <button onClick={() => handleRevoke(t.id)} style={btnDanger}>
-                    Revoke
-                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* How It Works */}
+      <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>How It Works</h3>
+        <div style={{ color: t.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+          <p style={{ marginBottom: 8 }}>
+            <strong style={{ color: t.text }}>1.</strong> Create an access token above and name it after your AI client.
+          </p>
+          <p style={{ marginBottom: 8 }}>
+            <strong style={{ color: t.text }}>2.</strong> Copy the generated config into your AI client's configuration file.
+          </p>
+          <p style={{ marginBottom: 8 }}>
+            <strong style={{ color: t.text }}>3.</strong> Your AI client connects to systemodel via MCP and can read/edit your SysML files.
+          </p>
+          <p style={{ marginBottom: 0 }}>
+            <strong style={{ color: t.text }}>4.</strong> AI inference runs on <em>your</em> subscription (Claude Pro, Cursor Pro, etc.) — zero cost to systemodel.
+          </p>
         </div>
 
-        {/* ── Revoked Tokens ──────────────────────────────────────────── */}
-        {revokedTokens.length > 0 && (
-          <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-            <h3 style={{ color: t.textSecondary, fontSize: 14, marginBottom: 12 }}>Revoked Tokens</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {revokedTokens.map(t => (
-                <div key={t.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
-                  background: '#1e1e1e', borderRadius: 4, opacity: 0.5,
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: '#888', fontSize: 13 }}>{t.name}</div>
-                    <div style={{ color: '#666', fontSize: 11 }}>
-                      <code style={{ fontFamily: 'monospace' }}>{t.token}</code>
-                      {' '}&middot;{' '}Revoked
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Available MCP Tools</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12, color: t.textSecondary }}>
+          <span><code style={{ color: t.info }}>list_projects</code> — List your projects</span>
+          <span><code style={{ color: t.info }}>list_files</code> — List files in a project</span>
+          <span><code style={{ color: t.info }}>read_file</code> — Read file content</span>
+          <span><code style={{ color: t.info }}>create_file</code> — Create a new file</span>
+          <span><code style={{ color: t.info }}>update_file</code> — Replace file content</span>
+          <span><code style={{ color: t.info }}>apply_edit</code> — Precise line/col edit</span>
+          <span><code style={{ color: t.info }}>delete_file</code> — Delete a file</span>
+          <span><code style={{ color: t.info }}>search_files</code> — Search across files</span>
+        </div>
 
-        {/* ── How It Works ────────────────────────────────────────────── */}
-        <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>How It Works</h3>
-          <div style={{ color: t.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
-            <p style={{ marginBottom: 8 }}>
-              <strong style={{ color: t.text }}>1.</strong> Create an access token above and name it after your AI client.
-            </p>
-            <p style={{ marginBottom: 8 }}>
-              <strong style={{ color: t.text }}>2.</strong> Copy the generated config into your AI client's configuration file.
-            </p>
-            <p style={{ marginBottom: 8 }}>
-              <strong style={{ color: t.text }}>3.</strong> Your AI client connects to systemodel via MCP and can read/edit your SysML files.
-            </p>
-            <p style={{ marginBottom: 0 }}>
-              <strong style={{ color: t.text }}>4.</strong> AI inference runs on <em>your</em> subscription (Claude Pro, Cursor Pro, etc.) — zero cost to systemodel.
-            </p>
-          </div>
-
-          <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Available MCP Tools</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12, color: t.textSecondary }}>
-            <span><code style={{ color: t.info }}>list_projects</code> — List your projects</span>
-            <span><code style={{ color: t.info }}>list_files</code> — List files in a project</span>
-            <span><code style={{ color: t.info }}>read_file</code> — Read file content</span>
-            <span><code style={{ color: t.info }}>create_file</code> — Create a new file</span>
-            <span><code style={{ color: t.info }}>update_file</code> — Replace file content</span>
-            <span><code style={{ color: t.info }}>apply_edit</code> — Precise line/col edit</span>
-            <span><code style={{ color: t.info }}>delete_file</code> — Delete a file</span>
-            <span><code style={{ color: t.info }}>search_files</code> — Search across files</span>
-          </div>
-
-          <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Supported AI Clients</h4>
-          <div style={{ color: t.textSecondary, fontSize: 12, lineHeight: 1.7 }}>
-            Claude Desktop &middot; Cursor &middot; VS Code (Copilot) &middot; Windsurf &middot; JetBrains &middot; Zed &middot; Claude Code CLI
-          </div>
+        <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Supported AI Clients</h4>
+        <div style={{ color: t.textSecondary, fontSize: 12, lineHeight: 1.7 }}>
+          Claude Desktop &middot; Cursor &middot; VS Code (Copilot) &middot; Windsurf &middot; JetBrains &middot; Zed &middot; Claude Code CLI
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -383,7 +528,6 @@ function AiProviderSection() {
     api.aiKeys.list().then(setStoredKeys).catch(() => {});
   }, []);
 
-  // When switching provider, set model to stored or default
   useEffect(() => {
     const existing = storedKeys.find(k => k.provider === selectedProvider);
     setSelectedModel(existing?.model ?? current.models[0]);
@@ -428,6 +572,8 @@ function AiProviderSection() {
     } catch { /* ignore */ }
   };
 
+  const iStyle = inputStyle(t);
+
   return (
     <>
       <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>AI Chat Provider</h2>
@@ -439,7 +585,7 @@ function AiProviderSection() {
 
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
         {/* Provider tabs */}
-        <label style={{ display: 'block', color: '#888', fontSize: 11, marginBottom: 6 }}>Provider</label>
+        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 6 }}>Provider</label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {PROVIDERS.map(p => {
             const connected = storedKeys.some(k => k.provider === p.id);
@@ -449,49 +595,49 @@ function AiProviderSection() {
                 onClick={() => setSelectedProvider(p.id)}
                 style={{
                   border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 12, cursor: 'pointer',
-                  background: selectedProvider === p.id ? p.color + '30' : '#3c3c3c',
-                  color: selectedProvider === p.id ? p.color : '#888',
+                  background: selectedProvider === p.id ? p.color + '30' : t.btnBg,
+                  color: selectedProvider === p.id ? p.color : t.textSecondary,
                   fontWeight: selectedProvider === p.id ? 600 : 400,
                   position: 'relative' as const,
                 }}
               >
                 {p.label}
-                {connected && <span style={{ color: '#4ec9b0', marginLeft: 4, fontSize: 10 }}>&bull;</span>}
+                {connected && <span style={{ color: t.success, marginLeft: 4, fontSize: 10 }}>&bull;</span>}
               </button>
             );
           })}
         </div>
 
-        {/* Status for current provider */}
+        {/* Status */}
         {existingKey ? (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
-            background: '#1a2a1a', border: '1px solid #2a5a2a', borderRadius: 4, marginBottom: 16,
+            background: t.successBg, border: `1px solid ${t.success}`, borderRadius: 4, marginBottom: 16,
           }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ec9b0' }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.success }} />
             <div style={{ flex: 1 }}>
-              <span style={{ color: '#4ec9b0', fontSize: 12 }}>Connected</span>
-              <span style={{ color: '#666', fontSize: 11, marginLeft: 8 }}>
+              <span style={{ color: t.success, fontSize: 12 }}>Connected</span>
+              <span style={{ color: t.textMuted, fontSize: 11, marginLeft: 8 }}>
                 <code style={{ fontFamily: 'monospace' }}>{existingKey.maskedKey}</code>
               </span>
             </div>
             <button onClick={handleDisconnect} style={{
-              background: 'transparent', color: '#f48771', border: '1px solid #5a2a2a',
+              background: 'transparent', color: t.error, border: `1px solid ${t.error}`,
               borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
             }}>Disconnect</button>
           </div>
         ) : (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
-            background: '#1e1e1e', borderRadius: 4, marginBottom: 16,
+            background: t.bgInput, borderRadius: 4, marginBottom: 16,
           }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f48771' }} />
-            <span style={{ color: '#888', fontSize: 12 }}>Not connected — enter your API key below</span>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.error }} />
+            <span style={{ color: t.textSecondary, fontSize: 12 }}>Not connected — enter your API key below</span>
           </div>
         )}
 
-        {/* API Key input (for new or update) */}
-        <label style={{ display: 'block', color: '#888', fontSize: 11, marginBottom: 4 }}>
+        {/* API Key input */}
+        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 4 }}>
           {existingKey ? 'Replace API Key' : 'API Key'}
         </label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
@@ -507,9 +653,7 @@ function AiProviderSection() {
             onChange={e => setNewKey(e.target.value)}
             placeholder={existingKey ? 'Enter new key to replace' : `Enter your ${current.label} API key`}
             style={{
-              flex: 1, background: '#1e1e1e', border: '1px solid #3c3c3c', borderRadius: 4,
-              padding: '8px 10px', color: '#d4d4d4', fontSize: 13, outline: 'none',
-              fontFamily: 'monospace',
+              ...iStyle, fontFamily: 'monospace',
               // @ts-expect-error — WebkitTextSecurity is a non-standard CSS property for masking input
               WebkitTextSecurity: 'disc',
             }}
@@ -518,24 +662,24 @@ function AiProviderSection() {
             onClick={handleSave}
             disabled={saving || !newKey.trim()}
             style={{
-              background: saving || !newKey.trim() ? '#333' : '#0e639c', color: '#fff',
+              background: saving || !newKey.trim() ? t.btnDisabled : t.accent, color: '#fff',
               border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 12,
               cursor: saving || !newKey.trim() ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' as const,
             }}
           >{saving ? 'Saving...' : 'Save Key'}</button>
         </div>
 
-        {keyError && <div style={{ color: '#f48771', fontSize: 12, marginBottom: 12 }}>{keyError}</div>}
-        {savedMsg && <div style={{ color: '#4ec9b0', fontSize: 12, marginBottom: 12 }}>{savedMsg}</div>}
+        {keyError && <div style={{ color: t.error, fontSize: 12, marginBottom: 12 }}>{keyError}</div>}
+        {savedMsg && <div style={{ color: t.success, fontSize: 12, marginBottom: 12 }}>{savedMsg}</div>}
 
         {/* Model selector */}
-        <label style={{ display: 'block', color: '#888', fontSize: 11, marginBottom: 4 }}>Model</label>
+        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 4 }}>Model</label>
         <select
           value={selectedModel}
           onChange={e => handleModelChange(e.target.value)}
           style={{
-            width: '100%', background: '#1e1e1e', border: '1px solid #3c3c3c', borderRadius: 4,
-            padding: '8px 10px', color: '#d4d4d4', fontSize: 13, outline: 'none',
+            width: '100%', background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 4,
+            padding: '8px 10px', color: t.text, fontSize: 13, outline: 'none',
           }}
         >
           {current.models.map(m => <option key={m} value={m}>{m}</option>)}
@@ -545,33 +689,19 @@ function AiProviderSection() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Shared style helpers ────────────────────────────────────────────────────
 
-const labelStyle: React.CSSProperties = {
-  display: 'block', color: '#888', fontSize: 11, marginBottom: 4,
-};
+const lStyle = (t: ThemeColors): React.CSSProperties => ({
+  display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 4,
+});
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#1e1e1e', border: '1px solid #3c3c3c', borderRadius: 4,
-  padding: '8px 10px', color: '#d4d4d4', fontSize: 13, outline: 'none',
+const inputStyle = (t: ThemeColors): React.CSSProperties => ({
+  width: '100%', background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 4,
+  padding: '8px 10px', color: t.text, fontSize: 13, outline: 'none',
   boxSizing: 'border-box',
-};
+});
 
-const btnPrimary: React.CSSProperties = {
-  background: '#0e639c', color: '#fff', border: 'none', borderRadius: 4,
-  padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap',
-};
-
-const btnSecondary: React.CSSProperties = {
-  background: '#3c3c3c', color: '#d4d4d4', border: 'none', borderRadius: 4,
+const btnSecondary = (t: ThemeColors): React.CSSProperties => ({
+  background: t.btnBg, color: t.text, border: 'none', borderRadius: 4,
   padding: '6px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
-};
-
-const btnDanger: React.CSSProperties = {
-  background: 'transparent', color: '#f48771', border: '1px solid #f48771', borderRadius: 4,
-  padding: '4px 10px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
-};
-
-const btnTab: React.CSSProperties = {
-  border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 12, cursor: 'pointer',
-};
+});
