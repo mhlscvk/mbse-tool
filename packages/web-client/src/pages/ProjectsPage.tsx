@@ -225,15 +225,6 @@ export default function ProjectsPage() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download project'));
   };
 
-  const cloneProject = async (project: Project) => {
-    try {
-      await api.projects.clone(project.id);
-      refreshProjects();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to copy project');
-    }
-  };
-
   const onProjectContextMenu = useCallback((e: React.MouseEvent, project: Project) => {
     e.preventDefault();
     e.stopPropagation();
@@ -241,7 +232,6 @@ export default function ProjectsPage() {
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [
-          { label: 'Copy to My Projects', onClick: () => cloneProject(project) },
           { label: 'Download', onClick: () => downloadProject(project) },
         ],
       });
@@ -331,13 +321,37 @@ export default function ProjectsPage() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download file'));
   };
 
+  const copyFileToProject = async (file: SysMLFile) => {
+    if (!selectedProject) return;
+    // Only show user-owned (non-system) projects as targets
+    const userProjects = collectProjects(projects.filter(p => !p.isSystem));
+    if (userProjects.length === 0) { setError('Create a project first, then copy the file into it'); return; }
+    const choice = prompt(
+      'Copy to project:\n' + userProjects.map((tt, i) => `  ${i + 1}. ${tt.label}`).join('\n') + '\n\nEnter number:',
+    );
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= userProjects.length) { setError('Invalid selection'); return; }
+    try {
+      // Read the file content, then create a copy in the target project
+      const sourceFile = await api.files.get(selectedProject.id, file.id);
+      await api.files.create(userProjects[idx].id, file.name, sourceFile.content);
+      refreshProjects();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to copy file');
+    }
+  };
+
   const onFileContextMenu = useCallback((e: React.MouseEvent, file: SysMLFile) => {
     e.preventDefault();
     e.stopPropagation();
     if (selectedProject?.isSystem) {
       setContextMenu({
         x: e.clientX, y: e.clientY,
-        items: [{ label: 'Download', onClick: () => downloadFile(file) }],
+        items: [
+          { label: 'Copy to My Project', onClick: () => copyFileToProject(file) },
+          { label: 'Download', onClick: () => downloadFile(file) },
+        ],
       });
       return;
     }

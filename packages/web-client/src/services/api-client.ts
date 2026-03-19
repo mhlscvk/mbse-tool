@@ -83,7 +83,6 @@ export const api = {
         method: 'PATCH', body: JSON.stringify({ name, description }),
       }),
     delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
-    clone: (id: string) => request<import('@systemodel/shared-types').Project>(`/projects/${id}/clone`, { method: 'POST' }),
     download: (id: string) => `${BASE_URL}/projects/${id}/download`,
   },
   files: {
