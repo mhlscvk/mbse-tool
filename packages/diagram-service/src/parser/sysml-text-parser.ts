@@ -260,25 +260,27 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 // group[1]=abstract?, group[2]=keyword, group[3]=name, group[4]=specializes target
 const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*(?:parallel\s+)?[{;]/g;
 // group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional, before or after type), group[5]=type
-const USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+// Core + extended usage keywords (all single-word keywords that can appear as usages)
+const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence';
+const USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
-const UNTYPED_USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(?:parallel\s+)?[;{]/g;
+const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
-const IN_OUT_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
-const IN_OUT_UNTYPED_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*[;{]/g;
+const IN_OUT_PATTERN = new RegExp(`\\b(in|out|inout)\\s+(${USAGE_KW})\\s+(\\w+)\\s*(?:\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*[;{]`, 'g');
+const IN_OUT_UNTYPED_PATTERN = new RegExp(`\\b(in|out|inout)\\s+(${USAGE_KW})\\s+(\\w+)\\s*[;{]`, 'g');
 const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*([\w:]+))?\s*=\s*([^;]+);/g;
 // Subsetting: part x :> y; or part x subsets y; or part x : Type :> y; or part x : Type subsets y;
-const SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::\s*([\w:]+)\s*)?(?::>(?!>)\s*|\bsubsets\s+)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+const SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?::>(?!>)\\s*|\\bsubsets\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Redefinition: part x :>> y; or part x redefines y; or part x : Type :>> y; or part x : Type redefines y;
-const REDEFINITION_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::\s*([\w:]+)\s*)?(?::>>\s*|\bredefines\s+)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+const REDEFINITION_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?::>>\\s*|\\bredefines\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Reference subsetting: part x ::> y; or part x references y;
-const REFERENCE_SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::\s*([\w:]+)\s*)?(?:::>\s*|\breferences\s+)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+const REFERENCE_SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?:::>\\s*|\\breferences\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Unnamed redefinition: part redefines x; or part redefines x[4];
-const UNNAMED_REDEFINE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?:redefines\s+|:>>\s*)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+const UNNAMED_REDEFINE_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?:redefines\\s+|:>>\\s*)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // Extended definition patterns (single-word keywords)
-const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|concern|view|viewpoint|rendering|metadata|occurrence)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|flow|concern|view|viewpoint|rendering|metadata|occurrence)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 // Multi-word definition patterns
 const USE_CASE_DEF_PATTERN = /\b(abstract\s+)?use\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;

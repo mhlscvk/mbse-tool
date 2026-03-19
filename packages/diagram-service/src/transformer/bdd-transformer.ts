@@ -42,10 +42,10 @@ const KIND_DISPLAY: Record<string, string> = {
   AllocationUsage:             '«allocation»',
   UseCaseDefinition:           '«use case def»',
   UseCaseUsage:                '«use case»',
-  AnalysisCaseDefinition:      '«analysis case def»',
-  AnalysisCaseUsage:           '«analysis case»',
-  VerificationCaseDefinition:  '«verification case def»',
-  VerificationCaseUsage:       '«verification case»',
+  AnalysisCaseDefinition:      '«analysis def»',
+  AnalysisCaseUsage:           '«analysis»',
+  VerificationCaseDefinition:  '«verification def»',
+  VerificationCaseUsage:       '«verification»',
   ConcernDefinition:           '«concern def»',
   ConcernUsage:                '«concern»',
   ViewDefinition:              '«view def»',
@@ -55,6 +55,8 @@ const KIND_DISPLAY: Record<string, string> = {
   RenderingDefinition:         '«rendering def»',
   RenderingUsage:              '«rendering»',
   MetadataDefinition:          '«metadata def»',
+  FlowDefinition:              '«flow def»',
+  FlowUsage:                   '«flow»',
   OccurrenceDefinition:        '«occurrence def»',
   OccurrenceUsage:             '«occurrence»',
   ForkNode:                    '«fork»',
@@ -82,7 +84,7 @@ const IS_USAGE = new Set([
   'PartUsage', 'AttributeUsage', 'ConnectionUsage', 'PortUsage', 'ActionUsage', 'StateUsage', 'ItemUsage',
   'RequirementUsage', 'ConstraintUsage', 'InterfaceUsage', 'EnumUsage', 'CalcUsage',
   'AllocationUsage', 'UseCaseUsage', 'AnalysisCaseUsage', 'VerificationCaseUsage',
-  'ConcernUsage', 'ViewUsage', 'ViewpointUsage', 'RenderingUsage', 'OccurrenceUsage',
+  'ConcernUsage', 'ViewUsage', 'ViewpointUsage', 'RenderingUsage', 'OccurrenceUsage', 'FlowUsage',
   'TransitionUsage',
   'PerformActionUsage', 'ExhibitStateUsage',
 ]);
@@ -99,7 +101,8 @@ function nodeToSNode(node: SysMLNode): SNode {
   const baseKindText = isStdlib
     ? `«${node.qualifiedName?.split('::')[0] ?? 'stdlib'}»`
     : (KIND_DISPLAY[node.kind] ?? `«${node.kind}»`);
-  let kindText = node.isAbstract ? `{abstract} ${baseKindText}` : baseKindText;
+  let kindText = baseKindText;
+  if (node.isAbstract) kindText = kindText.replace('«', '«abstract ');
   if (node.isRef) kindText = kindText.replace('«', '«ref ');
   if (node.isParallel) kindText += ' {parallel}';
   const kindLabel = makeLabel(`${node.id}__kind`, kindText);

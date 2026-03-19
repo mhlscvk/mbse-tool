@@ -258,7 +258,8 @@ const DEF_CLASSES = new Set([
 const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';
 const isComment = (cssClass: string) => cssClass === 'comment';
-const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 'stdlib' ? 0 : 10;
+// Per spec: state defs also use rounded corners (Section 8.2.3.18)
+const nodeRadius = (cssClass: string) => (isDefinition(cssClass) && cssClass !== 'statedefinition') || cssClass === 'stdlib' ? 0 : 10;
 const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
 const PORT_CSS = new Set(['portusage', 'portdefinition']);
 const PORT_BORDER_SIZE = 16;
@@ -1923,10 +1924,30 @@ export default function DiagramViewer({
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <rect width={dynamicW} height={dynamicH} rx={rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})} />
-                  {isSelected && <rect width={dynamicW} height={dynamicH} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
-                  {/* Header separator */}
-                  <line x1={0} y1={26} x2={dynamicW} y2={26} stroke={borderColor} strokeWidth={0.5} />
+                  {/* Element-specific shapes per SysML v2 spec */}
+                  {cssClass === 'usecasedefinition' || cssClass === 'usecaseusage' ? (
+                    // Use case: ellipse/oval (spec 8.2.3.25)
+                    <ellipse cx={dynamicW / 2} cy={dynamicH / 2} rx={dynamicW / 2} ry={dynamicH / 2} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
+                  ) : (
+                    <rect width={dynamicW} height={dynamicH} rx={cssClass === 'actiondefinition' ? dynamicH / 2 : rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})} />
+                  )}
+                  {isSelected && (cssClass === 'usecasedefinition' || cssClass === 'usecaseusage'
+                    ? <ellipse cx={dynamicW / 2} cy={dynamicH / 2} rx={dynamicW / 2} ry={dynamicH / 2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
+                    : <rect width={dynamicW} height={dynamicH} rx={cssClass === 'actiondefinition' ? dynamicH / 2 : rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
+                  )}
+                  {/* Requirement text icon (spec 8.2.3.21) */}
+                  {(cssClass === 'requirementdefinition' || cssClass === 'requirementusage') && (
+                    <g transform={`translate(${dynamicW - 14},3)`} opacity={0.6}>
+                      <rect width={8} height={10} rx={1} fill="none" stroke={svgTextSub} strokeWidth={0.8} />
+                      <line x1={2} y1={3} x2={6} y2={3} stroke={svgTextSub} strokeWidth={0.6} />
+                      <line x1={2} y1={5.5} x2={6} y2={5.5} stroke={svgTextSub} strokeWidth={0.6} />
+                      <line x1={2} y1={8} x2={5} y2={8} stroke={svgTextSub} strokeWidth={0.6} />
+                    </g>
+                  )}
+                  {/* Header separator (skip for ellipse) */}
+                  {cssClass !== 'usecasedefinition' && cssClass !== 'usecaseusage' && (
+                    <line x1={0} y1={26} x2={dynamicW} y2={26} stroke={borderColor} strokeWidth={0.5} />
+                  )}
                   {/* Direction badge for action in/out/inout params */}
                   {isParam && (
                     <text x={6} y={17} fill={isIn ? '#40c080' : isOut ? '#c07030' : '#4090c0'} fontSize={10} fontWeight="bold">

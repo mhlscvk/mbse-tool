@@ -76,9 +76,9 @@ describe('Transformer: keyword display', () => {
     expect(kindText(nodes[0])).toBe('«use case def»');
   });
 
-  it('shows {abstract} prefix for abstract definitions', () => {
+  it('shows abstract inside guillemets per spec', () => {
     const { nodes } = pipeline('abstract part def Vehicle { }');
-    expect(kindText(nodes[0])).toContain('{abstract}');
+    expect(kindText(nodes[0])).toBe('«abstract part def»');
   });
 
   it('shows usage name : Type format', () => {
