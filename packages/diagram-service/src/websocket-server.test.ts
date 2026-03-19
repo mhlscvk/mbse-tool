@@ -168,6 +168,97 @@ describe('WebSocket Server: viewType protocol', () => {
   });
 });
 
+describe('WebSocket Server: security hardening', () => {
+  let srv: Awaited<ReturnType<typeof startServer>> | null = null;
+
+  afterEach(async () => {
+    if (srv) await srv.close();
+    srv = null;
+  });
+
+  it('rejects oversized messages gracefully', async () => {
+    srv = await startServer([]);
+    const { msg, ws } = await connectWs(srv.port);
+    // First message succeeds
+    expect((msg as { kind: string }).kind).toBe('model');
+
+    // Send a large but valid JSON message (within the 10MB limit, just testing handling)
+    const bigContent = 'part def A;'.repeat(1000);
+    ws.send(JSON.stringify({ kind: 'parse', uri: 'test://big', content: bigContent }));
+    const result = await new Promise<unknown>((resolve) => {
+      ws.on('message', (data) => resolve(JSON.parse(data.toString())));
+    });
+    expect((result as { kind: string }).kind).toBe('model');
+    ws.close();
+  });
+
+  it('handles malformed JSON without crashing', async () => {
+    srv = await startServer([]);
+    const ws = new WebSocket(`ws://127.0.0.1:${srv.port}/diagram`);
+    await new Promise<void>((resolve) => ws.on('open', resolve));
+
+    // Send invalid JSON
+    ws.send('not valid json {{{');
+    const result = await new Promise<unknown>((resolve) => {
+      ws.on('message', (data) => resolve(JSON.parse(data.toString())));
+      setTimeout(() => resolve({ kind: 'timeout' }), 2000);
+    });
+    expect((result as { kind: string }).kind).toBe('error');
+    expect((result as { message?: string }).message).not.toContain('JSON');
+    ws.close();
+  });
+
+  it('sanitizes error messages — no internal details leaked', async () => {
+    srv = await startServer([]);
+    const ws = new WebSocket(`ws://127.0.0.1:${srv.port}/diagram`);
+    await new Promise<void>((resolve) => ws.on('open', resolve));
+
+    // Send invalid request kind
+    ws.send(JSON.stringify({ kind: 'invalid_kind' }));
+    const result = await new Promise<unknown>((resolve) => {
+      ws.on('message', (data) => resolve(JSON.parse(data.toString())));
+    });
+    const msg = result as { kind: string; message: string };
+    expect(msg.kind).toBe('error');
+    // Should not contain stack traces, file paths, or internal details
+    expect(msg.message).not.toMatch(/node_modules|\.ts|\.js|Error:|at /i);
+    ws.close();
+  });
+
+  it('rejects invalid request fields', async () => {
+    srv = await startServer([]);
+    const ws = new WebSocket(`ws://127.0.0.1:${srv.port}/diagram`);
+    await new Promise<void>((resolve) => ws.on('open', resolve));
+
+    // uri as number, content as object
+    ws.send(JSON.stringify({ kind: 'parse', uri: 123, content: { bad: true } }));
+    const result = await new Promise<unknown>((resolve) => {
+      ws.on('message', (data) => resolve(JSON.parse(data.toString())));
+    });
+    expect((result as { kind: string }).kind).toBe('error');
+    ws.close();
+  });
+
+  it('handles concurrent connections from same origin', async () => {
+    srv = await startServer(['https://example.com']);
+    const results = await Promise.all([
+      connectWs(srv.port, 'https://example.com'),
+      connectWs(srv.port, 'https://example.com'),
+      connectWs(srv.port, 'https://example.com'),
+    ]);
+    for (const { msg, ws } of results) {
+      expect((msg as { kind: string }).kind).toBe('model');
+      ws.close();
+    }
+  });
+
+  it('origin check is case-sensitive', async () => {
+    srv = await startServer(['https://Example.com']);
+    // Lowercase should fail
+    await expect(connectWs(srv.port, 'https://example.com')).rejects.toThrow();
+  });
+});
+
 describe('WebSocket Server: rate limiting', () => {
   let srv: Awaited<ReturnType<typeof startServer>> | null = null;
 

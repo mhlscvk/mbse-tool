@@ -33,6 +33,14 @@ console.log(`[API] ALLOWED_ORIGINS: ${ALLOWED_ORIGINS.join(', ')}`);
 
 const app = express();
 
+// Trust proxy: required behind Nginx reverse proxy so that:
+// - req.ip reflects real client IP (not 127.0.0.1)
+// - express-rate-limit keys on actual client IPs
+// - x-forwarded-proto is trusted for HTTPS enforcement
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: {

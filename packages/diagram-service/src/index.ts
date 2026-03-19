@@ -21,6 +21,9 @@ if (process.env.NODE_ENV === 'production' && ALLOWED_ORIGINS.every(o => o.includ
 console.log(`[Diagram] ALLOWED_ORIGINS: ${ALLOWED_ORIGINS.join(', ')}`);
 
 const app = express();
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 app.use(cors({ origin: ALLOWED_ORIGINS }));
 
 app.get('/health', (_req, res) => {
