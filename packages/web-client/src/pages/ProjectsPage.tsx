@@ -228,7 +228,7 @@ export default function ProjectsPage() {
   const cloneProject = async (project: Project) => {
     try {
       await api.projects.clone(project.id);
-      loadProjects();
+      refreshProjects();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to copy project');
     }
