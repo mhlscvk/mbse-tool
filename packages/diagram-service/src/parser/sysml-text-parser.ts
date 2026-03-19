@@ -277,6 +277,8 @@ const REDEFINITION_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s
 const REFERENCE_SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?:::>\\s*|\\breferences\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Unnamed redefinition: part redefines x; or part redefines x[4];
 const UNNAMED_REDEFINE_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?:redefines\\s+|:>>\\s*)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+// Conjugated port usage: port p : ~PortDef;
+const CONJUGATED_PORT_PATTERN = /\bport\s+(\w+)\s*:\s*~([\w:]+)\s*[;{]/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // Extended definition patterns (single-word keywords)
@@ -1435,6 +1437,46 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: 'composition',
       name: '',
     });
+  }
+
+  // ── 2e-pre. Conjugated port usages: port p : ~PortDef; ──────────────────
+  CONJUGATED_PORT_PATTERN.lastIndex = 0;
+  while ((match = CONJUGATED_PORT_PATTERN.exec(clean)) !== null) {
+    const [, rawPortName, typeName] = match;
+    const portName = dequote(rawPortName, nameMap);
+    const usagePos = match.index;
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && (!ownerNode || enclosingUsage.start > (defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1))) {
+      ownerNode = enclosingUsage.node;
+    }
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    if (nodeIndex.has(`${ownerName}.${portName}`)) continue;
+    const typeSimple = simpleName(typeName);
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: portName, type: `~${typeSimple}`, value: 'port' });
+    }
+    const portId = makeId('usage', `${ownerName}_${portName}`);
+    const { line: pL, column: pC } = lineCol(source, usagePos);
+    const pEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: pEL, column: pEC } = lineCol(source, pEnd);
+    const portNode: SysMLNode = {
+      id: portId, kind: 'PortUsage', name: portName, qualifiedName: `~${typeSimple}`,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: pL - 1, character: pC - 1 }, end: { line: pEL - 1, character: pEC - 1 } },
+    };
+    nodes.push(portNode);
+    nodeIndex.set(`${ownerName}.${portName}`, portNode);
+    if (!nodeIndex.has(portName)) nodeIndex.set(portName, portNode);
+    if (ownerNode || usagePkg) {
+      connections.push({ id: makeId('owns', `${ownerName}_${portName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: portId, kind: 'composition', name: '' });
+    }
+    // Type reference to the original port def (without ~)
+    const typeNode = resolveType(typeName);
+    if (typeNode) {
+      connections.push({ id: makeId('typeref', `${portName}_${typeSimple}`), sourceId: portId, targetId: typeNode.id, kind: 'typereference', name: '' });
+    }
   }
 
   // ── 2e. Specialization operators on usages: :> (subsets), :>> (redefines), ::> (references) ──
