@@ -259,20 +259,22 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 
 // group[1]=abstract?, group[2]=keyword, group[3]=name, group[4]=specializes target
 const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*(?:parallel\s+)?[{;]/g;
-// group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional), group[5]=type
-const USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
+// group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional, before or after type), group[5]=type
+const USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
 const UNTYPED_USAGE_PATTERN = /\b(ref\s+)?(part|attribute|port|action|state|item)\s+(\w+)\s*(?:parallel\s+)?[;{]/g;
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
 const IN_OUT_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*[;{]/g;
 const IN_OUT_UNTYPED_PATTERN = /\b(in|out|inout)\s+(item|action|part|attribute|port)\s+(\w+)\s*[;{]/g;
 const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*([\w:]+))?\s*=\s*([^;]+);/g;
-// Subsetting: part x :> y; or part x subsets y;
-const SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::>(?!>)\s*|\bsubsets\s+)([\w:]+)\s*[;{]/g;
-// Redefinition: part x :>> y; or part x redefines y;
-const REDEFINITION_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::>>\s*|\bredefines\s+)([\w:]+)\s*[;{]/g;
+// Subsetting: part x :> y; or part x subsets y; or part x : Type :> y; or part x : Type subsets y;
+const SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::\s*([\w:]+)\s*)?(?::>(?!>)\s*|\bsubsets\s+)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+// Redefinition: part x :>> y; or part x redefines y; or part x : Type :>> y; or part x : Type redefines y;
+const REDEFINITION_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::\s*([\w:]+)\s*)?(?::>>\s*|\bredefines\s+)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
 // Reference subsetting: part x ::> y; or part x references y;
-const REFERENCE_SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?:::>\s*|\breferences\s+)([\w:]+)\s*[;{]/g;
+const REFERENCE_SUBSETTING_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?!def\b)(\w+)\s*(\[[\d..*]+\])?\s*(?::\s*([\w:]+)\s*)?(?:::>\s*|\breferences\s+)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
+// Unnamed redefinition: part redefines x; or part redefines x[4];
+const UNNAMED_REDEFINE_PATTERN = /\b(part|attribute|port|action|state|item)\s+(?:redefines\s+|:>>\s*)([\w:]+)\s*(\[[\d..*]+\])?\s*[;{]/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 const FLOW_PATTERN = /\bflow\s+(?:(\w+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // Extended definition patterns (single-word keywords)
@@ -1074,7 +1076,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   USAGE_PATTERN.lastIndex = 0;
 
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
-    const [, refKw, keyword, rawUsageName, multiplicity, typeName] = match;
+    const [, refKw, keyword, rawUsageName, multBefore, typeName, multAfter] = match;
+    const multiplicity = multBefore || multAfter || undefined;
     const usageName = dequote(rawUsageName, nameMap);
     const isRef = !!refKw;
 
@@ -1400,7 +1403,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   for (const [pattern, op, connKind, label] of specOpSpecs) {
     pattern.lastIndex = 0;
     while ((match = pattern.exec(clean)) !== null) {
-      const [, keyword, rawUsageName, mult, targetName] = match;
+      const [, keyword, rawUsageName, multBefore, typeName, targetName, multAfter] = match;
+      const mult = multBefore || multAfter || undefined;
       const usageName = dequote(rawUsageName, nameMap);
       const pre = clean.slice(Math.max(0, match.index - 7), match.index);
       if (/\b(inout|in|out)\s+$/.test(pre)) continue;
@@ -1438,6 +1442,60 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       if (targetNode) {
         connections.push({ id: makeId(connKind, `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: connKind, name: label });
       }
+      // For typed redefines/subsets (e.g., `part x : Type :>> y`), also create type reference edge
+      if (typeName) {
+        const typeNode = resolveType(typeName);
+        if (typeNode) {
+          connections.push({ id: makeId('typeref', `${usageName}_${simpleName(typeName)}`), sourceId: usageId, targetId: typeNode.id, kind: 'typereference', name: '' });
+        }
+      }
+    }
+  }
+
+  // ── 2f. Unnamed redefines: `part redefines cyl[4];` ───────────────────────
+  UNNAMED_REDEFINE_PATTERN.lastIndex = 0;
+  while ((match = UNNAMED_REDEFINE_PATTERN.exec(clean)) !== null) {
+    const [, keyword, targetName, mult] = match;
+    const pre = clean.slice(Math.max(0, match.index - 7), match.index);
+    if (/\b(inout|in|out)\s+$/.test(pre)) continue;
+    // Check if this was already matched by the named REDEFINITION_PATTERN
+    // (named redefines have a name before the operator)
+    const preFull = clean.slice(Math.max(0, match.index - 30), match.index);
+    if (/\w\s*(?::>>\s*|\bredefines\s+)$/.test(preFull)) continue;
+    const usagePos = match.index;
+    let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+    let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+    const enclosingUsage = findOwnerUsage(usagePos, match.index);
+    if (enclosingUsage && enclosingUsage.start > ownerPos) { ownerNode = enclosingUsage.node; }
+    const usagePkg = findOwnerPackage(usagePos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    const targetSimple = simpleName(targetName);
+    const usageName = targetSimple; // unnamed redefine uses the target as the name
+    if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+    const displayName = mult ? `${usageName}${mult}` : usageName;
+    if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+      ownerNode.attributes.push({ name: displayName, type: targetSimple, value: `${keyword} :>>` });
+    }
+    const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+    const usageId = makeId('usage', `${ownerName}_${usageName}`);
+    const { line: uL, column: uC } = lineCol(source, usagePos);
+    const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: uEL, column: uEC } = lineCol(source, uEnd);
+    const usageNode: SysMLNode = {
+      id: usageId, kind: usageKind, name: usageName, qualifiedName: targetSimple,
+      ...(mult ? { multiplicity: mult } : {}),
+      children: [], attributes: [], connections: [],
+      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+    };
+    nodes.push(usageNode);
+    nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+    if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+    if (ownerNode || usagePkg) {
+      connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+    }
+    const targetNode = resolveType(targetName);
+    if (targetNode) {
+      connections.push({ id: makeId('redefinition', `${usageName}_${targetSimple}`), sourceId: usageId, targetId: targetNode.id, kind: 'redefinition', name: '«redefines»' });
     }
   }
 
