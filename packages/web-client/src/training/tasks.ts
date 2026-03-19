@@ -5075,9 +5075,689 @@ rendering def DiagramView {  // <-- NEW
     'Congratulations! You\'ve completed all 100 training tasks covering the full SysML v2 language!',
     'Add `concern def Performance { }` and `rendering def DiagramView { }`'),
   },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 16: Flows & Messages (5 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l16t1', level: 16, levelName: 'Flows & Messages',
+    title: 'Create a Flow Between Actions',
+    instruction:
+      'A **flow** transfers items from a source output to a target input.\n\n' +
+      'Use `flow` with `from ... to ...` syntax to connect action parameters.\n\n' +
+      'Add: `flow generator.torqueOut to amplifier.torqueIn;`',
+    hint: 'Use `flow source.output to target.input;` syntax.',
+    concept: '«flow»',
+    conceptExplanation: 'A flow is a solid line with a filled arrowhead showing transfer direction.',
+    starterCode: `\
+action def Generate {
+  out item torqueOut : Torque;
+}
+action def Amplify {
+  in item torqueIn : Torque;
+}
+item def Torque;
+
+action providePower {
+  action generator : Generate;
+  action amplifier : Amplify;
+}
+`,
+    targetCode: `\
+action providePower {
+  action generator : Generate;
+  action amplifier : Amplify;
+  flow generator.torqueOut to amplifier.torqueIn;
+}
+`,
+    validate: vMatch(/flow\s+\w+\.\w+\s+to\s+\w+\.\w+\s*;/, 'Flow created — items transfer from source output to target input.', /flow/, 'Use: `flow generator.torqueOut to amplifier.torqueIn;`', 'Add a flow statement inside providePower.'),
+  },
+  {
+    id: 'l16t2', level: 16, levelName: 'Flows & Messages',
+    title: 'Add a Succession Flow',
+    instruction:
+      'A **succession flow** adds ordering: the source must complete before transfer starts.\n\n' +
+      'Use `succession flow` instead of `flow`.\n\n' +
+      'Add: `succession flow focus.image to shoot.image;`',
+    hint: 'Use `succession flow X.out to Y.in;` syntax.',
+    concept: '«succession flow»',
+    conceptExplanation: 'A succession flow is a dashed line with a filled arrowhead — it combines transfer with ordering.',
+    starterCode: `\
+item def Image;
+action def Focus { out item image : Image; }
+action def Shoot { in item image : Image; }
+
+action takePicture {
+  action focus : Focus;
+  action shoot : Shoot;
+}
+`,
+    targetCode: `\
+action takePicture {
+  action focus : Focus;
+  action shoot : Shoot;
+  succession flow focus.image to shoot.image;
+}
+`,
+    validate: vMatch(/succession\s+flow\s+\w+\.\w+\s+to\s+\w+\.\w+\s*;/, 'Succession flow added — focus must complete before image transfers to shoot.', /succession\s+flow/, 'Complete the syntax: `succession flow focus.image to shoot.image;`', 'Add `succession flow focus.image to shoot.image;` inside takePicture.'),
+  },
+  {
+    id: 'l16t3', level: 16, levelName: 'Flows & Messages',
+    title: 'Add a Flow with Payload',
+    instruction:
+      'A flow can specify what is being transferred using `of`.\n\n' +
+      'Add: `flow of Fuel from tank.fuelOut to engine.fuelIn;`',
+    hint: 'Use `flow of Type from X to Y;` syntax.',
+    concept: '«flow» of Payload',
+    conceptExplanation: 'The `of` keyword specifies the payload type being transferred.',
+    starterCode: `\
+item def Fuel;
+part def Tank { out item fuelOut : Fuel; }
+part def Engine { in item fuelIn : Fuel; }
+
+part vehicle {
+  part tank : Tank;
+  part engine : Engine;
+}
+`,
+    targetCode: `\
+part vehicle {
+  part tank : Tank;
+  part engine : Engine;
+  flow of Fuel from tank.fuelOut to engine.fuelIn;
+}
+`,
+    validate: vMatch(/flow\s+of\s+\w+\s+from\s+\w+\.\w+\s+to\s+\w+\.\w+\s*;/, 'Flow with Fuel payload — the diagram shows what is being transferred.', /flow\s+of/, 'Complete: `flow of Fuel from tank.fuelOut to engine.fuelIn;`', 'Add a flow with `of` payload specification.'),
+  },
+  {
+    id: 'l16t4', level: 16, levelName: 'Flows & Messages',
+    title: 'Create a Message',
+    instruction:
+      'A **message** is an abstract transfer between parts — it specifies what is sent without detailing the mechanism.\n\n' +
+      'Add: `message of ControlSignal from controller to engine;`',
+    hint: 'Use `message of Type from X to Y;` syntax.',
+    concept: '«message»',
+    conceptExplanation: 'A message is shown as a solid line with a filled arrowhead (purple). Unlike a flow, it does not specify source/target features.',
+    starterCode: `\
+item def ControlSignal;
+part def Controller;
+part def Engine;
+
+part vehicle {
+  part controller : Controller;
+  part engine : Engine;
+}
+`,
+    targetCode: `\
+part vehicle {
+  part controller : Controller;
+  part engine : Engine;
+  message of ControlSignal from controller to engine;
+}
+`,
+    validate: vMatch(/message\s+(?:of\s+\w+\s+)?from\s+\w+\s+to\s+\w+\s*;/, 'Message created — an abstract transfer of ControlSignal between parts.', /message/, 'Use: `message of ControlSignal from controller to engine;`', 'Add a message statement inside vehicle.'),
+  },
+  {
+    id: 'l16t5', level: 16, levelName: 'Flows & Messages',
+    title: 'Create a Flow Definition',
+    instruction:
+      'A **flow def** defines a reusable flow type with payload and ends.\n\n' +
+      'Add: `flow def FuelFlow;`',
+    hint: 'Use `flow def Name;` syntax.',
+    concept: '«flow def»',
+    conceptExplanation: 'A flow definition classifies a kind of transfer. Flow usages can reference it.',
+    starterCode: `\
+item def Fuel;
+part def Tank;
+part def Engine;
+`,
+    targetCode: `\
+item def Fuel;
+part def Tank;
+part def Engine;
+flow def FuelFlow;
+`,
+    validate: vDef('flow\\s+def', 'FuelFlow', 'Flow definition created — a reusable transfer type.', 'Add `flow def FuelFlow;`'),
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 17: Perform & Exhibit (5 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l17t1', level: 17, levelName: 'Perform & Exhibit',
+    title: 'Perform an Action in a Part',
+    instruction:
+      'A part can **perform** an action — this means the action occurs during the part\'s lifetime.\n\n' +
+      'Inside Vehicle, add: `perform action drive : Drive;`',
+    hint: 'Use `perform action name : ActionDef;` inside a part.',
+    concept: '«perform»',
+    conceptExplanation: 'A perform action usage renders as a rounded rectangle with «perform» keyword inside the parent part.',
+    starterCode: `\
+action def Drive;
+
+part def Vehicle {
+}
+`,
+    targetCode: `\
+action def Drive;
+part def Vehicle {
+  perform action drive : Drive;
+}
+`,
+    validate: vMatch(/perform\s+action\s+\w+/, 'Vehicle now performs the drive action!', /perform/, 'Use: `perform action drive : Drive;`', 'Add `perform action drive : Drive;` inside Vehicle.'),
+  },
+  {
+    id: 'l17t2', level: 17, levelName: 'Perform & Exhibit',
+    title: 'Add Multiple Perform Actions',
+    instruction:
+      'A part can perform multiple actions.\n\n' +
+      'Add a second perform: `perform action brake : Brake;`',
+    hint: 'Add another `perform action name : ActionDef;` line.',
+    concept: '«perform»',
+    conceptExplanation: 'Multiple perform usages show as nested rounded rectangles inside the parent part.',
+    starterCode: `\
+action def Drive;
+action def Brake;
+
+part def Vehicle {
+  perform action drive : Drive;
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  perform action drive : Drive;
+  perform action brake : Brake;
+}
+`,
+    validate: vAll([
+      { pat: /perform\s+action\s+drive/, hint: 'Keep the drive perform and add brake.' },
+      { pat: /perform\s+action\s+brake/, hint: 'Add: `perform action brake : Brake;`' },
+    ], 'Vehicle performs both drive and brake actions!', 'Add `perform action brake : Brake;` inside Vehicle.'),
+  },
+  {
+    id: 'l17t3', level: 17, levelName: 'Perform & Exhibit',
+    title: 'Exhibit a State in a Part',
+    instruction:
+      'A part can **exhibit** a state — this means the part goes through those state transitions during its lifetime.\n\n' +
+      'Add: `exhibit state vehicleStates : VehicleStates;`',
+    hint: 'Use `exhibit state name : StateDef;` inside a part.',
+    concept: '«exhibit»',
+    conceptExplanation: 'An exhibit state usage shows as a rounded rectangle with «exhibit» keyword, linking the part to its behavioral states.',
+    starterCode: `\
+state def VehicleStates {
+  state off;
+  state on;
+  transition first off then on;
+  transition first on then off;
+}
+
+part def Vehicle {
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  exhibit state vehicleStates : VehicleStates;
+}
+`,
+    validate: vMatch(/exhibit\s+state\s+\w+/, 'Vehicle now exhibits its VehicleStates!', /exhibit/, 'Use: `exhibit state vehicleStates : VehicleStates;`', 'Add `exhibit state vehicleStates : VehicleStates;` inside Vehicle.'),
+  },
+  {
+    id: 'l17t4', level: 17, levelName: 'Perform & Exhibit',
+    title: 'Combine Perform and Exhibit',
+    instruction:
+      'A part can both perform actions and exhibit states.\n\n' +
+      'Add both:\n- `perform action drive : Drive;`\n- `exhibit state states : VehicleStates;`',
+    hint: 'Add both perform and exhibit inside the part.',
+    concept: 'perform + exhibit',
+    conceptExplanation: 'Perform and exhibit usages together define both the actions a part carries out and the states it transitions through.',
+    starterCode: `\
+action def Drive;
+state def VehicleStates {
+  state off;
+  state on;
+}
+
+part def Vehicle {
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  perform action drive : Drive;
+  exhibit state states : VehicleStates;
+}
+`,
+    validate: vAll([
+      { pat: /perform\s+action\s+\w+/, hint: 'Also add: `exhibit state states : VehicleStates;`' },
+      { pat: /exhibit\s+state\s+\w+/, hint: 'Also add: `perform action drive : Drive;`' },
+    ], 'Vehicle performs actions and exhibits states!', 'Add perform and exhibit inside Vehicle.'),
+  },
+  {
+    id: 'l17t5', level: 17, levelName: 'Perform & Exhibit',
+    title: 'Entry, Do, and Exit Actions',
+    instruction:
+      'States can have **entry**, **do**, and **exit** actions that execute during state transitions.\n\n' +
+      'Inside the `on` state, add:\n- `entry action startup;`\n- `do action running;`\n- `exit action shutdown;`',
+    hint: 'Use `entry action name;`, `do action name;`, `exit action name;` inside a state.',
+    concept: 'entry / do / exit',
+    conceptExplanation: 'Entry actions run when entering the state. Do actions run while the state is active. Exit actions run when leaving.',
+    starterCode: `\
+state def OperatingStates {
+  entry;
+  then off;
+
+  state off;
+  state on {
+  }
+  transition first off then on;
+  transition first on then off;
+}
+`,
+    targetCode: `\
+state on {
+  entry action startup;
+  do action running;
+  exit action shutdown;
+}
+`,
+    validate: vAll([
+      { pat: /entry\s+action\s+\w+/, hint: 'Also add `do action` and `exit action`.' },
+      { pat: /do\s+action\s+\w+/, hint: 'Also add `entry action` and `exit action`.' },
+      { pat: /exit\s+action\s+\w+/, hint: 'Also add `entry action` and `do action`.' },
+    ], 'The on state now has entry, do, and exit actions!', 'Add entry/do/exit actions inside the on state.'),
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 18: Comments & Documentation (4 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l18t1', level: 18, levelName: 'Comments & Documentation',
+    title: 'Add a Named Comment',
+    instruction:
+      'SysML v2 supports **comments** as model elements. A named comment appears as a folded-corner note in the diagram.\n\n' +
+      'Add: `comment DesignNote /* This is a design note. */`',
+    hint: 'Use `comment Name /* text */` syntax.',
+    concept: '«comment»',
+    conceptExplanation: 'A comment is a folded-corner rectangle (note shape) containing documentation text.',
+    starterCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+comment DesignNote /* This is a design note. */
+`,
+    validate: vMatch(/comment\s+\w+\s*\/\*/, 'Named comment created as a diagram element!', /comment/, 'Use: `comment DesignNote /* text */`', 'Add `comment DesignNote /* This is a design note. */`'),
+  },
+  {
+    id: 'l18t2', level: 18, levelName: 'Comments & Documentation',
+    title: 'Add a Comment About an Element',
+    instruction:
+      'A comment can annotate a specific element using `about`.\n\n' +
+      'Add: `comment about Vehicle /* The main system element. */`',
+    hint: 'Use `comment about ElementName /* text */` syntax.',
+    concept: '«annotate»',
+    conceptExplanation: 'A comment with `about` creates a dashed line connecting the note to the annotated element.',
+    starterCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+comment about Vehicle /* The main system element. */
+`,
+    validate: vMatch(/comment\s+about\s+\w+\s*\/\*/, 'Comment annotates Vehicle with a dashed line!', /comment\s+about/, 'Use: `comment about Vehicle /* text */`', 'Add `comment about Vehicle /* The main system element. */`'),
+  },
+  {
+    id: 'l18t3', level: 18, levelName: 'Comments & Documentation',
+    title: 'Add Documentation',
+    instruction:
+      'A **doc** comment documents its owning element. It appears in the documentation compartment.\n\n' +
+      'Inside Vehicle, add: `doc /* The primary vehicle system. */`',
+    hint: 'Use `doc /* text */` inside the definition.',
+    concept: 'doc',
+    conceptExplanation: 'Documentation comments are owned by their containing element and describe it.',
+    starterCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  doc /* The primary vehicle system. */
+  attribute mass : Real;
+}
+`,
+    validate: vMatch(/doc\s*\/\*/, 'Documentation added to Vehicle!', null, '', 'Add `doc /* The primary vehicle system. */` inside Vehicle.'),
+  },
+  {
+    id: 'l18t4', level: 18, levelName: 'Comments & Documentation',
+    title: 'Add an Alias',
+    instruction:
+      'An **alias** creates an alternative name for an element.\n\n' +
+      'Add: `alias Car for Vehicle;`',
+    hint: 'Use `alias AltName for OriginalName;` syntax.',
+    concept: '«alias»',
+    conceptExplanation: 'Aliases provide alternative names without creating new elements.',
+    starterCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute mass : Real;
+}
+alias Car for Vehicle;
+`,
+    validate: vMatch(/alias\s+\w+\s+for\s+\w+/, 'Alias created — Car is now an alternative name for Vehicle.', /alias/, 'Use: `alias Car for Vehicle;`', 'Add `alias Car for Vehicle;`'),
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 19: Conjugated Ports & Interfaces (4 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l19t1', level: 19, levelName: 'Conjugated Ports & Interfaces',
+    title: 'Create a Port with Directed Features',
+    instruction:
+      'A port definition can have **in** and **out** features that specify flow directions.\n\n' +
+      'Add `out item fuelOut : Fuel;` and `in item fuelReturn : Fuel;` inside the port def.',
+    hint: 'Use `in item name : Type;` and `out item name : Type;` inside the port def.',
+    concept: 'directed features',
+    conceptExplanation: 'Directed features specify what flows in/out of a port. In/out are conjugates of each other.',
+    starterCode: `\
+item def Fuel;
+
+port def FuelingPort {
+}
+`,
+    targetCode: `\
+port def FuelingPort {
+  out item fuelOut : Fuel;
+  in item fuelReturn : Fuel;
+}
+`,
+    validate: vAll([
+      { pat: /out\s+item\s+\w+\s*:\s*Fuel/, hint: 'Also add: `in item fuelReturn : Fuel;`' },
+      { pat: /in\s+item\s+\w+\s*:\s*Fuel/, hint: 'Also add: `out item fuelOut : Fuel;`' },
+    ], 'Port has directed features — fuel flows out and returns in!', 'Add `out item fuelOut : Fuel;` and `in item fuelReturn : Fuel;` inside FuelingPort.'),
+  },
+  {
+    id: 'l19t2', level: 19, levelName: 'Conjugated Ports & Interfaces',
+    title: 'Use a Conjugated Port',
+    instruction:
+      'A **conjugated port** reverses in/out directions using `~` prefix.\n\n' +
+      'If FuelingPort has `out fuelOut`, then `~FuelingPort` has `in fuelOut`.\n\n' +
+      'Add: `port enginePort : ~FuelingPort;` inside Engine.',
+    hint: 'Use `port name : ~PortDef;` syntax.',
+    concept: '~PortDef (conjugated)',
+    conceptExplanation: 'Conjugation reverses all directed features. A port sending fuel connects to a conjugated port receiving fuel.',
+    starterCode: `\
+item def Fuel;
+port def FuelingPort {
+  out item fuelOut : Fuel;
+  in item fuelReturn : Fuel;
+}
+
+part def FuelTank {
+  port fuelPort : FuelingPort;
+}
+
+part def Engine {
+}
+`,
+    targetCode: `\
+part def Engine {
+  port enginePort : ~FuelingPort;
+}
+`,
+    validate: vMatch(/port\s+\w+\s*:\s*~\w+/, 'Conjugated port created — directions are reversed!', /~/, 'Use: `port enginePort : ~FuelingPort;`', 'Add `port enginePort : ~FuelingPort;` inside Engine.'),
+  },
+  {
+    id: 'l19t3', level: 19, levelName: 'Conjugated Ports & Interfaces',
+    title: 'Create an Interface Definition',
+    instruction:
+      'An **interface def** defines a connection type between ports.\n\n' +
+      'Add: `interface def FuelInterface;`',
+    hint: 'Use `interface def Name;` syntax.',
+    concept: '«interface def»',
+    conceptExplanation: 'Interface definitions classify connections between ports, specifying what can flow between them.',
+    starterCode: `\
+port def FuelPort;
+port def EnginePort;
+`,
+    targetCode: `\
+port def FuelPort;
+port def EnginePort;
+interface def FuelInterface;
+`,
+    validate: vDef('interface\\s+def', 'FuelInterface', 'Interface definition created!', 'Add `interface def FuelInterface;`'),
+  },
+  {
+    id: 'l19t4', level: 19, levelName: 'Conjugated Ports & Interfaces',
+    title: 'Create a Bind Connection',
+    instruction:
+      'A **bind** connection asserts that two features always have the same value.\n\n' +
+      'Add: `bind sensor.reading = controller.input;`',
+    hint: 'Use `bind X = Y;` syntax.',
+    concept: 'bind',
+    conceptExplanation: 'Binding is shown as a dashed line with open circles at both ends.',
+    starterCode: `\
+part def Sensor { attribute reading : Real; }
+part def Controller { attribute input : Real; }
+
+part system {
+  part sensor : Sensor;
+  part controller : Controller;
+}
+`,
+    targetCode: `\
+part system {
+  part sensor : Sensor;
+  part controller : Controller;
+  bind sensor.reading = controller.input;
+}
+`,
+    validate: vMatch(/bind\s+\w+\.\w+\s*=\s*\w+\.\w+/, 'Bind created — sensor reading is always equal to controller input!', /bind/, 'Use: `bind sensor.reading = controller.input;`', 'Add `bind sensor.reading = controller.input;` inside system.'),
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 20: Conditional Guards & Control Flow (5 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l20t1', level: 20, levelName: 'Conditional Guards',
+    title: 'Add a Conditional Succession',
+    instruction:
+      'A succession can have a **guard** — a condition that must be true for the flow to proceed.\n\n' +
+      'Add: `if isReady then startProcess;`',
+    hint: 'Use `if guardExpression then actionName;` syntax.',
+    concept: '[guard]',
+    conceptExplanation: 'Guards appear as [expression] labels on succession edges. The flow only proceeds when the condition is true.',
+    starterCode: `\
+action def CheckReady;
+action def StartProcess;
+
+action workflow {
+  action check : CheckReady;
+  action startProcess : StartProcess;
+
+  first start then check;
+  first check then decide decision1;
+  decide decision1;
+}
+`,
+    targetCode: `\
+  decide decision1;
+  if isReady then startProcess;
+`,
+    validate: vMatch(/if\s+\w+\s+then\s+\w+/, 'Conditional guard added — flow proceeds only when condition is true!', /if.*then/, 'Use: `if isReady then startProcess;`', 'Add `if isReady then startProcess;` after the decide node.'),
+  },
+  {
+    id: 'l20t2', level: 20, levelName: 'Conditional Guards',
+    title: 'Add If-Then-Else',
+    instruction:
+      'An **if-then-else** provides two branches from a decision.\n\n' +
+      'Add:\n- `if isNormal then processNormal;`\n- `if isError then processError;`',
+    hint: 'Add two `if ... then ...;` statements after the decide node.',
+    concept: 'if-then-else',
+    conceptExplanation: 'Multiple guards from a decision create branching paths. Each guard labels its succession edge.',
+    starterCode: `\
+action def ProcessNormal;
+action def ProcessError;
+
+action handler {
+  action processNormal : ProcessNormal;
+  action processError : ProcessError;
+  first start then decide decision1;
+  decide decision1;
+}
+`,
+    targetCode: `\
+  decide decision1;
+  if isNormal then processNormal;
+  if isError then processError;
+`,
+    validate: vAll([
+      { pat: /if\s+\w+\s+then\s+processNormal/, hint: 'Also add: `if isError then processError;`' },
+      { pat: /if\s+\w+\s+then\s+processError/, hint: 'Also add: `if isNormal then processNormal;`' },
+    ], 'Two conditional branches created from the decision node!', 'Add two `if ... then ...;` statements.'),
+  },
+  {
+    id: 'l20t3', level: 20, levelName: 'Conditional Guards',
+    title: 'Use Merge After Branches',
+    instruction:
+      'A **merge** node brings conditional branches back together.\n\n' +
+      'Add:\n- `first processNormal then merge1;`\n- `first processError then merge1;`\n- `merge merge1;`\n- `first merge1 then done;`',
+    hint: 'Declare `merge merge1;` and route both branches to it.',
+    concept: 'merge',
+    conceptExplanation: 'A merge diamond collects multiple paths into one. The flow continues when any incoming branch completes.',
+    starterCode: `\
+action def ProcessNormal;
+action def ProcessError;
+
+action handler {
+  action processNormal : ProcessNormal;
+  action processError : ProcessError;
+  first start then decide decision1;
+  decide decision1;
+  if isNormal then processNormal;
+  if isError then processError;
+}
+`,
+    targetCode: `\
+  first processNormal then merge1;
+  first processError then merge1;
+  merge merge1;
+  first merge1 then done;
+`,
+    validate: vAll([
+      { pat: /merge\s+\w+/, hint: 'Also route branches to merge: `first processNormal then merge1;`' },
+      { pat: /first\s+\w+\s+then\s+merge/, hint: 'Declare `merge merge1;` and add `first merge1 then done;`' },
+    ], 'Merge node collects both branches — complete conditional flow!', 'Add `merge merge1;` and route branches to it.'),
+  },
+  {
+    id: 'l20t4', level: 20, levelName: 'Conditional Guards',
+    title: 'Fork and Join for Parallel Actions',
+    instruction:
+      'A **fork** splits flow into parallel paths. A **join** waits for all paths to complete.\n\n' +
+      'Add fork, two parallel actions, and join them back.',
+    hint: 'Use `fork fork1;` then `first fork1 then actionA;` and `first fork1 then actionB;`',
+    concept: 'fork / join',
+    conceptExplanation: 'Fork (thick bar) splits into concurrent actions. Join (thick bar) synchronizes them back.',
+    starterCode: `\
+action def TaskA;
+action def TaskB;
+action def Finalize;
+
+action parallel {
+  action taskA : TaskA;
+  action taskB : TaskB;
+  action finalize : Finalize;
+  first start then fork1;
+}
+`,
+    targetCode: `\
+  first start then fork1;
+  fork fork1;
+  first fork1 then taskA;
+  first fork1 then taskB;
+  first taskA then join1;
+  first taskB then join1;
+  join join1;
+  first join1 then finalize;
+  first finalize then done;
+`,
+    validate: vAll([
+      { pat: /fork\s+\w+/, hint: 'Also add join and route parallel paths.' },
+      { pat: /join\s+\w+/, hint: 'Also add fork and connect parallel actions.' },
+    ], 'Fork splits into parallel paths, join synchronizes them!', 'Add `fork fork1;` and `join join1;` with parallel action routing.'),
+  },
+  {
+    id: 'l20t5', level: 20, levelName: 'Conditional Guards',
+    title: 'Complete Control Flow Pattern',
+    instruction:
+      'Build a complete action with: start → fork → parallel actions → join → decide → conditional branches → merge → done.\n\n' +
+      'This exercises all control nodes in a single flow.',
+    hint: 'Combine fork/join, decide/merge, and conditional guards.',
+    concept: 'Complete control flow',
+    conceptExplanation: 'A complete action flow demonstrates all SysML v2 control node types working together.',
+    starterCode: `\
+action def Prepare;
+action def Execute;
+action def Verify;
+action def HandleSuccess;
+action def HandleFailure;
+
+action workflow {
+}
+`,
+    targetCode: `\
+action workflow {
+  action prepare : Prepare;
+  action execute : Execute;
+  action verify : Verify;
+  action handleSuccess : HandleSuccess;
+  action handleFailure : HandleFailure;
+
+  first start then fork1;
+  fork fork1;
+  first fork1 then prepare;
+  first fork1 then execute;
+  first prepare then join1;
+  first execute then join1;
+  join join1;
+  first join1 then verify;
+  first verify then decide check;
+  decide check;
+  if passed then handleSuccess;
+  if failed then handleFailure;
+  first handleSuccess then merge1;
+  first handleFailure then merge1;
+  merge merge1;
+  first merge1 then done;
+}
+`,
+    validate: vAll([
+      { pat: /fork\s+\w+/, hint: 'Add fork, join, decide, merge, and routing.' },
+      { pat: /join\s+\w+/, hint: 'Add fork, join, decide, merge, and routing.' },
+      { pat: /decide\s+\w+/, hint: 'Add decide with conditional guards.' },
+      { pat: /merge\s+\w+/, hint: 'Add merge after conditional branches.' },
+      { pat: /if\s+\w+\s+then\s+\w+/, hint: 'Add conditional guards after decide.' },
+    ], 'Complete control flow with all node types — congratulations!', 'Build the full flow with fork/join/decide/merge and conditional guards.'),
+  },
 ];
 
-export const TOTAL_LEVELS = 15;
+export const TOTAL_LEVELS = 20;
 
 export const COMPLETED_CODE = `\
 // SysML v2 Training Complete!
@@ -5097,6 +5777,11 @@ export const COMPLETED_CODE = `\
 // - Constraints & calculations
 // - Packages & imports
 // - Use cases, allocation, views & viewpoints
+// - Flows (streaming, succession, message)
+// - Perform & exhibit (entry/do/exit actions)
+// - Comments, documentation, aliases
+// - Conjugated ports, interfaces, bindings
+// - Conditional guards, if-then-else, fork/join/decide/merge
 
 part def Vehicle {
     attribute maxSpeed : Real;

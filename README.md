@@ -491,14 +491,15 @@ External AI clients (Claude Desktop, Cursor, VS Code, Windsurf) connect to syste
 
 ### Training Mode
 
-Interactive 7-level tutorial building a Vehicle model from scratch:
-1. Part Definitions
-2. Attributes
-3. Specialization & Composition
-4. Subsetting (`:>` on usages)
-5. Redefinition (`:>>`)
-6. Ports
-7. Items
+Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
+1. Part Definitions — 6. Composition
+7. Ports — 9. Enumerations
+10. Actions — 11. States
+12. Requirements — 13. Constraints & Calculations
+14. Packages & Imports — 15. Advanced Concepts
+16. Flows & Messages — 17. Perform & Exhibit
+18. Comments & Documentation — 19. Conjugated Ports & Interfaces
+20. Conditional Guards & Control Flow
 
 ---
 
