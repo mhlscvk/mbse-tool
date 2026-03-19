@@ -175,12 +175,15 @@ function nodeToSNode(node: SysMLNode): SNode {
       const cssClass = isPort
         ? 'portusage'
         : (node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout');
-      const width = Math.max(80, textWidth(nameText, 11) + 20);
+      // Full keyword: «in item» not just «in» — include the usage kind after direction
+      const baseKw = KIND_DISPLAY[node.kind] ?? `«${node.kind}»`;
+      const dirKindLabel = makeLabel(`${node.id}__kind`, baseKw.replace('«', `«${node.direction} `));
+      const width = Math.max(80, Math.max(textWidth(nameText, 11), textWidth(dirKindLabel.text, 10)) + 20);
       return {
         type: 'node', id: node.id,
         position: { x: 0, y: 0 },
         size: { width, height: 50 },
-        children: [kindLabel, nameLabel],
+        children: [dirKindLabel, nameLabel],
         cssClasses: [cssClass],
         data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
       };

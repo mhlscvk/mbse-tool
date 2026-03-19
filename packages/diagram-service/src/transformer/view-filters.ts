@@ -10,8 +10,8 @@ interface FilteredModel {
 // Hides: standalone defs, actions, states, successions
 
 const IV_NODE_KINDS = new Set([
-  'PartUsage', 'PortUsage', 'ConnectionUsage', 'InterfaceUsage', 'ItemUsage',
-  'PartDefinition', 'PortDefinition', 'ConnectionDefinition', 'InterfaceDefinition', 'ItemDefinition',
+  'PartUsage', 'PortUsage', 'ConnectionUsage', 'InterfaceUsage', 'ItemUsage', 'AttributeUsage',
+  'PartDefinition', 'PortDefinition', 'ConnectionDefinition', 'InterfaceDefinition', 'ItemDefinition', 'AttributeDefinition',
   'Package',
 ]);
 
