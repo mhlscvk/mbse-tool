@@ -31,7 +31,8 @@ const googleSchema = z.object({
 function signToken(userId: string, role: string): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET not configured');
-  return jwt.sign({ userId, role }, secret, {
+  const normalizedRole = role.toLowerCase();
+  return jwt.sign({ userId, role: normalizedRole }, secret, {
     expiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
     algorithm: 'HS256',
   } as jwt.SignOptions);
@@ -214,7 +215,7 @@ router.post('/login', async (req, res, next) => {
 
     const accessToken = signToken(user.id, user.role);
     const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, ...safeUser } = user;
-    res.json({ data: { accessToken, user: safeUser } });
+    res.json({ data: { accessToken, user: { ...safeUser, role: safeUser.role.toLowerCase() } } });
   } catch (err) {
     next(err);
   }
@@ -269,7 +270,7 @@ router.post('/google', async (req, res, next) => {
 
     const accessToken = signToken(user.id, user.role);
     const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, ...safeUser } = user;
-    res.json({ data: { accessToken, user: safeUser } });
+    res.json({ data: { accessToken, user: { ...safeUser, role: safeUser.role.toLowerCase() } } });
   } catch (err) {
     next(err);
   }
@@ -283,7 +284,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
       select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true },
     });
     if (!user) { res.status(404).json({ error: 'Not Found', message: 'User not found' }); return; }
-    res.json({ data: user });
+    res.json({ data: { ...user, role: user.role.toLowerCase() } });
   } catch (err) {
     next(err);
   }

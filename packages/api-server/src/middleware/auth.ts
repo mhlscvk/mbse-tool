@@ -28,7 +28,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 }
 
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (req.userRole !== 'ADMIN') {
+  if (req.userRole?.toUpperCase() !== 'ADMIN') {
     res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
     return;
   }

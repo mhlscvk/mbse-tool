@@ -94,6 +94,10 @@ export const api = {
       request<void>(`/projects/${projectId}/files/${fileId}`, { method: 'DELETE' }),
     download: (projectId: string, fileId: string) =>
       `${BASE_URL}/projects/${projectId}/files/${fileId}/download`,
+    move: (projectId: string, fileId: string, targetProjectId: string) =>
+      request<import('@systemodel/shared-types').SysMLFile>(`/projects/${projectId}/files/${fileId}/move`, {
+        method: 'POST', body: JSON.stringify({ targetProjectId }),
+      }),
   },
   aiKeys: {
     list: () => request<AiKeyInfo[]>('/ai/keys'),

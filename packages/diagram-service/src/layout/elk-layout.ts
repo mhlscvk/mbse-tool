@@ -17,6 +17,7 @@ interface ElkEdge {
   id: string;
   sources: string[];
   targets: string[];
+  layoutOptions?: Record<string, string>;
   sections?: { startPoint: { x: number; y: number }; endPoint: { x: number; y: number }; bendPoints?: { x: number; y: number }[] }[];
 }
 
@@ -48,7 +49,19 @@ export async function applyLayout(model: SModelRoot): Promise<SModelRoot> {
       const nodeIds = new Set(nodes.map((n) => n.id));
       return edges
         .filter((e) => nodeIds.has(e.sourceId) && nodeIds.has(e.targetId))
-        .map((e) => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
+        .map((e) => {
+          // Give succession/flow/transition edges higher priority so they
+          // drive the layered layout direction even when composition edges
+          // pull nodes elsewhere.
+          const cssClass = e.cssClasses?.[0] ?? '';
+          const isBehavioral = cssClass === 'succession' || cssClass === 'flow' || cssClass === 'transition';
+          return {
+            id: e.id,
+            sources: [e.sourceId],
+            targets: [e.targetId],
+            ...(isBehavioral ? { layoutOptions: { 'elk.layered.priority.direction': '10' } } : {}),
+          };
+        });
     })(),
   };
 

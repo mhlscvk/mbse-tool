@@ -82,6 +82,7 @@ const KIND_LABELS: Record<string, string> = {
   mergenode:            'Merge Node',
   decidenode:           'Decide Node',
   startnode:            'Start Node',
+  donenode:             'Done Node',
   terminatenode:        'Terminate Node',
   alias:                'Alias',
   comment:              'Comment',

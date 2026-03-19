@@ -47,12 +47,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     if (body.parentId) {
       const parent = await prisma.project.findFirst({
-        where: { id: body.parentId, ownerId: req.userId },
+        where: { id: body.parentId, OR: [{ ownerId: req.userId }, { isSystem: true }] },
       });
       if (!parent) {
         res.status(404).json({ error: 'Not Found', message: 'Parent project not found' }); return;
       }
-      if (parent.isSystem) {
+      const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
+      if (parent.isSystem && !isAdmin) {
         res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return;
       }
       if (parent.depth >= 2) {
@@ -83,17 +84,20 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Rename project (blocked for system projects)
+// Rename project (blocked for system projects unless admin)
 router.patch('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const project = await prisma.project.findFirst({ where: { id: req.params.id, ownerId: req.userId } });
+    const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
+    });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem) {
+    if (project.isSystem && !isAdmin) {
       res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return;
     }
     const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
     const updated = await prisma.project.update({
-      where: { id: req.params.id, ownerId: req.userId! },
+      where: { id: req.params.id },
       data: { name: body.name, description: body.description },
     });
     res.json({ data: updated });
@@ -122,15 +126,18 @@ router.get('/:id/download', async (req: AuthRequest, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Delete project (blocked for system projects)
+// Delete project (blocked for system projects unless admin)
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const project = await prisma.project.findFirst({ where: { id: req.params.id, ownerId: req.userId } });
+    const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
+    });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem) {
+    if (project.isSystem && !isAdmin) {
       res.status(403).json({ error: 'Forbidden', message: 'Cannot delete system project' }); return;
     }
-    await prisma.project.delete({ where: { id: req.params.id, ownerId: req.userId! } });
+    await prisma.project.delete({ where: { id: req.params.id } });
     res.status(204).send();
   } catch (err) { next(err); }
 });

@@ -236,7 +236,21 @@ ssh root@<VPS_IP> "cd /opt/systemodel && git pull && \
 - **Rename** or **Delete** views as needed
 - **Show All (reset)** restores full visibility
 
-### View Modes
+### Standard Views (per OMG SysML v2.0 spec Section 9.2.20)
+
+| View | Short | What it shows | Hides |
+|---|---|---|---|
+| **General View** | GV | Everything: defs, usages, all edges | Nothing (default) |
+| **Interconnection View** | IV | Parts, ports (boundary nodes), connections, interfaces, flows | Defs (standalone), actions, states, successions |
+| **Action Flow View** | AFV | Actions, parameters, control nodes, successions, flows | Parts, ports, structural defs, type-reference edges |
+| **State Transition View** | STV | States, transitions, entry/do/exit | Actions (non-state), parts, ports, structural elements |
+
+- **View selector** — toolbar buttons `[ GV | IV | AFV | STV ]` switch between standard views
+- **Port boundary rendering** — in IV, ports render as small squares on parent part boundaries (per spec 8.2.3.12)
+- **IV is always nested** — per spec 8.2.3.11, IV uses compound layout (no tree option)
+- **Dynamic legend** — shows only relevant node/edge types per active view
+
+### Layout Modes
 
 - **Nested View** (default) — compound ELK layout with visual nesting (packages as containers, composition as containment)
 - **Tree View** — flat BDD-style layout with all edges visible and ELK orthogonal edge routing
@@ -534,6 +548,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] OMG-compliant graphical notation (node shapes, edge styles per spec Section 8.2.3)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
+- [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV, STV (per spec 9.2.20)
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics
 - [x] Element panel with step-by-step collapse, visibility toggles, saved views
@@ -546,7 +561,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 - [x] User auth: email/password + Google OAuth + email verification
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
-- [x] Automated tests: 320 vitest tests (parser, transformer, state machines, robustness, security, audit)
+- [x] Automated tests: 356 vitest tests (parser, transformer, view filters, state machines, robustness, security, audit)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only, visible to all users, seed script for deployment)
@@ -583,7 +598,7 @@ Interactive 7-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (320 unit tests) + 36 live penetration tests |
+| Testing | Vitest (356 unit tests) + 36 live penetration tests |
 
 ---
 
@@ -597,7 +612,7 @@ cd packages/diagram-service && pnpm test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 320 tests across 9 test suites:
+**Coverage:** 356 tests across 10 test suites:
 
 - **Parser tests** (89): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
@@ -608,6 +623,7 @@ cd packages/diagram-service && pnpm test:watch
 - **Transformer state tests** (17): state def/usage cssClasses, exhibit state, entry/exit/do compartment rendering, transition edge type, composition edges, full pipeline
 - **Transformer audit tests** (16): sharp/rounded corner compliance, parallel kind text, behavior compartment rendering, transition vs succession edge types, node/edge structure integrity, full spec example pipelines
 - **Transformer robustness tests** (23): empty/minimal models, node structure validation, labels, edge CSS classes, compartments, control nodes, performance, full pipeline integration
+- **View filter tests** (36): GV pass-through, IV structural filtering, AFV behavioral filtering, STV state filtering, cross-view consistency, graph ID tagging, empty model handling, edge kind validation, applyViewFilter direct API
 
 ---
 

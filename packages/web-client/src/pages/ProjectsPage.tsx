@@ -51,6 +51,8 @@ function ContextMenu({ menu, onClose }: { menu: ContextMenuState; onClose: () =>
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<SysMLFile[]>([]);
@@ -224,8 +226,8 @@ export default function ProjectsPage() {
   const onProjectContextMenu = useCallback((e: React.MouseEvent, project: Project) => {
     e.preventDefault();
     e.stopPropagation();
-    if (project.isSystem) {
-      // System projects: download only
+    if (project.isSystem && !isAdmin) {
+      // System projects: download only (non-admin)
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [{ label: 'Download', onClick: () => downloadProject(project) }],
@@ -246,6 +248,37 @@ export default function ProjectsPage() {
   }, [projects, selectedProject]);
 
   // ─── File actions ────────────────────────────────────────────────────────
+
+  /** Collect all leaf projects (that can hold files) for a move-to picker. */
+  const collectProjects = useCallback((nodes: Project[], prefix = ''): { id: string; label: string }[] => {
+    const result: { id: string; label: string }[] = [];
+    for (const p of nodes) {
+      const label = prefix ? `${prefix} / ${p.name}` : p.name;
+      result.push({ id: p.id, label });
+      if ((p as any).children?.length) {
+        result.push(...collectProjects((p as any).children, label));
+      }
+    }
+    return result;
+  }, []);
+
+  const moveFile = async (file: SysMLFile) => {
+    if (!selectedProject) return;
+    const targets = collectProjects(projects).filter((t) => t.id !== selectedProject.id);
+    if (targets.length === 0) { setError('No other projects to move to'); return; }
+    const choice = prompt(
+      'Move to project:\n' + targets.map((t, i) => `  ${i + 1}. ${t.label}`).join('\n') + '\n\nEnter number:',
+    );
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= targets.length) { setError('Invalid selection'); return; }
+    try {
+      await api.files.move(selectedProject.id, file.id, targets[idx].id);
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to move file');
+    }
+  };
 
   const renameFile = async (file: SysMLFile) => {
     if (!selectedProject) return;
@@ -289,8 +322,8 @@ export default function ProjectsPage() {
   const onFileContextMenu = useCallback((e: React.MouseEvent, file: SysMLFile) => {
     e.preventDefault();
     e.stopPropagation();
-    if (selectedProject?.isSystem) {
-      // System project files: download only
+    if (selectedProject?.isSystem && !isAdmin) {
+      // System project files: download only (non-admin)
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [{ label: 'Download', onClick: () => downloadFile(file) }],
@@ -301,6 +334,7 @@ export default function ProjectsPage() {
       x: e.clientX, y: e.clientY,
       items: [
         { label: 'Rename', onClick: () => renameFile(file) },
+        { label: 'Move to...', onClick: () => moveFile(file) },
         { label: 'Download', onClick: () => downloadFile(file) },
         { label: 'Delete', onClick: () => deleteFile(file), danger: true },
       ],
@@ -411,9 +445,10 @@ export default function ProjectsPage() {
               <div style={{ padding: '16px 20px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600 }}>
                   {selectedProject.name}
-                  {selectedProject.isSystem && <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                  {selectedProject.isSystem && !isAdmin && <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                  {selectedProject.isSystem && isAdmin && <span style={{ color: '#569cd6', fontSize: 11, marginLeft: 8 }}>(Admin)</span>}
                 </span>
-                {!selectedProject.isSystem && (
+                {(!selectedProject.isSystem || isAdmin) && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input
                       ref={fileInputRef}

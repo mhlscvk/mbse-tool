@@ -1,3 +1,6 @@
+// SysML v2 Standard View Types (Section 9.2.20)
+export type ViewType = 'general' | 'interconnection' | 'action-flow' | 'state-transition';
+
 // Sprotty-compatible diagram model types
 export interface SModelRoot {
   type: 'graph';
@@ -49,6 +52,6 @@ export interface DiagramDiagnostic {
 }
 
 export type DiagramMessage =
-  | { kind: 'model'; model: SModelRoot; diagnostics: DiagramDiagnostic[] }
+  | { kind: 'model'; model: SModelRoot; diagnostics: DiagramDiagnostic[]; viewType?: ViewType }
   | { kind: 'error'; message: string }
   | { kind: 'clear' };

@@ -752,6 +752,81 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // ── 1c. Extended definitions (requirement, constraint, enum, use case, etc.) ──
+  // Registered early so usages in section 2 can resolve enum defs, requirement defs, etc.
+
+  // Helper: parse a definition pattern and create node + edges
+  function parseExtDef(pattern: RegExp, kind: SysMLNodeKind, nameGroup: number, abstractGroup: number, specGroup: number): void {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(clean)) !== null) {
+      const abstractKw = match[abstractGroup];
+      const name = dequote(match[nameGroup], nameMap);
+      const specializes = match[specGroup];
+      const id = makeId('def', name);
+      if (definedNames.has(name)) continue;
+      definedNames.add(name);
+      const { line: dL, column: dC } = lineCol(source, match.index);
+      const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+      nodes.push({
+        id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+      });
+      nodeIndex.set(name, nodes[nodes.length - 1]);
+      defPositions.push({ name, start: match.index, end: blockEnd });
+      const ownerPkg = findOwnerPackage(match.index);
+      if (ownerPkg) {
+        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      if (specializes) {
+        const specSimple = simpleName(specializes);
+        connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
+      }
+    }
+  }
+
+  // Single-word extended defs
+  EXT_DEF_PATTERN.lastIndex = 0;
+  while ((match = EXT_DEF_PATTERN.exec(clean)) !== null) {
+    const kind = EXT_KIND_MAP[match[2]];
+    if (!kind) continue;
+    const abstractKw = match[1];
+    const name = dequote(match[3], nameMap);
+    const specializes = match[4];
+    const id = makeId('def', name);
+    if (definedNames.has(name)) continue;
+    definedNames.add(name);
+    const { line: dL, column: dC } = lineCol(source, match.index);
+    const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+    const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+    nodes.push({
+      id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+    });
+    nodeIndex.set(name, nodes[nodes.length - 1]);
+    defPositions.push({ name, start: match.index, end: blockEnd });
+    const ownerPkg = findOwnerPackage(match.index);
+    if (ownerPkg) {
+      connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+    }
+    if (specializes) {
+      const specSimple = simpleName(specializes);
+      connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
+    }
+  }
+
+  // Multi-word defs
+  for (const [pattern, kind] of [
+    [USE_CASE_DEF_PATTERN, 'UseCaseDefinition'],
+    [ANALYSIS_CASE_DEF_PATTERN, 'AnalysisCaseDefinition'],
+    [VERIFICATION_CASE_DEF_PATTERN, 'VerificationCaseDefinition'],
+  ] as [RegExp, SysMLNodeKind][]) {
+    parseExtDef(pattern, kind, 2, 1, 3);
+  }
+  defPositions.sort((a, b) => b.start - a.start);
+
   // Pre-built index of usage positions for fast enclosing-usage lookup
   // Includes both typed and untyped usages so nested items can find their parent usage
   interface UsagePosition { name: string; start: number; end: number; }
@@ -789,6 +864,61 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       usagePositions.push({ name: dequote(um[1], nameMap), start: um.index, end });
     }
     usagePositions.sort((a, b) => b.start - a.start);
+  }
+
+  // ── Pre-create container usage nodes (untyped usages with { bodies) ───────
+  // These must exist in nodeIndex before section 2 so nested typed usages
+  // can find their enclosing container via findOwnerUsage.
+  {
+    const containerRe = new RegExp(UNTYPED_USAGE_PATTERN.source, 'g');
+    let cm: RegExpExecArray | null;
+    while ((cm = containerRe.exec(clean)) !== null) {
+      // Only pre-create if the match ends with `{` (block body = container)
+      if (cm[0][cm[0].length - 1] !== '{') continue;
+      const pre = clean.slice(Math.max(0, cm.index - 9), cm.index);
+      if (/\b(inout|in|out|def|perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
+      // Skip if the declaration header itself has `: Type` (typed usage, handled elsewhere)
+      const header = cm[0]; // e.g. "action fulfillOrder {" — only the header, not body
+      const keyword = cm[2];
+      const afterKw = header.slice(header.indexOf(keyword) + keyword.length);
+      if (/\w+\s*(?:\[[\d..*]+\])?\s*:\s*\w+/.test(afterKw)) continue;
+
+      const usageName = dequote(cm[3], nameMap);
+      const isRef = !!cm[1];
+      const usagePos = cm.index;
+      const blockEnd = findBlockEnd(clean, cm.index + cm[0].length - 1);
+
+      // Find owner (def or package)
+      let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+      const usagePkg = findOwnerPackage(usagePos);
+      const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+
+      // Skip if already in nodeIndex
+      if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+
+      const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
+      const usageId = makeId('usage', `${ownerName}_${usageName}`);
+      const { line: uL, column: uC } = lineCol(source, usagePos);
+      const { line: uEL, column: uEC } = lineCol(source, blockEnd);
+      const containerNode: SysMLNode = {
+        id: usageId, kind: usageKind, name: usageName,
+        ...(isRef ? { isRef: true } : {}),
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(containerNode);
+      nodeIndex.set(`${ownerName}.${usageName}`, containerNode);
+      if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, containerNode);
+
+      // Composition to owner
+      if (ownerNode || usagePkg) {
+        const ownerId = ownerNode ? ownerNode.id : usagePkg!.id;
+        connections.push({
+          id: makeId('owns', `${ownerName}_${usageName}`),
+          sourceId: ownerId, targetId: usageId, kind: 'composition', name: '',
+        });
+      }
+    }
   }
 
   /** Find the innermost usage enclosing the given offset (excluding self). */
@@ -1060,12 +1190,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Skip if this name was already captured as a typed usage or definition
     const usagePos = match.index;
 
-    // Check if this exact position was already matched by USAGE_PATTERN (typed usage with `:`)
-    // by checking if there's a `:` after the name before the `;` or `{`
-    const afterName = clean.slice(match.index + fullMatch.length - 1, match.index + fullMatch.length + 20);
-    // Already handled by typed USAGE_PATTERN if original source has `: Type` form
-    const origSlice = clean.slice(match.index, match.index + fullMatch.length + 30);
-    if (/\b\w+\s*(?:\[[\d..*]+\])?\s*:\s*\w+/.test(origSlice.slice(keyword.length + 1))) continue;
+    // Already handled by typed USAGE_PATTERN if the header itself has `: Type`
+    const afterKw = fullMatch.slice(fullMatch.indexOf(keyword) + keyword.length);
+    if (/\w+\s*(?:\[[\d..*]+\])?\s*:\s*\w+/.test(afterKw)) continue;
 
     // Find enclosing definition or usage block
     let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
@@ -1314,81 +1441,6 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
-  // ── 2f. Extended definitions (requirement, constraint, enum, use case, etc.) ──
-
-  // Helper: parse a definition pattern and create node + edges
-  function parseExtDef(pattern: RegExp, kind: SysMLNodeKind, nameGroup: number, abstractGroup: number, specGroup: number): void {
-    pattern.lastIndex = 0;
-    while ((match = pattern.exec(clean)) !== null) {
-      const abstractKw = match[abstractGroup];
-      const name = dequote(match[nameGroup], nameMap);
-      const specializes = match[specGroup];
-      const id = makeId('def', name);
-      if (definedNames.has(name)) continue;
-      definedNames.add(name);
-      const { line: dL, column: dC } = lineCol(source, match.index);
-      const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
-      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
-      nodes.push({
-        id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
-        children: [], attributes: [], connections: [],
-        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
-      });
-      nodeIndex.set(name, nodes[nodes.length - 1]);
-      defPositions.push({ name, start: match.index, end: blockEnd });
-      const ownerPkg = findOwnerPackage(match.index);
-      if (ownerPkg) {
-        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
-      }
-      if (specializes) {
-        const specSimple = simpleName(specializes);
-        connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
-      }
-    }
-  }
-
-  // Single-word extended defs: group[1]=abstract, group[2]=keyword, group[3]=name, group[4]=specializes
-  EXT_DEF_PATTERN.lastIndex = 0;
-  while ((match = EXT_DEF_PATTERN.exec(clean)) !== null) {
-    const kind = EXT_KIND_MAP[match[2]];
-    if (!kind) continue;
-    // Re-use parseExtDef inline since EXT_DEF_PATTERN has keyword in group[2]
-    const abstractKw = match[1];
-    const name = dequote(match[3], nameMap);
-    const specializes = match[4];
-    const id = makeId('def', name);
-    if (definedNames.has(name)) continue;
-    definedNames.add(name);
-    const { line: dL, column: dC } = lineCol(source, match.index);
-    const blockEnd = findBlockEnd(clean, match.index + match[0].length - 1);
-    const { line: dEL, column: dEC } = lineCol(source, blockEnd);
-    nodes.push({
-      id, kind, name, qualifiedName: name, isAbstract: !!abstractKw,
-      children: [], attributes: [], connections: [],
-      range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
-    });
-    nodeIndex.set(name, nodes[nodes.length - 1]);
-    defPositions.push({ name, start: match.index, end: blockEnd });
-    const ownerPkg = findOwnerPackage(match.index);
-    if (ownerPkg) {
-      connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
-    }
-    if (specializes) {
-      const specSimple = simpleName(specializes);
-      connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
-    }
-  }
-
-  // Multi-word defs: group[1]=abstract, group[2]=name, group[3]=specializes
-  for (const [pattern, kind] of [
-    [USE_CASE_DEF_PATTERN, 'UseCaseDefinition'],
-    [ANALYSIS_CASE_DEF_PATTERN, 'AnalysisCaseDefinition'],
-    [VERIFICATION_CASE_DEF_PATTERN, 'VerificationCaseDefinition'],
-  ] as [RegExp, SysMLNodeKind][]) {
-    parseExtDef(pattern, kind, 2, 1, 3);
-  }
-  defPositions.sort((a, b) => b.start - a.start);
-
   // ── 2i. Behavioral: successions, control nodes ─────────────────────────────
   // (perform/exhibit nodes already created in section 2-pre above)
 
@@ -1454,7 +1506,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     if (nodeIndex.has(scopedKey)) return;
 
     const kindMap: Record<string, SysMLNodeKind> = {
-      start: 'StartNode', done: 'JoinNode', terminate: 'TerminateNode',
+      start: 'StartNode', done: 'DoneNode', terminate: 'TerminateNode',
     };
     const kind = kindMap[name] ?? 'ForkNode';
     const id = makeId('control', `${ownerName}_${name}`);

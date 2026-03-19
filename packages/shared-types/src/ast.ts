@@ -57,6 +57,7 @@ export type SysMLNodeKind =
   | 'MergeNode'
   | 'DecideNode'
   | 'StartNode'
+  | 'DoneNode'
   | 'TerminateNode'
   // ── Namespace ──
   | 'Alias'

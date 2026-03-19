@@ -9,7 +9,8 @@ import ElementPanel from '../components/Diagram/ElementPanel.js';
 import AiAssistant from '../components/AI/AiAssistant.js';
 import Header from '../components/Layout/Header.js';
 import { useLocalStorage } from '../hooks/useLocalStorage.js';
-import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic } from '@systemodel/shared-types';
+import { useAuthStore } from '../store/auth.js';
+import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const MIN_PANE_PCT = 15; // minimum pane width as % of container
@@ -92,6 +93,9 @@ export default function EditorPage() {
   // View mode: nested (compound layout) or tree (flat BDD-style)
   const [viewMode, setViewMode] = useLocalStorage<'nested' | 'tree'>(`${lsPrefix}:viewMode`, 'nested');
 
+  // SysML v2 standard view type
+  const [viewType, setViewType] = useLocalStorage<ViewType>(`${lsPrefix}:viewType`, 'general');
+
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
 
@@ -149,16 +153,17 @@ export default function EditorPage() {
 
   useEffect(() => {
     if (!projectId || !fileId) return;
-    // Check if project is read-only (system project)
+    // Check if project is read-only (system project — admin can still edit)
+    const isAdmin = useAuthStore.getState().user?.role === 'admin';
     api.projects.get(projectId)
-      .then((p) => { if (p.isSystem) setReadOnly(true); })
+      .then((p) => { if (p.isSystem && !isAdmin) setReadOnly(true); })
       .catch(() => {});
     api.files.get(projectId, fileId)
       .then((f) => {
         setFile(f);
         setContent(f.content);
         // Generate initial diagram from loaded content
-        diagramClient.sendText(`file://${fileId}`, f.content);
+        diagramClient.sendText(`file://${fileId}`, f.content, viewType);
       })
       .catch((e) => setError(e.message));
   }, [projectId, fileId]);
@@ -167,7 +172,7 @@ export default function EditorPage() {
     if (readOnly) return;
     setContent(value);
     // Send text to diagram-service for server-side parsing → BDD generation
-    diagramClient.sendText(`file://${fileId}`, value);
+    diagramClient.sendText(`file://${fileId}`, value, viewType);
 
     // Debounced autosave
     clearTimeout(saveTimer.current);
@@ -182,7 +187,7 @@ export default function EditorPage() {
         setSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [projectId, fileId, readOnly]);
+  }, [projectId, fileId, readOnly, viewType]);
 
   const handleSave = async () => {
     if (!projectId || !fileId || readOnly) return;
@@ -352,7 +357,9 @@ export default function EditorPage() {
             display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px',
             background: '#2d2d2d', borderBottom: '1px solid #3c3c3c', flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11, color: '#ccc', fontWeight: 600, marginRight: 4 }}>General View</span>
+            <span style={{ fontSize: 11, color: '#ccc', fontWeight: 600, marginRight: 4 }}>
+              {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
+            </span>
             <span style={{ fontSize: 10, color: '#666' }}>SysML v2</span>
             <span style={{ flex: 1 }} />
             <button
@@ -425,6 +432,12 @@ export default function EditorPage() {
               onSelectedNodeChange={setDiagramSelectedNodeId}
               onSelectedEdgeChange={setDiagramSelectedEdgeId}
               showLegend={showLegend}
+              viewType={viewType}
+              onViewTypeChange={(vt) => {
+                setViewType(vt);
+                // Re-request diagram with the new view type
+                if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt);
+              }}
             />
             {aiOpen && (
               <AiAssistant

@@ -23,12 +23,13 @@ const fileRenameSchema = z.object({
   name: z.string().min(1).max(255),
 });
 
-async function assertProjectAccess(projectId: string, userId: string): Promise<{ allowed: boolean; isSystem: boolean }> {
+async function assertProjectAccess(projectId: string, userId: string, userRole?: string): Promise<{ allowed: boolean; isSystem: boolean; isAdmin: boolean }> {
   const project = await prisma.project.findFirst({
     where: { id: projectId, OR: [{ ownerId: userId }, { isSystem: true }] },
   });
-  if (!project) return { allowed: false, isSystem: false };
-  return { allowed: true, isSystem: project.isSystem };
+  if (!project) return { allowed: false, isSystem: false, isAdmin: false };
+  const isAdmin = userRole?.toUpperCase() === 'ADMIN';
+  return { allowed: true, isSystem: project.isSystem, isAdmin };
 }
 
 // List files (read — allowed for system projects)
@@ -44,12 +45,12 @@ router.get('/', async (req: AuthRequest, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Create file (blocked for system projects)
+// Create file (blocked for system projects unless admin)
 router.post('/', async (req: AuthRequest, res, next) => {
   try {
-    const { allowed, isSystem } = await assertProjectAccess(req.params.projectId, req.userId!);
+    const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
     const { name, content } = fileCreateSchema.parse(req.body);
     const contentSize = Buffer.byteLength(content, 'utf8');
     if (contentSize > MAX_CONTENT_BYTES) {
@@ -78,12 +79,12 @@ router.get('/:fileId', async (req: AuthRequest, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Update file content (blocked for system projects)
+// Update file content (blocked for system projects unless admin)
 router.put('/:fileId', async (req: AuthRequest, res, next) => {
   try {
-    const { allowed, isSystem } = await assertProjectAccess(req.params.projectId, req.userId!);
+    const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
     const { content } = fileUpdateSchema.parse(req.body);
     const contentSize = Buffer.byteLength(content, 'utf8');
     if (contentSize > MAX_CONTENT_BYTES) {
@@ -102,12 +103,12 @@ router.put('/:fileId', async (req: AuthRequest, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Rename file (blocked for system projects)
+// Rename file (blocked for system projects unless admin)
 router.patch('/:fileId', async (req: AuthRequest, res, next) => {
   try {
-    const { allowed, isSystem } = await assertProjectAccess(req.params.projectId, req.userId!);
+    const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
     const { name } = fileRenameSchema.parse(req.body);
     const safeName = name.replace(/[\\/\0]/g, '').slice(0, 255);
     if (!safeName) { res.status(400).json({ error: 'Bad Request', message: 'Invalid file name' }); return; }
@@ -138,12 +139,12 @@ router.get('/:fileId/download', async (req: AuthRequest, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Delete file (blocked for system projects)
+// Delete file (blocked for system projects unless admin)
 router.delete('/:fileId', async (req: AuthRequest, res, next) => {
   try {
-    const { allowed, isSystem } = await assertProjectAccess(req.params.projectId, req.userId!);
+    const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'Cannot delete system project files' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'Cannot delete system project files' }); return; }
     const file = await prisma.sysMLFile.findFirst({
       where: { id: req.params.fileId, projectId: req.params.projectId },
     });
@@ -151,6 +152,33 @@ router.delete('/:fileId', async (req: AuthRequest, res, next) => {
     await prisma.sysMLFile.delete({ where: { id: req.params.fileId } });
     mcpEvents.emitFileChange({ fileId: req.params.fileId, userId: req.userId!, action: 'deleted' });
     res.status(204).send();
+  } catch (err) { next(err); }
+});
+
+// Move file to another project (admin can move between system projects)
+router.post('/:fileId/move', async (req: AuthRequest, res, next) => {
+  try {
+    const { targetProjectId } = z.object({ targetProjectId: z.string().min(1) }).parse(req.body);
+    // Check access on source project
+    const { allowed: srcAllowed, isSystem: srcSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
+    if (!srcAllowed) { res.status(404).json({ error: 'Not Found', message: 'Source project not found' }); return; }
+    if (srcSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify system project' }); return; }
+    // Check access on target project
+    const { allowed: tgtAllowed, isSystem: tgtSystem, isAdmin: tgtAdmin } = await assertProjectAccess(targetProjectId, req.userId!, req.userRole);
+    if (!tgtAllowed) { res.status(404).json({ error: 'Not Found', message: 'Target project not found' }); return; }
+    if (tgtSystem && !tgtAdmin) { res.status(403).json({ error: 'Forbidden', message: 'Cannot modify target system project' }); return; }
+    // Find file
+    const file = await prisma.sysMLFile.findFirst({
+      where: { id: req.params.fileId, projectId: req.params.projectId },
+    });
+    if (!file) { res.status(404).json({ error: 'Not Found', message: 'File not found' }); return; }
+    // Move
+    const updated = await prisma.sysMLFile.update({
+      where: { id: req.params.fileId },
+      data: { projectId: targetProjectId },
+    });
+    mcpEvents.emitFileChange({ fileId: req.params.fileId, userId: req.userId!, action: 'updated' });
+    res.json({ data: updated });
   } catch (err) { next(err); }
 });
 

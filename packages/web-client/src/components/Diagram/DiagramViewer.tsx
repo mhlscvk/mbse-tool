@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import ELKModule from 'elkjs/lib/elk.bundled.js';
-import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
+import type { SModelRoot, SNode, SEdge, ViewType } from '@systemodel/shared-types';
 import { useLocalStorage } from '../../hooks/useLocalStorage.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +30,10 @@ interface DiagramViewerProps {
   onSelectedEdgeChange?: (id: string | null) => void;
   /** Show/hide the legend overlay */
   showLegend?: boolean;
+  /** Active SysML v2 standard view type */
+  viewType?: ViewType;
+  /** Called when user selects a different view type */
+  onViewTypeChange?: (viewType: ViewType) => void;
 }
 
 interface ContextMenu {
@@ -136,6 +140,7 @@ const NODE_COLORS: Record<string, string> = {
   mergenode:                   '#3a3a2a',
   decidenode:                  '#3a3a2a',
   startnode:                   '#222222',
+  donenode:                    '#222222',
   terminatenode:               '#3a3a3a',
   transitionusage:             '#2a2a2a',
   alias:                '#2a2040',
@@ -191,7 +196,9 @@ const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';
 const isComment = (cssClass: string) => cssClass === 'comment';
 const nodeRadius = (cssClass: string) => isDefinition(cssClass) || cssClass === 'stdlib' ? 0 : 10;
-const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
+const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
+const PORT_CSS = new Set(['portusage', 'portdefinition']);
+const PORT_BORDER_SIZE = 16;
 
 export default function DiagramViewer({
   model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onEdgeSelect, onHideNode, onHideEdge,
@@ -199,7 +206,13 @@ export default function DiagramViewer({
   selectedNodeId: controlledNodeId, selectedEdgeId: controlledEdgeId,
   onSelectedNodeChange, onSelectedEdgeChange,
   showLegend = true,
+  viewType = 'general',
+  onViewTypeChange,
 }: DiagramViewerProps) {
+  // IV is always nested per SysML v2 spec (Section 9.2.20, 8.2.3.11):
+  // "Default compartment for a part" — nested features as nested nodes with boundary ports
+  const effectiveViewMode: 'nested' | 'tree' = viewType === 'interconnection' ? 'nested' : viewMode;
+
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
@@ -306,7 +319,7 @@ export default function DiagramViewer({
 
   const visibleNodeIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
 
-  const CONTROL_NODE_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'terminatenode']);
+  const CONTROL_NODE_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
 
   const effectiveSize = useCallback((node: SNode) => {
     const override = sizeOverrides.get(node.id);
@@ -314,8 +327,13 @@ export default function DiagramViewer({
       return { w: override.w, h: Math.max(override.h, node.size.height) };
     }
 
-    // Control nodes keep their fixed sizes (bar, diamond, circle)
+    // In Interconnection View, port nodes are small boundary squares
     const css = node.cssClasses?.[0];
+    if (viewType === 'interconnection' && css && PORT_CSS.has(css)) {
+      return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
+    }
+
+    // Control nodes keep their fixed sizes (bar, diamond, circle)
     if (css && CONTROL_NODE_CSS.has(css)) {
       return { w: node.size.width, h: node.size.height };
     }
@@ -341,7 +359,7 @@ export default function DiagramViewer({
     const kindW = (kindLabel?.text.length ?? 0) * 6.2 + 24;
     const w = Math.max(node.size.width, nameW, kindW);
     return { w, h: node.size.height };
-  }, [sizeOverrides]);
+  }, [sizeOverrides, viewType]);
 
 
   const visibleKey = useMemo(() => nodes.map((n) => n.id).sort().join(','), [nodes]);
@@ -366,7 +384,7 @@ export default function DiagramViewer({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let elkGraph: any;
 
-    if (viewMode === 'tree') {
+    if (effectiveViewMode === 'tree') {
       // ── Tree View: flat layout, all nodes at root, all edges routed by ELK ──
       const elkChildren = nodes.map(n => {
         const { w, h } = effectiveSize(n);
@@ -401,15 +419,23 @@ export default function DiagramViewer({
         'statedefinition', 'stateusage', 'exhibitstateusage',
       ]);
 
-      // Index flow edges by parent container for behavioural containers
+      // Index flow edges by parent container for behavioural containers.
+      // When a container is hidden, find the nearest visible ancestor so
+      // succession edges are still used for layout.
+      function effectiveParent(nodeId: string): string | undefined {
+        let cur = parentOf.get(nodeId);
+        while (cur && !elkVisibleIds.has(cur)) cur = parentOf.get(cur);
+        return cur;
+      }
       const flowEdgesByParent = new Map<string, Array<{ id: string; sources: string[]; targets: string[] }>>();
       for (const e of allEdges) {
         const ek = e.cssClasses?.[0];
         if (ek !== 'flow' && ek !== 'succession' && ek !== 'transition') continue;
-        // Both source and target must share the same parent container
-        const srcParent = parentOf.get(e.sourceId);
-        const tgtParent = parentOf.get(e.targetId);
-        if (srcParent && srcParent === tgtParent && elkVisibleIds.has(e.sourceId) && elkVisibleIds.has(e.targetId)) {
+        if (!elkVisibleIds.has(e.sourceId) || !elkVisibleIds.has(e.targetId)) continue;
+        // Both source and target must share the same effective parent
+        const srcParent = effectiveParent(e.sourceId);
+        const tgtParent = effectiveParent(e.targetId);
+        if (srcParent && srcParent === tgtParent) {
           const arr = flowEdgesByParent.get(srcParent) ?? [];
           arr.push({ id: e.id, sources: [e.sourceId], targets: [e.targetId] });
           flowEdgesByParent.set(srcParent, arr);
@@ -483,34 +509,49 @@ export default function DiagramViewer({
         return undefined;
       }
 
-      // Collect cross-container edges (non-composition, non-flow, endpoints in different top-level trees)
+      // Collect cross-container edges AND top-level flow edges
       const crossEdgePairs = new Set<string>();
       const crossElkEdges: Array<{ id: string; sources: string[]; targets: string[] }> = [];
+      // Also collect flow edges whose endpoints are top-level (orphaned from hidden container)
+      const topLevelFlowEdges: Array<{ id: string; sources: string[]; targets: string[] }> = [];
       for (const e of edges) {
         const ek3 = e.cssClasses?.[0];
-        if (ek3 === 'composition' || ek3 === 'flow' || ek3 === 'succession') continue;
+        if (ek3 === 'composition') continue;
+        // Flow/succession edges between top-level nodes go directly into top-level layout
+        if (ek3 === 'flow' || ek3 === 'succession' || ek3 === 'transition') {
+          const srcTop = topAncestor(e.sourceId);
+          const tgtTop = topAncestor(e.targetId);
+          if (srcTop && tgtTop && srcTop !== tgtTop) {
+            // Both are top-level themselves — add as direct flow edge for layout
+            if (topLevelIds.has(e.sourceId) && topLevelIds.has(e.targetId)) {
+              topLevelFlowEdges.push({ id: e.id, sources: [e.sourceId], targets: [e.targetId] });
+            }
+          }
+          continue;
+        }
         const srcTop = topAncestor(e.sourceId);
         const tgtTop = topAncestor(e.targetId);
         if (!srcTop || !tgtTop || srcTop === tgtTop) continue;
-        // Deduplicate: one ELK edge per pair of top-level containers
         const pairKey = srcTop < tgtTop ? `${srcTop}|${tgtTop}` : `${tgtTop}|${srcTop}`;
         if (crossEdgePairs.has(pairKey)) continue;
         crossEdgePairs.add(pairKey);
         crossElkEdges.push({ id: `cross_${pairKey}`, sources: [srcTop], targets: [tgtTop] });
       }
 
+      const allTopEdges = [...crossElkEdges, ...topLevelFlowEdges];
       const hasCrossEdges = crossElkEdges.length > 0;
+      const hasTopFlowEdges = topLevelFlowEdges.length > 0;
       elkGraph = {
         id: 'graph',
         layoutOptions: {
           'elk.algorithm': 'layered',
           'elk.direction': 'DOWN',
-          'elk.spacing.nodeNode': hasCrossEdges ? '100' : '60',
-          'elk.layered.spacing.nodeNodeBetweenLayers': hasCrossEdges ? '120' : '80',
+          'elk.spacing.nodeNode': hasCrossEdges ? '100' : hasTopFlowEdges ? '40' : '60',
+          'elk.layered.spacing.nodeNodeBetweenLayers': hasCrossEdges ? '120' : hasTopFlowEdges ? '50' : '80',
           ...(hasCrossEdges ? { 'elk.spacing.edgeNode': '30' } : {}),
         },
         children: elkChildren,
-        edges: crossElkEdges,
+        edges: allTopEdges,
       };
     }
 
@@ -533,9 +574,44 @@ export default function DiagramViewer({
       }
       for (const child of result.children ?? []) collectPos(child, 0, 0);
 
+      // In Interconnection View, snap port nodes to parent boundary
+      if (viewType === 'interconnection') {
+        const half = PORT_BORDER_SIZE / 2;
+        for (const n of nodes) {
+          if (!PORT_CSS.has(n.cssClasses?.[0] ?? '')) continue;
+          const pid = parentOf.get(n.id);
+          if (!pid) continue;
+          const parentPos = newPositions.get(pid);
+          const parentSz = newIbdSizes.get(pid);
+          const portPos = newPositions.get(n.id);
+          if (!parentPos || !parentSz || !portPos) continue;
+
+          // Determine which parent edge the port center is closest to
+          const portCx = portPos.x + half;
+          const portCy = portPos.y + half;
+          const dLeft   = Math.abs(portCx - parentPos.x);
+          const dRight  = Math.abs(portCx - (parentPos.x + parentSz.w));
+          const dTop    = Math.abs(portCy - parentPos.y);
+          const dBottom = Math.abs(portCy - (parentPos.y + parentSz.h));
+          const minD = Math.min(dLeft, dRight, dTop, dBottom);
+
+          // Snap port to straddle that edge (half in, half out)
+          if (minD === dLeft) {
+            newPositions.set(n.id, { x: parentPos.x - half, y: portCy - half });
+          } else if (minD === dRight) {
+            newPositions.set(n.id, { x: parentPos.x + parentSz.w - half, y: portCy - half });
+          } else if (minD === dTop) {
+            newPositions.set(n.id, { x: portCx - half, y: parentPos.y - half });
+          } else {
+            newPositions.set(n.id, { x: portCx - half, y: parentPos.y + parentSz.h - half });
+          }
+          newIbdSizes.set(n.id, { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE });
+        }
+      }
+
       // Collect ELK-computed edge routes (tree mode)
       const newEdgeRoutes = new Map<string, string>();
-      if (viewMode === 'tree' && result.edges) {
+      if (effectiveViewMode === 'tree' && result.edges) {
         for (const elkEdge of result.edges) {
           if (!elkEdge.sections || elkEdge.sections.length === 0) continue;
           const pathParts: string[] = [];
@@ -586,7 +662,7 @@ export default function DiagramViewer({
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleKey, sizesKey, edgesKey, layoutTrigger, viewMode]);
+  }, [visibleKey, sizesKey, edgesKey, layoutTrigger, effectiveViewMode, viewType]);
 
   const fitToWindow = useCallback(() => {
     setPositionOverrides(new Map());
@@ -775,7 +851,7 @@ export default function DiagramViewer({
     srcId: string,
     tgtId: string,
   ): { x: number; y: number }[] | null => {
-    if (viewMode === 'tree') return null;
+    if (effectiveViewMode === 'tree') return null;
 
     const srcCenter = nodeCenter(srcId);
     const tgtCenter = nodeCenter(tgtId);
@@ -936,11 +1012,11 @@ export default function DiagramViewer({
     cleaned.push(bestPath[bestPath.length - 1]);
 
     return cleaned.length >= 2 ? cleaned : null;
-  }, [viewMode, nodes, visibleNodeIds, nodePos, nodeSz, ancestorCache, descendantCache, parentOf, childrenOf]);
+  }, [effectiveViewMode, nodes, visibleNodeIds, nodePos, nodeSz, ancestorCache, descendantCache, parentOf, childrenOf]);
 
   // Cache routed paths for nested mode
   const routedEdgePaths = useMemo(() => {
-    if (viewMode === 'tree') return new Map<string, { x: number; y: number }[]>();
+    if (effectiveViewMode === 'tree') return new Map<string, { x: number; y: number }[]>();
     const cache = new Map<string, { x: number; y: number }[]>();
     for (const e of edges) {
       const ek2 = e.cssClasses?.[0];
@@ -952,7 +1028,7 @@ export default function DiagramViewer({
     }
     return cache;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edges, viewMode, positionsKey]);
+  }, [edges, effectiveViewMode, positionsKey]);
 
   const edgePath = (edge: SEdge): string => {
     // Use ELK-computed route in tree mode if available
@@ -1228,7 +1304,7 @@ export default function DiagramViewer({
     .sort((a, b) => (nodeDepth.get(a.id) ?? 0) - (nodeDepth.get(b.id) ?? 0));
 
   // In nested mode, hide composition edges (rendered as nesting); in tree mode, show all
-  const renderEdges = viewMode === 'tree'
+  const renderEdges = effectiveViewMode === 'tree'
     ? edges.filter(e => visibleNodeIds.has(e.sourceId) && visibleNodeIds.has(e.targetId))
     : edges.filter(e =>
         e.cssClasses?.[0] !== 'composition' &&
@@ -1250,34 +1326,67 @@ export default function DiagramViewer({
             Laying out…
           </div>
         )}
-        <div style={{ display: 'flex', gap: 2 }}>
-          {(['nested', 'tree'] as const).map(mode => {
-            const active = viewMode === mode;
+        {/* View type selector */}
+        <div style={{ display: 'flex', gap: 1 }}>
+          {([
+            { key: 'general' as ViewType, label: 'GV', title: 'General View — all elements' },
+            { key: 'interconnection' as ViewType, label: 'IV', title: 'Interconnection View — parts, ports, connections' },
+            { key: 'action-flow' as ViewType, label: 'AFV', title: 'Action Flow View — actions, successions, flows' },
+            { key: 'state-transition' as ViewType, label: 'STV', title: 'State Transition View — states, transitions' },
+          ]).map(({ key, label, title }) => {
+            const active = viewType === key;
             return (
               <button
-                key={mode}
-                onClick={() => {
-                  if (onViewModeChange && mode !== viewMode) {
-                    setPositionOverrides(new Map());
-                    onViewModeChange(mode);
-                  }
-                }}
-                title={mode === 'nested' ? 'Nested containment view' : 'Tree view (flat BDD-style)'}
+                key={key}
+                onClick={() => { if (onViewTypeChange && key !== viewType) onViewTypeChange(key); }}
+                title={title}
                 style={{
                   background: active ? '#007acc' : '#2d2d2d',
                   border: '1px solid', borderColor: active ? '#007acc' : '#555',
                   color: active ? '#fff' : '#ccc',
-                  fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
-                  fontWeight: active ? 600 : 400,
+                  fontSize: 10, borderRadius: 3, padding: '3px 6px', cursor: 'pointer',
+                  fontWeight: active ? 700 : 400, letterSpacing: 0.5,
                 }}
-                onMouseEnter={e => { if (!active) { e.currentTarget.style.background = '#4a4a4a'; } }}
-                onMouseLeave={e => { if (!active) { e.currentTarget.style.background = '#2d2d2d'; } }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#4a4a4a'; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = '#2d2d2d'; }}
               >
-                {mode === 'nested' ? '⊞ Nested' : '⊟ Tree'}
+                {label}
               </button>
             );
           })}
         </div>
+        {/* Layout mode selector — hidden for IV (always nested per spec 8.2.3.11) */}
+        {viewType !== 'interconnection' && <>
+          <span style={{ color: '#555', fontSize: 10 }}>|</span>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {(['nested', 'tree'] as const).map(mode => {
+              const active = effectiveViewMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    if (onViewModeChange && mode !== viewMode) {
+                      setPositionOverrides(new Map());
+                      onViewModeChange(mode);
+                    }
+                  }}
+                  title={mode === 'nested' ? 'Nested containment view' : 'Tree view (flat BDD-style)'}
+                  style={{
+                    background: active ? '#007acc' : '#2d2d2d',
+                    border: '1px solid', borderColor: active ? '#007acc' : '#555',
+                    color: active ? '#fff' : '#ccc',
+                    fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
+                    fontWeight: active ? 600 : 400,
+                  }}
+                  onMouseEnter={e => { if (!active) { e.currentTarget.style.background = '#4a4a4a'; } }}
+                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = '#2d2d2d'; } }}
+                >
+                  {mode === 'nested' ? '⊞ Nested' : '⊟ Tree'}
+                </button>
+              );
+            })}
+          </div>
+        </>}
         <button
           onClick={fitToWindow}
           title="Fit all visible elements to window"
@@ -1365,7 +1474,7 @@ export default function DiagramViewer({
             const isHovered   = hoveredNodeId === node.id;
             const isSelected  = selectedNodeId === node.id || multiSelectedNodeIds.has(node.id);
             const hasChildren = (childrenOf.get(node.id)?.length ?? 0) > 0;
-            const isContainer = viewMode === 'nested' && hasChildren;
+            const isContainer = effectiveViewMode === 'nested' && hasChildren;
             const isPkg = isPackage(cssClass);
 
             const rx = nodeRadius(cssClass);
@@ -1524,6 +1633,24 @@ export default function DiagramViewer({
               );
             }
 
+            // ── Done node: bull's-eye (flow final — outer circle + inner filled circle) ──
+            if (cssClass === 'donenode') {
+              const r = Math.min(w, h) / 2;
+              const cx = w / 2, cy = h / 2;
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#888';
+              return (
+                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}>
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke={borderColor} strokeWidth={1.5} />
+                  <circle cx={cx} cy={cy} r={r * 0.55} fill="#ccc" stroke="none" />
+                </g>
+              );
+            }
+
             // ── Terminate node: circle with X cross ──
             if (cssClass === 'terminatenode') {
               const r = Math.min(w, h) / 2;
@@ -1541,6 +1668,71 @@ export default function DiagramViewer({
                   <circle cx={cx} cy={cy} r={r} fill="none" stroke={borderColor} strokeWidth={1.5} />
                   <line x1={cx - d} y1={cy - d} x2={cx + d} y2={cy + d} stroke={crossColor} strokeWidth={1.5} />
                   <line x1={cx + d} y1={cy - d} x2={cx - d} y2={cy + d} stroke={crossColor} strokeWidth={1.5} />
+                </g>
+              );
+            }
+
+            // ── Port node in Interconnection View: small square on parent boundary ──
+            if (viewType === 'interconnection' && PORT_CSS.has(cssClass)) {
+              const borderColor = isSelected ? '#f0c040' : isHovered ? '#b080e0' : '#7a5a9a';
+              const portColor = NODE_COLORS[cssClass] ?? '#1e0a30';
+              const portName = nameLabel?.text ?? node.id;
+
+              // Determine which side of parent this port is on (for label placement & arrow)
+              const pid = parentOf.get(node.id);
+              let side: 'left' | 'right' | 'top' | 'bottom' = 'left';
+              if (pid) {
+                const pp = nodePos(pid);
+                const ps = nodeSz(pid);
+                const cx = pos.x + PORT_BORDER_SIZE / 2;
+                const cy = pos.y + PORT_BORDER_SIZE / 2;
+                const dL = Math.abs(cx - pp.x);
+                const dR = Math.abs(cx - (pp.x + ps.w));
+                const dT = Math.abs(cy - pp.y);
+                const dB = Math.abs(cy - (pp.y + ps.h));
+                const minD = Math.min(dL, dR, dT, dB);
+                if (minD === dR) side = 'right';
+                else if (minD === dT) side = 'top';
+                else if (minD === dB) side = 'bottom';
+              }
+
+              // Arrow pointing inward (toward parent center)
+              const s = PORT_BORDER_SIZE;
+              const arrowInward: Record<string, string> = {
+                left:   `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`,
+                right:  `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`,
+                top:    `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`,
+                bottom: `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`,
+              };
+
+              // Label placement outside parent boundary
+              const labelProps: { x: number; y: number; textAnchor: 'start' | 'middle' | 'end' } =
+                side === 'left'   ? { x: -4, y: s / 2 + 4, textAnchor: 'end' } :
+                side === 'right'  ? { x: s + 4, y: s / 2 + 4, textAnchor: 'start' } :
+                side === 'top'    ? { x: s / 2, y: -4, textAnchor: 'middle' } :
+                                    { x: s / 2, y: s + 12, textAnchor: 'middle' };
+
+              return (
+                <g
+                  key={node.id}
+                  transform={`translate(${pos.x},${pos.y})`}
+                  onClick={(e) => onNodeClick(e, node)}
+                  onContextMenu={onNodeContextMenu}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {/* Port square — straddling parent boundary */}
+                  <rect width={s} height={s} rx={2}
+                    fill={portColor} stroke={borderColor}
+                    strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
+                  {isSelected && <rect width={s} height={s} rx={2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
+                  {/* Directional arrow inside the port square */}
+                  <path d={arrowInward[side]} fill="none" stroke="#b0a0d0" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Label outside parent */}
+                  <text x={labelProps.x} y={labelProps.y} fill="#c0b0e0" fontSize={9} textAnchor={labelProps.textAnchor}>
+                    {portName}
+                  </text>
                 </g>
               );
             }
@@ -1758,44 +1950,73 @@ export default function DiagramViewer({
           {selectionRect && <SelectionRectOverlay rect={selectionRect} scale={transform.scale} />}
         </g>
 
-        {/* SysML v2 General View Legend */}
+        {/* SysML v2 View Legend — dynamic per view type */}
         {showLegend && <g transform="translate(10,10)">
+          {/* View type label */}
+          <text x={0} y={10} fill="#ccc" fontSize={10} fontWeight={600}>
+            {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
+          </text>
           {/* Node shape legend */}
-          <g transform="translate(0,0)">
+          <g transform="translate(0,18)">
             <rect width={10} height={6} fill="#2a2a3a" stroke="#6a6a8a" strokeWidth={1} />
             <rect y={6} width={14} height={8} fill="#2a2a3a" stroke="#6a6a8a" strokeWidth={1} />
             <text x={18} y={11} fill="#9a9ac0" fontSize={9}>Package (tab)</text>
           </g>
-          <g transform="translate(0,18)">
+          {(viewType === 'general' || viewType === 'interconnection') && <g transform="translate(0,36)">
             <rect width={12} height={10} rx={0} fill="#1c3f6e" stroke="#4a8ab0" strokeWidth={1} y={2} />
             <text x={16} y={11} fill="#9ab8d8" fontSize={9}>Definition (sharp)</text>
-          </g>
-          <g transform="translate(0,34)">
+          </g>}
+          <g transform={`translate(0,${viewType === 'general' || viewType === 'interconnection' ? 52 : 36})`}>
             <rect width={12} height={10} rx={4} fill="#0a2040" stroke="#4a8ab0" strokeWidth={1} y={2} />
             <text x={16} y={11} fill="#9ab8d8" fontSize={9}>Usage (rounded)</text>
           </g>
-          {/* Edge legend */}
-          {[
-            ...(viewMode === 'tree' ? [{ label: '◆── composition',      color: '#9cdcfe', dash: undefined }] : []),
-            { label: '◁── specializes :>',     color: '#9e9e9e', dash: undefined },
-            { label: '──▷ subsets :>',          color: '#9e9e9e', dash: undefined },
-            { label: '|──▷ redefines :>>',      color: '#9e9e9e', dash: undefined },
-            { label: '- -◁ defined by :',       color: '#6a7a8a', dash: '4,3'     },
-            { label: '──▷ ref subsets ::>',     color: '#9e9e9e', dash: undefined },
-            { label: '──▶ flow',                color: '#4ec9b0', dash: undefined },
-            { label: '──▷ succession',          color: '#4ec9b0', dash: undefined },
-            { label: '──▶ transition',          color: '#4ec9b0', dash: undefined },
-            { label: '──▷ connection',          color: '#777',    dash: undefined },
-            { label: '- -▷ satisfy',            color: '#e06060', dash: '6,3'     },
-            { label: '- -▷ verify',             color: '#60b060', dash: '6,3'     },
-            { label: '- -▷ allocate',           color: '#c0a060', dash: '6,3'     },
-            { label: '- - annotate',           color: '#a0a060', dash: '4,3'     },
-          ].map(({ label, color, dash }, i) => (
-            <g key={label} transform={`translate(0,${54 + i * 16})`}>
-              <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />
-              <text x={24} y={11} fill={color} fontSize={9}>{label}</text>
-            </g>
-          ))}
+          {viewType === 'interconnection' && <g transform="translate(0,68)">
+            <rect width={10} height={10} rx={1} fill="#1e0a30" stroke="#7a5a9a" strokeWidth={1} y={2} />
+            <path d="M7,4 L4,7 L7,10" fill="none" stroke="#b0a0d0" strokeWidth={1} y={2} />
+            <text x={16} y={11} fill="#c0b0e0" fontSize={9}>Port (boundary)</text>
+          </g>}
+          {/* Edge legend — filtered per view type */}
+          {(() => {
+            const baseOffset = viewType === 'interconnection' ? 88 : (viewType === 'general' ? 72 : 56);
+            const legendItems: { label: string; color: string; dash?: string }[] = [];
+            if (effectiveViewMode === 'tree') legendItems.push({ label: '◆── composition', color: '#9cdcfe' });
+            if (viewType === 'general' || viewType === 'interconnection') {
+              legendItems.push({ label: '◁── specializes :>', color: '#9e9e9e' });
+              legendItems.push({ label: '──▷ subsets :>', color: '#9e9e9e' });
+              legendItems.push({ label: '|──▷ redefines :>>', color: '#9e9e9e' });
+              legendItems.push({ label: '- -◁ defined by :', color: '#6a7a8a', dash: '4,3' });
+            }
+            if (viewType === 'general' || viewType === 'interconnection') {
+              legendItems.push({ label: '──▶ flow', color: '#4ec9b0' });
+              legendItems.push({ label: '──▷ connection', color: '#777' });
+            }
+            if (viewType === 'interconnection') {
+              legendItems.push({ label: '- - bind', color: '#9090c0', dash: '4,3' });
+            }
+            if (viewType === 'general' || viewType === 'action-flow') {
+              legendItems.push({ label: '──▷ succession', color: '#4ec9b0' });
+              if (viewType === 'general') legendItems.push({ label: '──▶ flow', color: '#4ec9b0' });
+            }
+            if (viewType === 'general' || viewType === 'state-transition') {
+              legendItems.push({ label: '──▶ transition', color: '#4ec9b0' });
+            }
+            if (viewType === 'general') {
+              legendItems.push({ label: '──▷ ref subsets ::>', color: '#9e9e9e' });
+              legendItems.push({ label: '- -▷ satisfy', color: '#e06060', dash: '6,3' });
+              legendItems.push({ label: '- -▷ verify', color: '#60b060', dash: '6,3' });
+              legendItems.push({ label: '- -▷ allocate', color: '#c0a060', dash: '6,3' });
+              legendItems.push({ label: '- - annotate', color: '#a0a060', dash: '4,3' });
+            }
+            // Deduplicate by label
+            const seen = new Set<string>();
+            const unique = legendItems.filter(item => { if (seen.has(item.label)) return false; seen.add(item.label); return true; });
+            return unique.map(({ label, color, dash }, i) => (
+              <g key={label} transform={`translate(0,${baseOffset + i * 16})`}>
+                <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />
+                <text x={24} y={11} fill={color} fontSize={9}>{label}</text>
+              </g>
+            ));
+          })()}
         </g>}
       </svg>
 

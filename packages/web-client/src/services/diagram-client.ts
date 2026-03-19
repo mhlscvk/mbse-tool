@@ -1,4 +1,4 @@
-import type { SysMLModel, DiagramMessage, SModelRoot, DiagramDiagnostic } from '@systemodel/shared-types';
+import type { SysMLModel, DiagramMessage, SModelRoot, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
 
 const DIAGRAM_URL = import.meta.env.VITE_DIAGRAM_URL ?? 'ws://localhost:3002/diagram';
 
@@ -14,7 +14,7 @@ export class DiagramClient {
   private reconnectDelay = 2000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
-  private pendingText: { uri: string; content: string } | null = null;
+  private pendingText: { uri: string; content: string; viewType?: ViewType } | null = null;
 
   connect(): void {
     // Clean up any pending reconnect
@@ -37,7 +37,7 @@ export class DiagramClient {
       console.log('[Diagram] Connected to diagram service');
       this.reconnectDelay = 2000;
       if (this.pendingText) {
-        this.sendText(this.pendingText.uri, this.pendingText.content);
+        this.sendText(this.pendingText.uri, this.pendingText.content, this.pendingText.viewType);
         this.pendingText = null;
       }
     };
@@ -73,12 +73,12 @@ export class DiagramClient {
   }
 
   /** Send SysML text content to be parsed server-side */
-  sendText(uri: string, content: string): void {
+  sendText(uri: string, content: string, viewType?: ViewType): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.pendingText = { uri, content };
+      this.pendingText = { uri, content, viewType };
       return;
     }
-    this.ws.send(JSON.stringify({ kind: 'parse', uri, content }));
+    this.ws.send(JSON.stringify({ kind: 'parse', uri, content, viewType }));
   }
 
   /** Send a pre-built AST model (future: from LSP) */

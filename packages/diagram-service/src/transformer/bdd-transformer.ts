@@ -1,4 +1,5 @@
-import type { SysMLModel, SysMLNode, SModelRoot, SNode, SEdge, SLabel } from '@systemodel/shared-types';
+import type { SysMLModel, SysMLNode, SModelRoot, SNode, SEdge, SLabel, ViewType } from '@systemodel/shared-types';
+import { applyViewFilter } from './view-filters.js';
 
 const KEYWORD_VALUES = new Set([
   'part', 'attribute', 'port', 'action', 'state', 'item', 'in', 'out',
@@ -58,6 +59,7 @@ const KIND_DISPLAY: Record<string, string> = {
   OccurrenceUsage:             '«occurrence»',
   ForkNode:                    '«fork»',
   JoinNode:                    '«join»',
+  DoneNode:                    '«done»',
   MergeNode:                   '«merge»',
   DecideNode:                  '«decide»',
   PerformActionUsage:          '«perform»',
@@ -85,7 +87,7 @@ const IS_USAGE = new Set([
   'PerformActionUsage', 'ExhibitStateUsage',
 ]);
 
-const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'TerminateNode']);
+const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode']);
 
 /** Estimate pixel width for a text string at a given font size (monospace ~0.6em). */
 function textWidth(text: string, fontSize: number): number {
@@ -141,12 +143,13 @@ function nodeToSNode(node: SysMLNode): SNode {
     };
   }
 
-  // Control nodes: fork/join (thin bar), merge/decide (diamond), start/terminate (circle)
+  // Control nodes: fork/join (thin bar), merge/decide (diamond),
+  // start (filled circle), done (bull's-eye), terminate (X circle)
   if (CONTROL_KINDS.has(node.kind)) {
     const isForkJoin = node.kind === 'ForkNode' || node.kind === 'JoinNode';
-    const isStartTerminate = node.kind === 'StartNode' || node.kind === 'TerminateNode';
-    const width = isStartTerminate ? 24 : isForkJoin ? 80 : 40;
-    const height = isStartTerminate ? 24 : isForkJoin ? 8 : 40;
+    const isCircular = node.kind === 'StartNode' || node.kind === 'DoneNode' || node.kind === 'TerminateNode';
+    const width = isCircular ? 24 : isForkJoin ? 80 : 40;
+    const height = isCircular ? 24 : isForkJoin ? 8 : 40;
     return {
       type: 'node', id: node.id,
       position: { x: 0, y: 0 },
@@ -245,13 +248,60 @@ function connectionToSEdge(conn: { id: string; sourceId: string; targetId: strin
   };
 }
 
-export function transformToBDD(model: SysMLModel): SModelRoot {
-  const sNodes: SNode[] = model.nodes.map(nodeToSNode);
-  const sEdges: SEdge[] = model.connections.map(connectionToSEdge);
+export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'): SModelRoot {
+  // Apply view-specific filtering first
+  const filtered = applyViewFilter(model, viewType);
+
+  // ── Action-flow cleanup (General View only) ───────────────────────────
+  // When a diagram contains succession edges (action flows), definition
+  // nodes that only serve as types (no succession/flow/transition edges)
+  // clutter the layout.  Hide them — their type info is already shown in
+  // the usage label ("name : Type").
+  // For non-general views, the view filter already handles this.
+
+  const hasSuccession = filtered.connections.some(c => c.kind === 'succession');
+
+  // Collect node IDs that participate in behavioral edges
+  const behavioralNodeIds = new Set<string>();
+  for (const c of filtered.connections) {
+    if (c.kind === 'succession' || c.kind === 'flow' || c.kind === 'transition') {
+      behavioralNodeIds.add(c.sourceId);
+      behavioralNodeIds.add(c.targetId);
+    }
+  }
+
+  // Identify definition nodes to hide (general view only — other views handle their own filtering)
+  const DEFINITION_KINDS = new Set([
+    'ActionDefinition', 'StateDefinition', 'ItemDefinition',
+    'PartDefinition', 'AttributeDefinition', 'PortDefinition',
+    'ConnectionDefinition',
+  ]);
+  const hiddenNodeIds = new Set<string>();
+  if (viewType === 'general' && hasSuccession) {
+    for (const node of filtered.nodes) {
+      if (DEFINITION_KINDS.has(node.kind)
+          && !behavioralNodeIds.has(node.id)
+          && (node.attributes?.length ?? 0) === 0) {
+        hiddenNodeIds.add(node.id);
+      }
+    }
+  }
+
+  const sNodes: SNode[] = filtered.nodes
+    .filter(n => !hiddenNodeIds.has(n.id))
+    .map(nodeToSNode);
+
+  const sEdges: SEdge[] = filtered.connections
+    .filter((conn) => {
+      if (hiddenNodeIds.has(conn.sourceId) || hiddenNodeIds.has(conn.targetId)) return false;
+      if (viewType === 'general' && conn.kind === 'typereference' && behavioralNodeIds.has(conn.sourceId)) return false;
+      return true;
+    })
+    .map(connectionToSEdge);
 
   return {
     type: 'graph',
-    id: `general__${model.uri}`,
+    id: `${viewType}__${model.uri}`,
     children: [...sNodes, ...sEdges],
   };
 }
