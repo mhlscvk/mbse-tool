@@ -954,29 +954,29 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         if (/\bif\s*$/.test(preDo)) continue;
       }
 
-      // Must be inside a state def or state usage body
+      // Must be inside a state def or state usage body — find the innermost one
       let ownerState: SysMLNode | undefined;
+      let ownerStart = -1;
 
-      // Check defPositions for enclosing state def (sorted by start desc = innermost first)
+      // Check defPositions for enclosing state def
       for (const dp of defPositions) {
-        if (pos > dp.start && pos < dp.end) {
+        if (pos > dp.start && pos < dp.end && dp.start > ownerStart) {
           const node = nodeIndex.get(dp.name);
           if (node && node.kind === 'StateDefinition') {
             ownerState = node;
-            break;
+            ownerStart = dp.start;
           }
         }
       }
 
-      // Also check usagePositions for enclosing state usage
-      if (!ownerState) {
-        for (const up of usagePositions) {
-          if (pos > up.start && pos < up.end) {
-            const node = nodeIndex.get(up.name);
-            if (node && node.kind === 'StateUsage') {
-              ownerState = node;
-              break;
-            }
+      // Also check usagePositions for enclosing state usage (may be closer)
+      for (const up of usagePositions) {
+        if (pos > up.start && pos < up.end && up.start > ownerStart) {
+          const node = nodeIndex.get(up.name) ??
+            nodeIndex.get(`${findOwnerDef(up.start)?.name ?? ''}.${up.name}`);
+          if (node && node.kind === 'StateUsage') {
+            ownerState = node;
+            ownerStart = up.start;
           }
         }
       }
