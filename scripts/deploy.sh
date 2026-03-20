@@ -56,12 +56,12 @@ TOTAL=9
 step 1 "Running tests..."
 
 DIAGRAM_OUTPUT=$(pnpm --filter @systemodel/diagram-service test 2>&1)
-DIAGRAM_TESTS=$(echo "$DIAGRAM_OUTPUT" | grep -oP '\d+(?= passed)' | head -1)
-DIAGRAM_SUITES=$(echo "$DIAGRAM_OUTPUT" | grep -oP '\d+(?= passed)' | tail -1)
+# "Tests" line has the test count, "Test Files" line has suite count — grab the Tests line
+DIAGRAM_TESTS=$(echo "$DIAGRAM_OUTPUT" | grep "Tests" | grep -v "Test Files" | grep -oP '\d+(?= passed)' | head -1)
 echo "$DIAGRAM_OUTPUT" | tail -3
 
 API_OUTPUT=$(pnpm --filter @systemodel/api-server test 2>&1)
-API_TESTS=$(echo "$API_OUTPUT" | grep -oP '\d+(?= passed)' | head -1)
+API_TESTS=$(echo "$API_OUTPUT" | grep "Tests" | grep -v "Test Files" | grep -oP '\d+(?= passed)' | head -1)
 echo "$API_OUTPUT" | tail -3
 
 TOTAL_TESTS=$((DIAGRAM_TESTS + API_TESTS))
