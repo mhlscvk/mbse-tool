@@ -6,10 +6,10 @@ import { executeToolCall } from '../ai/tools.js';
 import { SYSTEM_PROMPT } from '../ai/system-prompt.js';
 import { decryptApiKey } from '../ai/encryption.js';
 import { prisma } from '../db.js';
+import { MAX_TOOL_ROUNDS, MAX_FREE_TIER_TOOL_ROUNDS, MAX_CONTEXT_LINES } from '../config/constants.js';
+import { provider as providerSchema } from '../config/schemas.js';
 
 const router: IRouter = Router();
-const MAX_TOOL_ROUNDS = 10;
-const MAX_FREE_TIER_TOOL_ROUNDS = 3;
 
 /** Free tier: cheapest model, limited quota */
 const FREE_MODEL = 'claude-haiku-4-5-20251001';
@@ -110,7 +110,7 @@ router.delete('/history/:fileId', requireAuth, async (req: AuthRequest, res) => 
 // ─── POST /chat — streaming AI chat (hybrid: free tier or user's own key) ────
 
 const chatSchema = z.object({
-  provider: z.enum(['anthropic', 'openai', 'gemini']),
+  provider: providerSchema,
   model: z.string().optional(),
   messages: z.array(z.object({
     role: z.enum(['user', 'assistant']),
@@ -222,7 +222,6 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
     const aiProvider = createProvider(isFreeTier ? 'anthropic' : providerName, apiKey, actualModel);
 
     // Build system prompt with file context (truncate large files to save tokens)
-    const MAX_CONTEXT_LINES = 500;
     let system = SYSTEM_PROMPT;
     if (context?.fileContent != null) {
       const allLines = context.fileContent.split('\n');

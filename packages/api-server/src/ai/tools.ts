@@ -1,5 +1,5 @@
+import * as fileOps from '../services/file-ops.js';
 import { prisma } from '../db.js';
-import { mcpEvents } from '../mcp/events.js';
 
 /** Canonical tool definitions — provider-agnostic JSON Schema format */
 export const AI_TOOLS = [
@@ -100,105 +100,56 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
           orderBy: { updatedAt: 'desc' },
           include: { _count: { select: { files: true } } },
         });
-        return { result: JSON.stringify(projects.map(p => ({ id: p.id, name: p.name, description: p.description, fileCount: p._count.files }))), isError: false };
+        return { result: JSON.stringify(projects.map((p: { id: string; name: string; description: string | null; _count: { files: number } }) => ({ id: p.id, name: p.name, description: p.description, fileCount: p._count.files }))), isError: false };
       }
 
       case 'list_files': {
         const project = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
         if (!project) return { result: 'Error: Project not found or access denied', isError: true };
-        const files = await prisma.sysMLFile.findMany({
-          where: { projectId: args.projectId },
-          select: { id: true, name: true, size: true, updatedAt: true },
-        });
+        const files = await fileOps.listFiles(args.projectId);
         return { result: JSON.stringify(files), isError: false };
       }
 
       case 'read_file': {
-        const file = await prisma.sysMLFile.findUnique({ where: { id: args.fileId }, include: { project: { select: { ownerId: true } } } });
-        if (!file || file.project.ownerId !== userId) return { result: 'Error: File not found or access denied', isError: true };
-        const numbered = file.content.split('\n').map((l, i) => `${String(i + 1).padStart(4, ' ')} | ${l}`).join('\n');
+        const file = await fileOps.readFileWithOwnerCheck(args.fileId, userId);
+        const numbered = file.content.split('\n').map((l: string, i: number) => `${String(i + 1).padStart(4, ' ')} | ${l}`).join('\n');
         return { result: `File: ${file.name} (${file.content.split('\n').length} lines)\n\n${numbered}`, isError: false };
       }
 
       case 'create_file': {
         const proj = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
         if (!proj) return { result: 'Error: Project not found or access denied', isError: true };
-        const safeName = (args.name as string).replace(/[\\/\0]/g, '').slice(0, 255);
-        if (!safeName) return { result: 'Error: Invalid file name', isError: true };
-        const size = Buffer.byteLength(args.content as string, 'utf8');
-        if (size > 10 * 1024 * 1024) return { result: 'Error: Content exceeds 10MB limit', isError: true };
-        const created = await prisma.sysMLFile.create({ data: { name: safeName, content: args.content as string, size, projectId: args.projectId } });
-        mcpEvents.emitFileChange({ fileId: created.id, userId, action: 'created' });
-        return { result: JSON.stringify({ id: created.id, name: created.name, size: created.size }), isError: false };
+        const file = await fileOps.createFile(args.projectId, args.name as string, args.content as string, userId);
+        return { result: JSON.stringify({ id: file.id, name: file.name, size: file.size }), isError: false };
       }
 
       case 'update_file': {
-        const f = await prisma.sysMLFile.findUnique({ where: { id: args.fileId }, include: { project: { select: { ownerId: true } } } });
-        if (!f || f.project.ownerId !== userId) return { result: 'Error: File not found or access denied', isError: true };
-        const sz = Buffer.byteLength(args.content as string, 'utf8');
-        if (sz > 10 * 1024 * 1024) return { result: 'Error: Content exceeds 10MB limit', isError: true };
-        await prisma.sysMLFile.update({ where: { id: args.fileId }, data: { content: args.content as string, size: sz } });
-        mcpEvents.emitFileChange({ fileId: args.fileId, userId, action: 'updated' });
-        return { result: `File "${f.name}" updated (${sz} bytes)`, isError: false };
+        await fileOps.readFileWithOwnerCheck(args.fileId, userId);
+        const updated = await fileOps.updateFileContent(args.fileId, args.content as string, userId);
+        return { result: `File "${updated.name}" updated (${updated.size} bytes)`, isError: false };
       }
 
       case 'apply_edit': {
-        // Use transaction to prevent TOCTOU — read + validate + update atomically
-        const editResult = await prisma.$transaction(async (tx) => {
-          const ef = await tx.sysMLFile.findUnique({ where: { id: args.fileId }, include: { project: { select: { ownerId: true } } } });
-          if (!ef || ef.project.ownerId !== userId) return 'Error: File not found or access denied';
-          const lines = ef.content.split('\n');
-          const { startLine, startColumn, endLine, endColumn, newText } = args;
-          if (startLine < 1 || endLine > lines.length || startLine > endLine)
-            return `Error: Invalid line range (file has ${lines.length} lines)`;
-          const sl = startLine - 1, el = endLine - 1, sc = startColumn - 1, ec = endColumn - 1;
-          if (sc < 0 || sc > lines[sl].length) return 'Error: startColumn out of range';
-          if (ec < 0 || ec > lines[el].length) return 'Error: endColumn out of range';
-          if (sl === el && sc > ec) return 'Error: startColumn exceeds endColumn on same line';
-          if (lines.length === 1 && lines[0] === '' && (sc > 0 || ec > 0)) return 'Error: File is empty';
-          const before = lines.slice(0, sl).join('\n') + (sl > 0 ? '\n' : '') + lines[sl].substring(0, sc);
-          const after = lines[el].substring(ec) + (el < lines.length - 1 ? '\n' : '') + lines.slice(el + 1).join('\n');
-          const newContent = before + newText + after;
-          const newSize = Buffer.byteLength(newContent, 'utf8');
-          await tx.sysMLFile.update({ where: { id: args.fileId }, data: { content: newContent, size: newSize } });
-          return null; // success
-        });
-        if (editResult) return { result: editResult, isError: true };
-        mcpEvents.emitFileChange({ fileId: args.fileId, userId, action: 'updated' });
+        const { error } = await fileOps.applyEdit(
+          args.fileId, args.startLine, args.startColumn,
+          args.endLine, args.endColumn, args.newText, userId,
+        );
+        if (error) return { result: error, isError: true };
         return { result: 'Edit applied successfully', isError: false };
       }
 
       case 'delete_file': {
-        const df = await prisma.sysMLFile.findUnique({ where: { id: args.fileId }, include: { project: { select: { ownerId: true } } } });
-        if (!df || df.project.ownerId !== userId) return { result: 'Error: File not found or access denied', isError: true };
-        await prisma.sysMLFile.delete({ where: { id: args.fileId } });
-        mcpEvents.emitFileChange({ fileId: args.fileId, userId, action: 'deleted' });
+        const df = await fileOps.readFileWithOwnerCheck(args.fileId, userId);
+        await fileOps.deleteFile(args.fileId, userId);
         return { result: `File "${df.name}" deleted`, isError: false };
       }
 
       case 'search_files': {
         const sp = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
         if (!sp) return { result: 'Error: Project not found or access denied', isError: true };
-        const query = (args.query as string).slice(0, 500);
-        // Limit to 100 files, each with content (10MB cap enforced at file creation)
-        const allFiles = await prisma.sysMLFile.findMany({
-          where: { projectId: args.projectId },
-          select: { id: true, name: true, content: true },
-          take: 100,
-        });
-        const q = query.toLowerCase();
-        const matches: string[] = [];
-        const MAX_MATCHES = 50;
-        outer: for (const file of allFiles) {
-          const lines = file.content.split('\n');
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().includes(q)) {
-              matches.push(`${file.name}:${i + 1} — ${lines[i].trim().slice(0, 200)}`);
-              if (matches.length >= MAX_MATCHES) break outer;
-            }
-          }
-        }
-        return { result: matches.length ? matches.join('\n') : `No matches for "${query}"`, isError: false };
+        const matches = await fileOps.searchFiles(args.projectId, args.query as string);
+        if (!matches.length) return { result: `No matches for "${args.query}"`, isError: false };
+        return { result: matches.map(m => `${m.fileName}:${m.line} — ${m.text}`).join('\n'), isError: false };
       }
 
       default:

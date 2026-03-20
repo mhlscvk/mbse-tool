@@ -64,7 +64,7 @@ describe('executeToolCall', () => {
     mockPrisma.project.findFirst.mockResolvedValue(null);
     const result = await executeToolCall('user1', 'list_files', { projectId: 'proj1' });
     expect(result.isError).toBe(true);
-    expect(result.result).toContain('access denied');
+    expect(result.result).toContain('not found');
   });
 
   it('returns error for read_file on non-owned file', async () => {
@@ -74,7 +74,7 @@ describe('executeToolCall', () => {
     });
     const result = await executeToolCall('user1', 'read_file', { fileId: 'f1' });
     expect(result.isError).toBe(true);
-    expect(result.result).toContain('access denied');
+    expect(result.result).toContain('not found');
   });
 
   it('list_projects returns only user-owned projects', async () => {
@@ -99,7 +99,7 @@ describe('executeToolCall', () => {
       projectId: 'p1', name: 'huge.sysml', content: hugeContent,
     });
     expect(result.isError).toBe(true);
-    expect(result.result).toContain('10MB');
+    expect(result.result).toContain('byte limit');
   });
 
   it('create_file sanitizes dangerous file names', async () => {
@@ -125,7 +125,7 @@ describe('executeToolCall', () => {
       fileId: 'f1', content: hugeContent,
     });
     expect(result.isError).toBe(true);
-    expect(result.result).toContain('10MB');
+    expect(result.result).toContain('byte limit');
   });
 
   it('search_files truncates query to 500 chars', async () => {

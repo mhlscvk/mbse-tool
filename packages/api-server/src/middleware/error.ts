@@ -1,11 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-
-export interface AppError extends Error {
-  statusCode?: number;
-}
+import { AppError } from '../lib/errors.js';
 
 export function errorHandler(
-  err: AppError,
+  err: Error,
   _req: Request,
   res: Response,
   _next: NextFunction,
@@ -20,25 +17,31 @@ export function errorHandler(
     return;
   }
 
-  const statusCode = err.statusCode ?? 500;
+  // AppError: typed errors thrown by services and route helpers
+  if (err instanceof AppError) {
+    res.status(err.status).json({
+      error: err.code,
+      message: err.message,
+      statusCode: err.status,
+    });
+    return;
+  }
 
-  // Never leak internal details (Prisma queries, file paths, stack traces)
-  // even in development — treat error responses as untrusted output
-  let message: string;
-  let errorType: string;
+  // Unknown errors: never leak internal details
+  const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500;
 
   if (statusCode >= 500) {
     console.error('[API Error]', err);
-    message = 'Internal server error';
-    errorType = 'Error';
+    res.status(statusCode).json({
+      error: 'Error',
+      message: 'Internal server error',
+      statusCode,
+    });
   } else {
-    message = err.message;
-    errorType = err.name ?? 'Error';
+    res.status(statusCode).json({
+      error: err.name ?? 'Error',
+      message: err.message,
+      statusCode,
+    });
   }
-
-  res.status(statusCode).json({
-    error: errorType,
-    message,
-    statusCode,
-  });
 }

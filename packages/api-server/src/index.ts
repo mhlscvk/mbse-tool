@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { RATE_LIMIT } from './config/constants.js';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import fileRoutes from './routes/files.js';
@@ -86,44 +87,27 @@ app.use(cors({
   exposedHeaders: ['Mcp-Session-Id'],
 }));
 
-// Rate limiters
+// Rate limiters (values from config/constants.ts)
+const limiterOpts = { standardHeaders: true, legacyHeaders: false } as const;
+
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  ...RATE_LIMIT.auth, ...limiterOpts,
   message: { error: 'TooManyRequests', message: 'Too many attempts, try again later', statusCode: 429 },
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
 const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
+  ...RATE_LIMIT.register, ...limiterOpts,
   message: { error: 'TooManyRequests', message: 'Too many registrations, try again later', statusCode: 429 },
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
-const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const apiLimiter = rateLimit({ ...RATE_LIMIT.api, ...limiterOpts });
 
 const aiChatLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 20,
+  ...RATE_LIMIT.aiChat, ...limiterOpts,
   message: { error: 'TooManyRequests', message: 'AI chat rate limit — try again shortly', statusCode: 429 },
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
-const mcpLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 200, // MCP clients make many small requests
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const mcpLimiter = rateLimit({ ...RATE_LIMIT.mcp, ...limiterOpts });
 
 // Default JSON body parser (skip /mcp — the MCP SDK reads the raw body itself)
 app.use((req, res, next) => {

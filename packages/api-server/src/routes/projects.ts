@@ -2,6 +2,9 @@ import { Router, type IRouter } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
+import { isAdmin } from '../lib/auth-helpers.js';
+import { asyncHandler, NotFound, Forbidden, BadRequest } from '../lib/errors.js';
+import { MAX_PROJECT_DEPTH } from '../config/constants.js';
 
 const router: IRouter = Router();
 
@@ -31,150 +34,125 @@ function buildTree(projects: ProjectRow[]): ProjectTreeNode[] {
 }
 
 // List all projects as a tree (user's own + system projects)
-router.get('/', async (req: AuthRequest, res, next) => {
-  try {
-    const projects = await prisma.project.findMany({
-      where: { OR: [{ ownerId: req.userId }, { isSystem: true }] },
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { files: true, children: true } } },
-    });
-    res.json({ data: buildTree(projects) });
-  } catch (err) { next(err); }
-});
+router.get('/', asyncHandler(async (req: AuthRequest, res) => {
+  const projects = await prisma.project.findMany({
+    where: { OR: [{ ownerId: req.userId }, { isSystem: true }] },
+    orderBy: { name: 'asc' },
+    include: { _count: { select: { files: true, children: true } } },
+  });
+  res.json({ data: buildTree(projects) });
+}));
 
 // Create project (optionally nested under parentId)
-router.post('/', async (req: AuthRequest, res, next) => {
-  try {
-    const body = createSchema.parse(req.body);
-    let depth = 0;
-    let isSystem = false;
-    let ownerId = req.userId!;
+router.post('/', asyncHandler(async (req: AuthRequest, res) => {
+  const body = createSchema.parse(req.body);
+  let depth = 0;
+  let isSystem = false;
+  let ownerId = req.userId!;
+  const admin = isAdmin(req.userRole);
 
-    const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
-
-    if (body.parentId) {
-      const parent = await prisma.project.findFirst({
-        where: { id: body.parentId, OR: [{ ownerId: req.userId }, { isSystem: true }] },
-      });
-      if (!parent) {
-        res.status(404).json({ error: 'Not Found', message: 'Parent project not found' }); return;
-      }
-      if (parent.isSystem && !isAdmin) {
-        res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
-      }
-      if (parent.depth >= 2) {
-        res.status(400).json({ error: 'Bad Request', message: 'Maximum nesting depth (3 levels) reached' }); return;
-      }
-      depth = parent.depth + 1;
-      if (parent.isSystem) {
-        isSystem = true;
-        ownerId = parent.ownerId;
-      }
-    }
-
-    const project = await prisma.project.create({
-      data: { name: body.name, description: body.description, parentId: body.parentId, ownerId, depth, isSystem },
+  if (body.parentId) {
+    const parent = await prisma.project.findFirst({
+      where: { id: body.parentId, OR: [{ ownerId: req.userId }, { isSystem: true }] },
     });
-    res.status(201).json({ data: project });
-  } catch (err) { next(err); }
-});
+    if (!parent) throw NotFound('Parent project');
+    if (parent.isSystem && !admin) throw Forbidden();
+    if (parent.depth >= MAX_PROJECT_DEPTH) throw BadRequest(`Maximum nesting depth (${MAX_PROJECT_DEPTH + 1} levels) reached`);
+    depth = parent.depth + 1;
+    if (parent.isSystem) {
+      isSystem = true;
+      ownerId = parent.ownerId;
+    }
+  }
+
+  const project = await prisma.project.create({
+    data: { name: body.name, description: body.description, parentId: body.parentId, ownerId, depth, isSystem },
+  });
+  res.status(201).json({ data: project });
+}));
 
 // Get single project (own or system)
-router.get('/:id', async (req: AuthRequest, res, next) => {
-  try {
-    const project = await prisma.project.findFirst({
-      where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
-      include: {
-        files: { select: { id: true, name: true, size: true, createdAt: true, updatedAt: true } },
-        _count: { select: { children: true } },
-      },
-    });
-    if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    res.json({ data: project });
-  } catch (err) { next(err); }
-});
+router.get('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
+    include: {
+      files: { select: { id: true, name: true, size: true, createdAt: true, updatedAt: true } },
+      _count: { select: { children: true } },
+    },
+  });
+  if (!project) throw NotFound('Project');
+  res.json({ data: project });
+}));
 
 // Rename project (blocked for system projects unless admin)
-router.patch('/:id', async (req: AuthRequest, res, next) => {
-  try {
-    const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
-    const project = await prisma.project.findFirst({
-      where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
-    });
-    if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem && !isAdmin) {
-      res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
-    }
-    const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
-    const updated = await prisma.project.update({
-      where: { id: req.params.id },
-      data: { name: body.name, description: body.description },
-    });
-    res.json({ data: updated });
-  } catch (err) { next(err); }
-});
+router.patch('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  const admin = isAdmin(req.userRole);
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
+  });
+  if (!project) throw NotFound('Project');
+  if (project.isSystem && !admin) throw Forbidden();
+  const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
+  const updated = await prisma.project.update({
+    where: { id: req.params.id },
+    data: { name: body.name, description: body.description },
+  });
+  res.json({ data: updated });
+}));
 
 // Download project (allowed for system projects)
-router.get('/:id/download', async (req: AuthRequest, res, next) => {
-  try {
-    const project = await prisma.project.findFirst({
-      where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
-      include: { files: { select: { name: true, content: true } } },
-    });
-    if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.files.length === 1) {
-      const file = project.files[0];
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
-      res.send(file.content);
-    } else {
-      const bundle = { project: project.name, files: project.files };
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(project.name)}.json"`);
-      res.send(JSON.stringify(bundle, null, 2));
-    }
-  } catch (err) { next(err); }
-});
+router.get('/:id/download', asyncHandler(async (req: AuthRequest, res) => {
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
+    include: { files: { select: { name: true, content: true } } },
+  });
+  if (!project) throw NotFound('Project');
+  if (project.files.length === 1) {
+    const file = project.files[0];
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    res.send(file.content);
+  } else {
+    const bundle = { project: project.name, files: project.files };
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(project.name)}.json"`);
+    res.send(JSON.stringify(bundle, null, 2));
+  }
+}));
 
 // Delete project (blocked for system projects unless admin)
-router.delete('/:id', async (req: AuthRequest, res, next) => {
-  try {
-    const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
-    const project = await prisma.project.findFirst({
-      where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
-    });
-    if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem && !isAdmin) {
-      res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
-    }
-    await prisma.project.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch (err) { next(err); }
-});
+router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
+  const admin = isAdmin(req.userRole);
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
+  });
+  if (!project) throw NotFound('Project');
+  if (project.isSystem && !admin) throw Forbidden();
+  await prisma.project.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+}));
 
 // Clone a system project (copy all files to a new user-owned project)
-router.post('/:id/clone', async (req: AuthRequest, res, next) => {
-  try {
-    const source = await prisma.project.findFirst({
-      where: { id: req.params.id, isSystem: true },
-      include: { files: { select: { name: true, content: true, size: true } } },
+router.post('/:id/clone', asyncHandler(async (req: AuthRequest, res) => {
+  const source = await prisma.project.findFirst({
+    where: { id: req.params.id, isSystem: true },
+    include: { files: { select: { name: true, content: true, size: true } } },
+  });
+  if (!source) throw NotFound('System project');
+
+  const clonedProject = await prisma.project.create({
+    data: { name: source.name, ownerId: req.userId!, depth: 0 },
+  });
+
+  if (source.files.length > 0) {
+    await prisma.sysMLFile.createMany({
+      data: source.files.map((f: { name: string; content: string; size: number }) => ({
+        name: f.name, content: f.content, size: f.size, projectId: clonedProject.id,
+      })),
     });
-    if (!source) { res.status(404).json({ error: 'Not Found', message: 'System project not found' }); return; }
+  }
 
-    const clonedProject = await prisma.project.create({
-      data: { name: source.name, ownerId: req.userId!, depth: 0 },
-    });
-
-    if (source.files.length > 0) {
-      await prisma.sysMLFile.createMany({
-        data: source.files.map(f => ({
-          name: f.name, content: f.content, size: f.size, projectId: clonedProject.id,
-        })),
-      });
-    }
-
-    res.status(201).json({ data: clonedProject });
-  } catch (err) { next(err); }
-});
+  res.status(201).json({ data: clonedProject });
+}));
 
 export default router;
