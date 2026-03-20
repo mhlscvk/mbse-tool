@@ -129,22 +129,23 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  // Handle the request, then store the session
+  // Pre-reserve a slot to prevent race conditions: store session before async handling.
+  // Use a placeholder session ID until the transport assigns one.
+  const placeholderId = `pending_${randomUUID()}`;
+  sessions.set(placeholderId, { transport, server, userId, createdAt: Date.now() });
+
   await transport.handleRequest(req, res);
+
+  // Replace placeholder with real session ID
+  sessions.delete(placeholderId);
   if (transport.sessionId) {
-    // Re-check limit after async gap (prevent race)
-    if (sessions.size < MAX_TOTAL_SESSIONS) {
-      sessions.set(transport.sessionId, {
-        transport,
-        server,
-        userId,
-        createdAt: Date.now(),
-      });
-      console.log(`[MCP] New session ${transport.sessionId} for user ${userId}`);
-    } else {
-      server.close().catch((err) => { console.error('[MCP] close error:', err); });
-      console.warn(`[MCP] Session limit reached, discarding session ${transport.sessionId}`);
-    }
+    sessions.set(transport.sessionId, {
+      transport,
+      server,
+      userId,
+      createdAt: Date.now(),
+    });
+    console.log(`[MCP] New session ${transport.sessionId} for user ${userId}`);
   } else {
     // No session ID → server not needed, clean up
     server.close().catch((err) => { console.error('[MCP] close error:', err); });

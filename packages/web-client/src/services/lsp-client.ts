@@ -9,8 +9,16 @@ function getLspUrl(): string {
 }
 
 let client: MonacoLanguageClient | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDelay = 2000;
 
 export function createLspClient(): MonacoLanguageClient {
+  // Clear any pending reconnect
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
   const webSocket = new WebSocket(getLspUrl());
 
   const ipcSocket = toSocket(webSocket);
@@ -23,13 +31,37 @@ export function createLspClient(): MonacoLanguageClient {
       documentSelector: [{ language: 'sysml' }],
       errorHandler: {
         error: () => ({ action: ErrorAction.Continue }),
-        closed: () => ({ action: CloseAction.DoNotRestart }),
+        closed: () => {
+          console.warn('[LSP] Connection closed — will reconnect');
+          scheduleReconnect();
+          return { action: CloseAction.DoNotRestart };
+        },
       },
     },
     messageTransports: { reader, writer },
   });
 
+  // Reset delay on successful connection
+  webSocket.addEventListener('open', () => {
+    reconnectDelay = 2000;
+  });
+
   return client;
+}
+
+function scheduleReconnect(): void {
+  if (reconnectTimer) return;
+  console.log(`[LSP] Reconnecting in ${reconnectDelay}ms`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+    try {
+      createLspClient()?.start();
+    } catch (err) {
+      console.error('[LSP] Reconnect failed:', err);
+      scheduleReconnect();
+    }
+  }, reconnectDelay);
 }
 
 export function getLspClient(): MonacoLanguageClient | null {

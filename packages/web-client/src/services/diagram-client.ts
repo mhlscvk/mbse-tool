@@ -31,9 +31,11 @@ export class DiagramClient {
 
     // Close existing connection cleanly before opening a new one
     if (this.ws) {
-      this.intentionalClose = true;
-      this.ws.close();
+      const oldWs = this.ws;
       this.ws = null;
+      oldWs.onclose = null; // Detach handler to prevent spurious reconnect
+      oldWs.onerror = null;
+      oldWs.close();
     }
 
     this.intentionalClose = false;

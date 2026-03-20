@@ -29,6 +29,10 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   console.error('[API] FATAL: JWT_SECRET is not set in production.');
   process.exit(1);
 }
+if (process.env.AI_ENCRYPTION_KEY && process.env.AI_ENCRYPTION_KEY.length !== 64) {
+  console.error('[API] FATAL: AI_ENCRYPTION_KEY must be a 64-char hex string (32 bytes). Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  process.exit(1);
+}
 
 console.log(`[API] ALLOWED_ORIGINS: ${ALLOWED_ORIGINS.join(', ')}`);
 
@@ -125,6 +129,24 @@ const mcpLimiter = rateLimit({
 app.use((req, res, next) => {
   if (req.path.startsWith('/mcp')) return next();
   express.json({ limit: '100kb' })(req, res, next);
+});
+
+// CSRF protection: state-changing requests must include Content-Type: application/json.
+// Browsers enforce CORS preflight for non-simple content types, preventing
+// cross-origin form submissions (which use application/x-www-form-urlencoded).
+// This is a standard CSRF mitigation for JSON APIs.
+app.use((req, res, next) => {
+  if (req.path.startsWith('/mcp')) return next(); // MCP has its own auth
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const ct = req.headers['content-type'] ?? '';
+    // Allow requests with no body (DELETE) or JSON content type
+    if (req.method === 'DELETE' && !ct) return next();
+    if (!ct.includes('application/json') && !ct.includes('text/event-stream')) {
+      res.status(415).json({ error: 'Unsupported Media Type', message: 'Content-Type must be application/json' });
+      return;
+    }
+  }
+  next();
 });
 
 app.get('/health', (_req, res) => {

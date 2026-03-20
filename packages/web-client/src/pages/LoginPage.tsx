@@ -63,8 +63,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const win = window as any;
+    const win = window as Window & { google?: { accounts?: { id?: { initialize: (opts: Record<string, unknown>) => void; renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void; cancel: () => void } } } };
     const initGoogle = () => {
       if (!win.google?.accounts?.id) return;
       win.google.accounts.id.initialize({

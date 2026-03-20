@@ -14,9 +14,12 @@ const createSchema = z.object({
 router.use(requireAuth);
 
 /** Build a tree from a flat list of projects. */
-function buildTree(projects: any[]): any[] {
-  const map = new Map(projects.map((p: any) => [p.id, { ...p, children: [] as any[] }]));
-  const roots: any[] = [];
+interface ProjectRow { id: string; parentId: string | null; [key: string]: unknown }
+interface ProjectTreeNode extends ProjectRow { children: ProjectTreeNode[] }
+
+function buildTree(projects: ProjectRow[]): ProjectTreeNode[] {
+  const map = new Map(projects.map((p) => [p.id, { ...p, children: [] as ProjectTreeNode[] }]));
+  const roots: ProjectTreeNode[] = [];
   for (const p of map.values()) {
     if (p.parentId && map.has(p.parentId)) {
       map.get(p.parentId)!.children.push(p);
@@ -47,6 +50,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
     let isSystem = false;
     let ownerId = req.userId!;
 
+    const isAdmin = req.userRole?.toUpperCase() === 'ADMIN';
+
     if (body.parentId) {
       const parent = await prisma.project.findFirst({
         where: { id: body.parentId, OR: [{ ownerId: req.userId }, { isSystem: true }] },
@@ -54,7 +59,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
       if (!parent) {
         res.status(404).json({ error: 'Not Found', message: 'Parent project not found' }); return;
       }
-      if (parent.isSystem) {
+      if (parent.isSystem && !isAdmin) {
         res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
       }
       if (parent.depth >= 2) {
@@ -97,7 +102,7 @@ router.patch('/:id', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
     });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem) {
+    if (project.isSystem && !isAdmin) {
       res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
     }
     const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
@@ -139,7 +144,7 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, OR: [{ ownerId: req.userId }, { isSystem: true }] },
     });
     if (!project) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (project.isSystem) {
+    if (project.isSystem && !isAdmin) {
       res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return;
     }
     await prisma.project.delete({ where: { id: req.params.id } });

@@ -9,6 +9,7 @@ import { prisma } from '../db.js';
 
 const router: IRouter = Router();
 const MAX_TOOL_ROUNDS = 10;
+const MAX_FREE_TIER_TOOL_ROUNDS = 3;
 
 /** Free tier: cheapest model, limited quota */
 const FREE_MODEL = 'claude-haiku-4-5-20251001';
@@ -241,8 +242,9 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
       content: m.content,
     }));
 
-    // Tool call loop
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    // Tool call loop (free tier gets fewer rounds to limit token consumption)
+    const maxRounds = isFreeTier ? MAX_FREE_TIER_TOOL_ROUNDS : MAX_TOOL_ROUNDS;
+    for (let round = 0; round < maxRounds; round++) {
       let assistantText = '';
 
       for await (const event of aiProvider.streamChat(system, conversation)) {

@@ -2,7 +2,6 @@ import { useAuthStore } from '../store/auth.js';
 
 const BASE_URL = '/api';
 const REQUEST_TIMEOUT_MS = 30_000;
-let redirectingTo401 = false;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuthStore.getState().token;
@@ -26,11 +25,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const json = await res.json();
 
     if (!res.ok) {
-      // Auto-logout on expired/invalid token (prevent multiple redirects)
-      if (res.status === 401 && token && !redirectingTo401) {
-        redirectingTo401 = true;
-        useAuthStore.getState().clearAuth();
-        window.location.href = '/login';
+      // Auto-logout on expired/invalid token (use store flag to prevent multiple redirects)
+      if (res.status === 401 && token) {
+        const store = useAuthStore.getState();
+        if (store.token) {
+          store.clearAuth();
+          window.location.href = '/login';
+        }
       }
       throw new Error(json.message ?? `Request failed: ${res.status}`);
     }

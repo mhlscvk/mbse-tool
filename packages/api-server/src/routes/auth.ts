@@ -214,7 +214,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     const accessToken = signToken(user.id, user.role);
-    const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, ...safeUser } = user;
+    const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, resetToken: _rt, resetTokenExp: _re, ...safeUser } = user;
     res.json({ data: { accessToken, user: { ...safeUser, role: safeUser.role.toLowerCase() } } });
   } catch (err) {
     next(err);
@@ -269,7 +269,7 @@ router.post('/google', async (req, res, next) => {
     }
 
     const accessToken = signToken(user.id, user.role);
-    const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, ...safeUser } = user;
+    const { passwordHash: _, verifyToken: _vt, verifyTokenExp: _ve, resetToken: _rt, resetTokenExp: _re, ...safeUser } = user;
     res.json({ data: { accessToken, user: { ...safeUser, role: safeUser.role.toLowerCase() } } });
   } catch (err) {
     next(err);
@@ -351,7 +351,7 @@ router.post('/forgot-password', async (req, res, next) => {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { verifyToken: resetToken, verifyTokenExp: resetTokenExp },
+      data: { resetToken, resetTokenExp },
     });
 
     // Send reset email
@@ -408,10 +408,10 @@ router.post('/reset-password', async (req, res, next) => {
     const { token, newPassword } = parsed.data;
 
     const user = await prisma.user.findFirst({
-      where: { verifyToken: token },
+      where: { resetToken: token },
     });
 
-    if (!user || !user.verifyTokenExp || user.verifyTokenExp < new Date()) {
+    if (!user || !user.resetTokenExp || user.resetTokenExp < new Date()) {
       res.status(400).json({ error: 'Bad Request', message: 'Reset link is invalid or has expired.' });
       return;
     }
@@ -419,7 +419,7 @@ router.post('/reset-password', async (req, res, next) => {
     const hash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: hash, verifyToken: null, verifyTokenExp: null },
+      data: { passwordHash: hash, resetToken: null, resetTokenExp: null },
     });
 
     res.json({ data: { message: 'Password has been reset. You can now sign in.' } });

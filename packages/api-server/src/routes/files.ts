@@ -50,7 +50,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
   try {
     const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
     const { name, content } = fileCreateSchema.parse(req.body);
     const contentSize = Buffer.byteLength(content, 'utf8');
     if (contentSize > MAX_CONTENT_BYTES) {
@@ -84,7 +84,7 @@ router.put('/:fileId', async (req: AuthRequest, res, next) => {
   try {
     const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
     const { content } = fileUpdateSchema.parse(req.body);
     const contentSize = Buffer.byteLength(content, 'utf8');
     if (contentSize > MAX_CONTENT_BYTES) {
@@ -108,7 +108,7 @@ router.patch('/:fileId', async (req: AuthRequest, res, next) => {
   try {
     const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
     const { name } = fileRenameSchema.parse(req.body);
     const safeName = name.replace(/[\\/\0]/g, '').slice(0, 255);
     if (!safeName) { res.status(400).json({ error: 'Bad Request', message: 'Invalid file name' }); return; }
@@ -144,7 +144,7 @@ router.delete('/:fileId', async (req: AuthRequest, res, next) => {
   try {
     const { allowed, isSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!allowed) { res.status(404).json({ error: 'Not Found', message: 'Project not found' }); return; }
-    if (isSystem) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
+    if (isSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
     const file = await prisma.sysMLFile.findFirst({
       where: { id: req.params.fileId, projectId: req.params.projectId },
     });
@@ -162,11 +162,11 @@ router.post('/:fileId/move', async (req: AuthRequest, res, next) => {
     // Check access on source project
     const { allowed: srcAllowed, isSystem: srcSystem, isAdmin } = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
     if (!srcAllowed) { res.status(404).json({ error: 'Not Found', message: 'Source project not found' }); return; }
-    if (srcSystem) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
+    if (srcSystem && !isAdmin) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
     // Check access on target project
     const { allowed: tgtAllowed, isSystem: tgtSystem, isAdmin: tgtAdmin } = await assertProjectAccess(targetProjectId, req.userId!, req.userRole);
     if (!tgtAllowed) { res.status(404).json({ error: 'Not Found', message: 'Target project not found' }); return; }
-    if (tgtSystem) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
+    if (tgtSystem && !tgtAdmin) { res.status(403).json({ error: 'Forbidden', message: 'System projects are read-only' }); return; }
     // Find file
     const file = await prisma.sysMLFile.findFirst({
       where: { id: req.params.fileId, projectId: req.params.projectId },

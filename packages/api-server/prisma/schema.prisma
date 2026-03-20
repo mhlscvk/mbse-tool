@@ -16,6 +16,8 @@ model User {
   emailVerified   Boolean   @default(false)
   verifyToken     String?   @unique
   verifyTokenExp  DateTime?
+  resetToken      String?   @unique
+  resetTokenExp   DateTime?
   googleId        String?   @unique
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -59,6 +61,7 @@ model SysMLFile {
   updatedAt       DateTime        @updatedAt
   aiChatMessages  AiChatMessage[]
 
+  @@index([projectId])
   @@map("sysml_files")
 }
 
@@ -72,6 +75,7 @@ model AiUsage {
   requestCount  Int      @default(0)
 
   @@unique([userId, periodStart])
+  @@index([userId])
   @@map("ai_usage")
 }
 
