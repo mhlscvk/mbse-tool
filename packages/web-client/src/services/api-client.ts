@@ -153,7 +153,6 @@ export interface AiKeyInfo {
 export interface AiKeySaveResult {
   provider: string;
   maskedKey: string;
-  fullKey: string; // shown once
   model: string;
 }
 

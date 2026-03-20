@@ -42,14 +42,18 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
   const quotaExhausted = isFreeTier && freeStatus ? freeStatus.remaining <= 0 : false;
 
   useEffect(() => {
-    fetchFreeTierStatus().then(setFreeStatus);
+    let cancelled = false;
+    fetchFreeTierStatus().then(s => { if (!cancelled) setFreeStatus(s); }).catch(() => {});
     api.aiKeys.list().then(keys => {
+      if (cancelled) return;
       setStoredKeys(keys);
       // Auto-select a connected provider if the current one has no key
       if (keys.length > 0 && !keys.find(k => k.provider === provider)) {
         setProvider(keys[0].provider as 'anthropic' | 'openai' | 'gemini');
       }
     }).catch(() => {});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load chat history on mount / fileId change
@@ -71,6 +75,11 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
     });
   }, [fileId]);
 
+  // Abort in-flight request on unmount
+  useEffect(() => {
+    return () => { abortControllerRef.current?.abort(); };
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -84,6 +93,8 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
     setMessages(prev => [...prev, userMsg, assistantMsg]);
     setInput('');
     setStreaming(true);
+    // Abort any in-flight request before starting a new one
+    abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
 
     const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));

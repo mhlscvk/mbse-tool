@@ -257,8 +257,8 @@ export default function ProjectsPage() {
     for (const p of nodes) {
       const label = prefix ? `${prefix} / ${p.name}` : p.name;
       result.push({ id: p.id, label });
-      if ((p as any).children?.length) {
-        result.push(...collectProjects((p as any).children, label));
+      if (p.children?.length) {
+        result.push(...collectProjects(p.children, label));
       }
     }
     return result;

@@ -13,6 +13,12 @@ export interface FileChangeEvent {
  * Listeners: MCP server instances (send resource/updated notifications)
  */
 class McpEventBus extends EventEmitter {
+  constructor() {
+    super();
+    // Limit listeners to prevent memory leaks (one per active MCP session)
+    this.setMaxListeners(600);
+  }
+
   emitFileChange(event: FileChangeEvent): void {
     this.emit('file:change', event);
   }

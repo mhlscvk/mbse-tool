@@ -125,8 +125,9 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
         if (!proj) return { result: 'Error: Project not found or access denied', isError: true };
         const safeName = (args.name as string).replace(/[\\/\0]/g, '').slice(0, 255);
         if (!safeName) return { result: 'Error: Invalid file name', isError: true };
-        const size = Buffer.byteLength(args.content, 'utf8');
-        const created = await prisma.sysMLFile.create({ data: { name: safeName, content: args.content, size, projectId: args.projectId } });
+        const size = Buffer.byteLength(args.content as string, 'utf8');
+        if (size > 10 * 1024 * 1024) return { result: 'Error: Content exceeds 10MB limit', isError: true };
+        const created = await prisma.sysMLFile.create({ data: { name: safeName, content: args.content as string, size, projectId: args.projectId } });
         mcpEvents.emitFileChange({ fileId: created.id, userId, action: 'created' });
         return { result: JSON.stringify({ id: created.id, name: created.name, size: created.size }), isError: false };
       }
@@ -134,8 +135,9 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       case 'update_file': {
         const f = await prisma.sysMLFile.findUnique({ where: { id: args.fileId }, include: { project: { select: { ownerId: true } } } });
         if (!f || f.project.ownerId !== userId) return { result: 'Error: File not found or access denied', isError: true };
-        const sz = Buffer.byteLength(args.content, 'utf8');
-        await prisma.sysMLFile.update({ where: { id: args.fileId }, data: { content: args.content, size: sz } });
+        const sz = Buffer.byteLength(args.content as string, 'utf8');
+        if (sz > 10 * 1024 * 1024) return { result: 'Error: Content exceeds 10MB limit', isError: true };
+        await prisma.sysMLFile.update({ where: { id: args.fileId }, data: { content: args.content as string, size: sz } });
         mcpEvents.emitFileChange({ fileId: args.fileId, userId, action: 'updated' });
         return { result: `File "${f.name}" updated (${sz} bytes)`, isError: false };
       }
@@ -177,15 +179,26 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       case 'search_files': {
         const sp = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
         if (!sp) return { result: 'Error: Project not found or access denied', isError: true };
-        const allFiles = await prisma.sysMLFile.findMany({ where: { projectId: args.projectId }, select: { id: true, name: true, content: true } });
-        const q = (args.query as string).toLowerCase();
+        const query = (args.query as string).slice(0, 500);
+        // Limit to 100 files, each with content (10MB cap enforced at file creation)
+        const allFiles = await prisma.sysMLFile.findMany({
+          where: { projectId: args.projectId },
+          select: { id: true, name: true, content: true },
+          take: 100,
+        });
+        const q = query.toLowerCase();
         const matches: string[] = [];
-        for (const file of allFiles) {
-          file.content.split('\n').forEach((line, i) => {
-            if (line.toLowerCase().includes(q)) matches.push(`${file.name}:${i + 1} — ${line.trim()}`);
-          });
+        const MAX_MATCHES = 50;
+        outer: for (const file of allFiles) {
+          const lines = file.content.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].toLowerCase().includes(q)) {
+              matches.push(`${file.name}:${i + 1} — ${lines[i].trim().slice(0, 200)}`);
+              if (matches.length >= MAX_MATCHES) break outer;
+            }
+          }
         }
-        return { result: matches.length ? matches.slice(0, 50).join('\n') : `No matches for "${args.query}"`, isError: false };
+        return { result: matches.length ? matches.join('\n') : `No matches for "${query}"`, isError: false };
       }
 
       default:

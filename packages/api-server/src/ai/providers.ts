@@ -27,6 +27,8 @@ export interface AiProvider {
   streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent>;
 }
 
+const VALID_TOOL_NAMES = new Set(AI_TOOLS.map(t => t.name));
+
 // ─── Tool schema conversion ──────────────────────────────────────────────────
 
 function anthropicTools(): Anthropic.Messages.Tool[] {
@@ -112,8 +114,14 @@ class AnthropicProvider implements AiProvider {
         if (currentToolId && currentToolName) {
           try {
             const args = JSON.parse(toolJson || '{}');
-            toolCalls.push({ id: currentToolId, name: currentToolName, args });
-          } catch { /* skip malformed */ }
+            if (VALID_TOOL_NAMES.has(currentToolName)) {
+              toolCalls.push({ id: currentToolId, name: currentToolName, args });
+            } else {
+              console.warn(`[AI] Anthropic returned unknown tool name: ${currentToolName}`);
+            }
+          } catch (e) {
+            console.warn(`[AI] Malformed tool call JSON from Anthropic: ${(e as Error).message}`);
+          }
           currentToolId = null;
           currentToolName = null;
           toolJson = '';
@@ -194,8 +202,14 @@ class OpenAIProvider implements AiProvider {
           const calls: ToolCall[] = [];
           for (const [, entry] of toolCallMap) {
             try {
+              if (!VALID_TOOL_NAMES.has(entry.name)) {
+                console.warn(`[AI] OpenAI returned unknown tool name: ${entry.name}`);
+                continue;
+              }
               calls.push({ id: entry.id, name: entry.name, args: JSON.parse(entry.argsJson || '{}') });
-            } catch { /* skip */ }
+            } catch (e) {
+              console.warn(`[AI] Malformed tool call JSON from OpenAI: ${(e as Error).message}`);
+            }
           }
           if (calls.length > 0) yield { type: 'tool_calls', calls };
         }
@@ -251,11 +265,15 @@ class GeminiProvider implements AiProvider {
           yield { type: 'text_delta', text: part.text };
         }
         if (part.functionCall) {
-          toolCalls.push({
-            id: `gemini_call_${callIdx++}`,
-            name: part.functionCall.name,
-            args: (part.functionCall.args ?? {}) as Record<string, unknown>,
-          });
+          if (VALID_TOOL_NAMES.has(part.functionCall.name)) {
+            toolCalls.push({
+              id: `gemini_call_${callIdx++}`,
+              name: part.functionCall.name,
+              args: (part.functionCall.args ?? {}) as Record<string, unknown>,
+            });
+          } else {
+            console.warn(`[AI] Gemini returned unknown tool name: ${part.functionCall.name}`);
+          }
         }
       }
     }

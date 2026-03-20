@@ -55,12 +55,11 @@ router.post('/', async (req: AuthRequest, res, next) => {
       },
     });
 
-    // Return full key ONLY on save — it won't be shown again
+    // Return masked key confirmation (full key never sent back — user already has it)
     res.json({
       data: {
         provider,
         maskedKey: masked,
-        fullKey: apiKey, // shown once
         model,
       },
     });
@@ -73,9 +72,14 @@ const updateModelSchema = z.object({
   model: z.string().min(1).max(100),
 });
 
+const validProviders = ['anthropic', 'openai', 'gemini'] as const;
+
 router.patch('/:provider', async (req: AuthRequest, res, next) => {
   try {
     const provider = req.params.provider;
+    if (!validProviders.includes(provider as typeof validProviders[number])) {
+      res.status(400).json({ error: 'Bad Request', message: 'Invalid provider' }); return;
+    }
     const { model } = updateModelSchema.parse(req.body);
 
     const key = await prisma.aiProviderKey.findUnique({
@@ -100,6 +104,9 @@ router.patch('/:provider', async (req: AuthRequest, res, next) => {
 router.delete('/:provider', async (req: AuthRequest, res, next) => {
   try {
     const provider = req.params.provider;
+    if (!validProviders.includes(provider as typeof validProviders[number])) {
+      res.status(400).json({ error: 'Bad Request', message: 'Invalid provider' }); return;
+    }
     const key = await prisma.aiProviderKey.findUnique({
       where: { userId_provider: { userId: req.userId!, provider } },
     });
