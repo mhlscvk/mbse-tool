@@ -292,6 +292,13 @@ const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|
 const USE_CASE_DEF_PATTERN = /\b(abstract\s+)?use\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const VERIFICATION_CASE_DEF_PATTERN = /\b(abstract\s+)?verification\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+// Multi-word usage patterns (use case, analysis case, verification case)
+const USE_CASE_USAGE_PATTERN = /\buse\s+case\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*[{;]/g;
+const USE_CASE_UNTYPED_PATTERN = /\buse\s+case\s+(?!def\b)(\w+)\s*[{;]/g;
+const ANALYSIS_CASE_USAGE_PATTERN = /\banalysis\s+case\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*[{;]/g;
+const ANALYSIS_CASE_UNTYPED_PATTERN = /\banalysis\s+case\s+(?!def\b)(\w+)\s*[{;]/g;
+const VERIFICATION_CASE_USAGE_PATTERN = /\bverification\s+case\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*[{;]/g;
+const VERIFICATION_CASE_UNTYPED_PATTERN = /\bverification\s+case\s+(?!def\b)(\w+)\s*[{;]/g;
 // Behavioral
 const PERFORM_PATTERN = /\bperform\s+(?:action\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 const EXHIBIT_PATTERN = /\bexhibit\s+(?:state\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
@@ -863,6 +870,19 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
       usagePositions.push({ name, start, end });
     }
+    // Multi-word usages (use case, analysis case, verification case)
+    for (const pat of [USE_CASE_USAGE_PATTERN, USE_CASE_UNTYPED_PATTERN,
+                        ANALYSIS_CASE_USAGE_PATTERN, ANALYSIS_CASE_UNTYPED_PATTERN,
+                        VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN]) {
+      const scanRe = new RegExp(pat.source, 'g');
+      while ((um = scanRe.exec(clean)) !== null) {
+        const name = dequote(um[1], nameMap);
+        const start = um.index;
+        if (usagePositions.some(up => up.start === start)) continue;
+        const end = findBlockEnd(clean, um.index + um[0].length - 1);
+        usagePositions.push({ name, start, end });
+      }
+    }
     // Also scan perform/exhibit blocks so nested items can find them as parents
     const performScanRe = new RegExp(PERFORM_PATTERN.source, 'g');
     while ((um = performScanRe.exec(clean)) !== null) {
@@ -928,6 +948,60 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
           id: makeId('owns', `${ownerName}_${usageName}`),
           sourceId: ownerId, targetId: usageId, kind: 'composition', name: '',
         });
+      }
+    }
+  }
+
+  // Pre-create multi-word usage containers (use case, analysis case, verification case)
+  {
+    const multiWordPrecreate: [RegExp, RegExp, string, string][] = [
+      [USE_CASE_USAGE_PATTERN, USE_CASE_UNTYPED_PATTERN, 'UseCaseUsage', 'use case'],
+      [ANALYSIS_CASE_USAGE_PATTERN, ANALYSIS_CASE_UNTYPED_PATTERN, 'AnalysisCaseUsage', 'analysis case'],
+      [VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN, 'VerificationCaseUsage', 'verification case'],
+    ];
+    for (const [typedPat, untypedPat, kind, displayKw] of multiWordPrecreate) {
+      for (const pat of [typedPat, untypedPat]) {
+        const scanRe = new RegExp(pat.source, 'g');
+        let cm: RegExpExecArray | null;
+        while ((cm = scanRe.exec(clean)) !== null) {
+          if (cm[0][cm[0].length - 1] !== '{') continue;
+          const usageName = dequote(cm[1], nameMap);
+          const usagePos = cm.index;
+
+          let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+          const usagePkg = findOwnerPackage(usagePos);
+          const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+
+          if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+
+          const typeName = cm[2] && cm[2] !== '{' ? simpleName(cm[2]) : undefined;
+          const usageId = makeId('usage', `${ownerName}_${usageName}`);
+          const { line: uL, column: uC } = lineCol(source, usagePos);
+          const blockEnd = findBlockEnd(clean, cm.index + cm[0].length - 1);
+          const { line: uEL, column: uEC } = lineCol(source, blockEnd);
+          const containerNode: SysMLNode = {
+            id: usageId, kind: kind as SysMLNodeKind, name: usageName,
+            ...(typeName ? { qualifiedName: typeName } : {}),
+            children: [], attributes: [], connections: [],
+            range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+          };
+          nodes.push(containerNode);
+          nodeIndex.set(`${ownerName}.${usageName}`, containerNode);
+          if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, containerNode);
+
+          if (ownerNode || usagePkg) {
+            connections.push({
+              id: makeId('owns', `${ownerName}_${usageName}`),
+              sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '',
+            });
+          }
+          if (typeName) {
+            const typeNode = resolveType(typeName);
+            if (typeNode) {
+              connections.push({ id: makeId('typeref', `${usageName}_${typeName}`), sourceId: usageId, targetId: typeNode.id, kind: 'typereference', name: '' });
+            }
+          }
+        }
       }
     }
   }
@@ -1305,6 +1379,101 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // ── 2a-multi. Extract multi-word usages (use case, analysis case, verification case) ──
+
+  const multiWordUsages: [RegExp, RegExp, string, string][] = [
+    [USE_CASE_USAGE_PATTERN, USE_CASE_UNTYPED_PATTERN, 'UseCaseUsage', 'use case'],
+    [ANALYSIS_CASE_USAGE_PATTERN, ANALYSIS_CASE_UNTYPED_PATTERN, 'AnalysisCaseUsage', 'analysis case'],
+    [VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN, 'VerificationCaseUsage', 'verification case'],
+  ];
+
+  for (const [typedPat, untypedPat, kind, displayKw] of multiWordUsages) {
+    // Typed: `use case driveVehicle : DriveVehicle { }`
+    typedPat.lastIndex = 0;
+    while ((match = typedPat.exec(clean)) !== null) {
+      const [, rawName, typeName] = match;
+      const usageName = dequote(rawName, nameMap);
+      const usagePos = match.index;
+
+      let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+      let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+      const encUsage = findOwnerUsage(usagePos, match.index);
+      if (encUsage && encUsage.start > ownerPos) { ownerNode = encUsage.node; }
+
+      const usagePkg = findOwnerPackage(usagePos);
+      const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+
+      if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+
+      const typeSimple = simpleName(typeName);
+      if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+        ownerNode.attributes.push({ name: usageName, type: typeSimple, value: displayKw });
+      }
+
+      const usageId = makeId('usage', `${ownerName}_${usageName}`);
+      const { line: uL, column: uC } = lineCol(source, usagePos);
+      const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+      const { line: uEL, column: uEC } = lineCol(source, uEnd);
+
+      const usageNode: SysMLNode = {
+        id: usageId, kind: kind as SysMLNodeKind, name: usageName, qualifiedName: typeSimple,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(usageNode);
+      nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+      if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+
+      if (ownerNode || usagePkg) {
+        connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+      }
+      const typeNode = resolveType(typeName);
+      if (typeNode) {
+        connections.push({ id: makeId('typeref', `${usageName}_${typeName}`), sourceId: usageId, targetId: typeNode.id, kind: 'typereference', name: '' });
+      }
+    }
+
+    // Untyped: `use case driveVehicle { }`
+    untypedPat.lastIndex = 0;
+    while ((match = untypedPat.exec(clean)) !== null) {
+      const [, rawName] = match;
+      const usageName = dequote(rawName, nameMap);
+      const usagePos = match.index;
+
+      let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+      let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+      const encUsage = findOwnerUsage(usagePos, match.index);
+      if (encUsage && encUsage.start > ownerPos) { ownerNode = encUsage.node; }
+
+      const usagePkg = findOwnerPackage(usagePos);
+      const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+
+      if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+
+      if (ownerNode && ownerNode.kind.endsWith('Definition')) {
+        ownerNode.attributes.push({ name: usageName, type: undefined, value: displayKw });
+      }
+
+      const usageId = makeId('usage', `${ownerName}_${usageName}`);
+      const { line: uL, column: uC } = lineCol(source, usagePos);
+      const uEnd = findBlockEnd(clean, match.index + match[0].length - 1);
+      const { line: uEL, column: uEC } = lineCol(source, uEnd);
+
+      const usageNode: SysMLNode = {
+        id: usageId, kind: kind as SysMLNodeKind, name: usageName,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(usageNode);
+      nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
+      if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
+
+      if (ownerNode || usagePkg) {
+        connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: (ownerNode ?? usagePkg!).id, targetId: usageId, kind: 'composition', name: '' });
+      }
+    }
+  }
+
   // ── 2b. Extract attribute = value assignments ───────────────────────────
 
   ATTRIBUTE_VALUE_PATTERN.lastIndex = 0;
@@ -1362,6 +1531,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       name: paramName,
       qualifiedName: typeSimple,
       direction: direction as 'in' | 'out' | 'inout',
+      ownerIsPortOrActionUsage: ownerNode.kind === 'PortUsage' || ownerNode.kind === 'ActionUsage' || ownerNode.kind === 'PerformActionUsage',
       children: [],
       attributes: [],
       connections: [],
@@ -1425,6 +1595,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: paramKind,
       name: paramName,
       direction: direction as 'in' | 'out' | 'inout',
+      ownerIsPortOrActionUsage: ownerNode.kind === 'PortUsage' || ownerNode.kind === 'ActionUsage' || ownerNode.kind === 'PerformActionUsage',
       children: [], attributes: [], connections: [],
       range: {
         start: { line: pLine - 1, character: pCol - 1 },

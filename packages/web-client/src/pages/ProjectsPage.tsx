@@ -228,7 +228,7 @@ export default function ProjectsPage() {
   const onProjectContextMenu = useCallback((e: React.MouseEvent, project: Project) => {
     e.preventDefault();
     e.stopPropagation();
-    if (project.isSystem) {
+    if (project.isSystem && !isAdmin) {
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [
@@ -248,7 +248,7 @@ export default function ProjectsPage() {
       { label: 'Delete', onClick: () => deleteProject(project), danger: true },
     );
     setContextMenu({ x: e.clientX, y: e.clientY, items });
-  }, [projects, selectedProject]);
+  }, [projects, selectedProject, isAdmin]);
 
   // ─── File actions ────────────────────────────────────────────────────────
 
@@ -345,7 +345,7 @@ export default function ProjectsPage() {
   const onFileContextMenu = useCallback((e: React.MouseEvent, file: SysMLFile) => {
     e.preventDefault();
     e.stopPropagation();
-    if (selectedProject?.isSystem) {
+    if (selectedProject?.isSystem && !isAdmin) {
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [
@@ -364,7 +364,7 @@ export default function ProjectsPage() {
         { label: 'Delete', onClick: () => deleteFile(file), danger: true },
       ],
     });
-  }, [selectedProject]);
+  }, [selectedProject, isAdmin]);
 
   // ─── Project Tree Item ───────────────────────────────────────────────────
 
@@ -469,9 +469,10 @@ export default function ProjectsPage() {
               <div style={{ padding: '16px 20px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>
                   {selectedProject.name}
-                  {selectedProject.isSystem && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                  {selectedProject.isSystem && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                  {selectedProject.isSystem && isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(System)</span>}
                 </span>
-                {!selectedProject.isSystem && (
+                {(!selectedProject.isSystem || isAdmin) && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input
                       ref={fileInputRef}

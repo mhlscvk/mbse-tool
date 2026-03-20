@@ -15,6 +15,14 @@ export default defineConfig({
         target: 'http://localhost:3003',
         changeOrigin: true,
       },
+      '/diagram': {
+        target: 'ws://localhost:3002',
+        ws: true,
+      },
+      '/lsp': {
+        target: 'ws://localhost:3001',
+        ws: true,
+      },
     },
   },
   optimizeDeps: {

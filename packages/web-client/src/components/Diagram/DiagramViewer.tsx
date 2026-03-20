@@ -269,7 +269,7 @@ const isComment = (cssClass: string) => cssClass === 'comment';
 // Per spec: state defs also use rounded corners (Section 8.2.3.18)
 const nodeRadius = (cssClass: string) => (isDefinition(cssClass) && cssClass !== 'statedefinition') || cssClass === 'stdlib' ? 0 : 10;
 const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
-const PORT_CSS = new Set(['portusage', 'portdefinition']);
+const PORT_CSS = new Set(['portusage']);
 const PARAM_CSS = new Set(['actionin', 'actionout', 'actioninout']);
 const PORT_BORDER_SIZE = 16;
 
@@ -423,13 +423,13 @@ export default function DiagramViewer({
       return { w: override.w, h: Math.max(override.h, node.size.height) };
     }
 
-    // In Interconnection View, port nodes are small boundary squares
+    // In Interconnection View, port usages are small boundary squares
     const css = node.cssClasses?.[0];
     if (viewType === 'interconnection' && css && PORT_CSS.has(css)) {
       return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
     }
-    // In Action Flow View, parameter nodes are small boundary squares (like ports in IV)
-    if (viewType === 'action-flow' && css && PARAM_CSS.has(css)) {
+    // In Action Flow View, port usages + action parameters are small boundary squares
+    if (viewType === 'action-flow' && css && (PARAM_CSS.has(css) || PORT_CSS.has(css))) {
       return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
     }
 
@@ -517,6 +517,10 @@ export default function DiagramViewer({
       const BEHAVIOURAL_KINDS = new Set([
         'actiondefinition', 'actionusage', 'performactionusage',
         'statedefinition', 'stateusage', 'exhibitstateusage',
+        'portdefinition',
+        'usecasedefinition', 'usecaseusage',
+        'analysiscasedefinition', 'analysiscaseusage',
+        'verificationcasedefinition', 'verificationcaseusage',
       ]);
 
       // Index flow edges by parent container for behavioural containers.
@@ -715,7 +719,7 @@ export default function DiagramViewer({
         const half = PORT_BORDER_SIZE / 2;
         for (const n of nodes) {
           const css = n.cssClasses?.[0] ?? '';
-          if (!PARAM_CSS.has(css)) continue;
+          if (!PARAM_CSS.has(css) && !PORT_CSS.has(css)) continue;
           const pid = parentOf.get(n.id);
           if (!pid) continue;
           const parentPos = newPositions.get(pid);
@@ -1898,13 +1902,13 @@ export default function DiagramViewer({
                     fill={portColor} stroke={borderColor}
                     strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
                   {isSelected && <rect width={s} height={s} rx={2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />}
-                  {/* Directional arrow: in=inward, out=outward, inout=bidirectional, default=inward */}
-                  {portDir === 'inout' ? (
-                    <path d={`M${s * 0.2},${s * 0.5} L${s * 0.8},${s * 0.5}`} fill="none" stroke="#4090c0" strokeWidth={1.5} strokeLinecap="round" />
+                  {/* Directional arrow: in=inward, out=outward, inout/none=horizontal line */}
+                  {portDir === 'in' ? (
+                    <path d={arrowInward[side]} fill="none" stroke="#40c080" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  ) : portDir === 'out' ? (
+                    <path d={arrowOutward[side]} fill="none" stroke="#c07030" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                   ) : (
-                    <path d={(portDir === 'out' ? arrowOutward : arrowInward)[side]} fill="none"
-                      stroke={portDir === 'in' ? '#40c080' : portDir === 'out' ? '#c07030' : '#b0a0d0'}
-                      strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={`M${s * 0.2},${s * 0.5} L${s * 0.8},${s * 0.5}`} fill="none" stroke={portDir === 'inout' ? '#4090c0' : '#b0a0d0'} strokeWidth={1.5} strokeLinecap="round" />
                   )}
                   {/* Label outside parent */}
                   <text x={labelProps.x} y={labelProps.y} fill={svgPortText} fontSize={9} textAnchor={labelProps.textAnchor}>
@@ -1914,10 +1918,11 @@ export default function DiagramViewer({
               );
             }
 
-            // ── Parameter node in Action Flow View: small square on parent boundary ──
-            if (viewType === 'action-flow' && PARAM_CSS.has(cssClass)) {
-              const isIn = cssClass === 'actionin';
-              const isOut = cssClass === 'actionout';
+            // ── Parameter/port node in Action Flow View: small square on parent boundary ──
+            if (viewType === 'action-flow' && (PARAM_CSS.has(cssClass) || PORT_CSS.has(cssClass))) {
+              const portDir = node.data?.direction as string | undefined;
+              const isIn = cssClass === 'actionin' || portDir === 'in';
+              const isOut = cssClass === 'actionout' || portDir === 'out';
               const dirColor = isIn ? '#40c080' : isOut ? '#c07030' : '#4090c0';
               const borderColor = isSelected ? '#f0c040' : isHovered ? dirColor : '#6a7a7a';
               const paramColor = NODE_COLORS[cssClass] ?? '#082828';

@@ -187,12 +187,15 @@ describe('View Filters: Action Flow View', () => {
         part engine;
         port fuelIn;
         action drive;
+        action brake;
+        first drive then brake;
       }
     `;
     const { nodes } = pipeline(code, 'action-flow');
     expect(findNode(nodes, 'engine')).toBeUndefined();
     expect(findNode(nodes, 'fuelIn')).toBeUndefined();
     expect(findNode(nodes, 'drive')).toBeDefined();
+    expect(findNode(nodes, 'brake')).toBeDefined();
   });
 
   it('keeps control nodes', () => {
@@ -290,12 +293,15 @@ describe('View Filters: State Transition View', () => {
       part def Vehicle {
         part engine;
         action drive;
+        state idle;
         state moving;
+        transition first idle then moving;
       }
     `;
     const { nodes } = pipeline(code, 'state-transition');
     expect(findNode(nodes, 'engine')).toBeUndefined();
     expect(findNode(nodes, 'drive')).toBeUndefined();
+    expect(findNode(nodes, 'idle')).toBeDefined();
     expect(findNode(nodes, 'moving')).toBeDefined();
   });
 

@@ -2,6 +2,7 @@
   "name": "systemodel",
   "private": true,
   "scripts": {
+    "local-setup": "bash scripts/setup.sh",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",

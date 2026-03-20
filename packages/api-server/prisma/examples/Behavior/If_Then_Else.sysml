@@ -16,7 +16,7 @@ package IfThenElse {
     action log : LogResult;
 
     first start then check;
-    first check then decide decision1;
+    first check then decision1;
 
     decide decision1;
     if isNormal then processNormal;

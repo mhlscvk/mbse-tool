@@ -49,6 +49,9 @@ function filterInterconnectionView(model: SysMLModel): FilteredModel {
 
 const AFV_NODE_KINDS = new Set([
   'ActionUsage', 'ActionDefinition', 'PerformActionUsage',
+  'UseCaseUsage', 'UseCaseDefinition',
+  'AnalysisCaseUsage', 'AnalysisCaseDefinition',
+  'VerificationCaseUsage', 'VerificationCaseDefinition',
   'ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode',
   'Package',
 ]);
@@ -77,7 +80,8 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
   // Hide empty stub defs not connected to the flow
   const nodes = model.nodes.filter(n => {
     if (!keepIds.has(n.id)) return false;
-    if (n.kind === 'ActionDefinition'
+    if ((n.kind === 'ActionDefinition' || n.kind === 'UseCaseDefinition'
+        || n.kind === 'AnalysisCaseDefinition' || n.kind === 'VerificationCaseDefinition')
         && !behavioralNodeIds.has(n.id)
         && (n.attributes?.length ?? 0) === 0) {
       return false;
@@ -116,7 +120,12 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
     ...reparentEdges,
   ];
 
-  return { nodes, connections };
+  // Remove orphan nodes (no edges to other visible nodes), except packages
+  const connectedIds = new Set<string>();
+  for (const c of connections) { connectedIds.add(c.sourceId); connectedIds.add(c.targetId); }
+  const finalNodes = nodes.filter(n => connectedIds.has(n.id) || n.kind === 'Package');
+
+  return { nodes: finalNodes, connections };
 }
 
 // ── State Transition View ───────────────────────────────────────────────────
@@ -202,8 +211,8 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
     }
   }
 
-  const nodes = model.nodes.filter(n => keepIds.has(n.id));
-  const nodeIdSet = new Set(nodes.map(n => n.id));
+  const prelimNodes = model.nodes.filter(n => keepIds.has(n.id));
+  const prelimNodeIdSet = new Set(prelimNodes.map(n => n.id));
   const connections = [
     ...model.connections
       .filter(c => STV_EDGE_KINDS.has(c.kind))
@@ -212,11 +221,39 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
         sourceId: startToEntry.get(c.sourceId) ?? c.sourceId,
         targetId: startToEntry.get(c.targetId) ?? c.targetId,
       }))
-      .filter(c => nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId)),
+      .filter(c => prelimNodeIdSet.has(c.sourceId) && prelimNodeIdSet.has(c.targetId)),
     ...reparentEdges,
   ];
 
-  return { nodes, connections };
+  // Remove orphan nodes: iteratively prune nodes that have no edges to
+  // non-control, non-package content nodes. This handles chains of control
+  // nodes (fork→join→fork) that connect only to each other.
+  const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode']);
+  const finalNodeIds = new Set(prelimNodes.map(n => n.id));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const nId of finalNodeIds) {
+      const node = prelimNodes.find(n => n.id === nId);
+      if (!node || node.kind === 'Package') continue;
+      // Check if this node has at least one edge to another non-control visible node
+      const hasContentNeighbor = connections.some(c => {
+        if (!finalNodeIds.has(c.sourceId) || !finalNodeIds.has(c.targetId)) return false;
+        const otherId = c.sourceId === nId ? c.targetId : c.targetId === nId ? c.sourceId : null;
+        if (!otherId) return false;
+        const otherNode = prelimNodes.find(n => n.id === otherId);
+        return otherNode && !CONTROL_KINDS.has(otherNode.kind) && otherNode.kind !== 'Package';
+      });
+      if (!hasContentNeighbor) {
+        finalNodeIds.delete(nId);
+        changed = true;
+      }
+    }
+  }
+  const nodes = prelimNodes.filter(n => finalNodeIds.has(n.id));
+  const finalConnections = connections.filter(c => finalNodeIds.has(c.sourceId) && finalNodeIds.has(c.targetId));
+
+  return { nodes, connections: finalConnections };
 }
 
 // ── General View (pass-through) ─────────────────────────────────────────────

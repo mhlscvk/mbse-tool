@@ -168,23 +168,50 @@ function nodeToSNode(node: SysMLNode): SNode {
   }
 
   if (IS_USAGE.has(node.kind)) {
-    // Directed usages (in/out/inout): use direction-specific CSS for non-port types,
-    // but keep portusage CSS for ports (they render as boundary nodes in IV)
+    // Port usages: always portusage CSS — rendered as small squares on part boundaries (IV + AFV)
+    if (node.kind === 'PortUsage') {
+      const dirPrefix = node.direction ? `«${node.direction} ` : '«';
+      const portKindLabel = makeLabel(`${node.id}__kind`, (KIND_DISPLAY[node.kind] ?? '«port»').replace('«', dirPrefix));
+      const width = Math.max(80, Math.max(textWidth(nameText, 11), textWidth(portKindLabel.text, 10)) + 20);
+      return {
+        type: 'node', id: node.id,
+        position: { x: 0, y: 0 },
+        size: { width, height: 50 },
+        children: [portKindLabel, nameLabel],
+        cssClasses: ['portusage'],
+        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
+      };
+    }
+
+    // Directed non-port usages (in/out/inout items, attributes, etc.):
+    // - Inside an action usage → actionin/actionout/actioninout CSS (small square in AFV)
+    // - Otherwise → regular nested node
     if (node.direction === 'in' || node.direction === 'out' || node.direction === 'inout') {
-      const isPort = node.kind === 'PortUsage';
-      const cssClass = isPort
-        ? 'portusage'
-        : (node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout');
-      // Full keyword: «in item» not just «in» — include the usage kind after direction
       const baseKw = KIND_DISPLAY[node.kind] ?? `«${node.kind}»`;
       const dirKindLabel = makeLabel(`${node.id}__kind`, baseKw.replace('«', `«${node.direction} `));
-      const width = Math.max(80, Math.max(textWidth(nameText, 11), textWidth(dirKindLabel.text, 10)) + 20);
+
+      if (node.ownerIsPortOrActionUsage) {
+        // Owner is an action usage → small boundary square with directional arrow (AFV only)
+        const cssClass = node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout';
+        const width = Math.max(80, Math.max(textWidth(nameText, 11), textWidth(dirKindLabel.text, 10)) + 20);
+        return {
+          type: 'node', id: node.id,
+          position: { x: 0, y: 0 },
+          size: { width, height: 50 },
+          children: [dirKindLabel, nameLabel],
+          cssClasses: [cssClass],
+          data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
+        };
+      }
+
+      // Owner is a definition, package, or other → regular nested node
+      const width = Math.max(120, Math.max(textWidth(nameText, 13), textWidth(dirKindLabel.text, 10)) + 20);
       return {
         type: 'node', id: node.id,
         position: { x: 0, y: 0 },
         size: { width, height: 50 },
         children: [dirKindLabel, nameLabel],
-        cssClasses: [cssClass],
+        cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
         data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
       };
     }

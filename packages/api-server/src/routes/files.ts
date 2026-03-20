@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { assertProjectAccess, assertWriteAccess } from '../lib/auth-helpers.js';
 import { asyncHandler, NotFound } from '../lib/errors.js';
+import { prisma } from '../db.js';
 import * as fileOps from '../services/file-ops.js';
 import { fileName, fileContent } from '../config/schemas.js';
+import { syncFileToDisk, removeFileFromDisk, renameFileOnDisk } from '../services/examples-sync.js';
 
 const router: IRouter = Router({ mergeParams: true });
 
@@ -24,9 +26,11 @@ router.get('/', asyncHandler(async (req: AuthRequest, res) => {
 
 // Create file (blocked for system projects unless admin)
 router.post('/', asyncHandler(async (req: AuthRequest, res) => {
-  assertWriteAccess(await assertProjectAccess(req.params.projectId, req.userId!, req.userRole));
+  const access = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
+  assertWriteAccess(access);
   const { name, content } = fileCreateSchema.parse(req.body);
   const file = await fileOps.createFile(req.params.projectId, name, content, req.userId!);
+  if (access.isSystem) syncFileToDisk(file.id);
   res.status(201).json({ data: file });
 }));
 
@@ -40,20 +44,26 @@ router.get('/:fileId', asyncHandler(async (req: AuthRequest, res) => {
 
 // Update file content (blocked for system projects unless admin)
 router.put('/:fileId', asyncHandler(async (req: AuthRequest, res) => {
-  assertWriteAccess(await assertProjectAccess(req.params.projectId, req.userId!, req.userRole));
+  const access = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
+  assertWriteAccess(access);
   const { content } = fileUpdateSchema.parse(req.body);
-  // Verify file exists in this project first
   await fileOps.getFile(req.params.fileId, req.params.projectId);
   const updated = await fileOps.updateFileContent(req.params.fileId, content, req.userId!);
+  if (access.isSystem) syncFileToDisk(updated.id);
   res.json({ data: updated });
 }));
 
 // Rename file (blocked for system projects unless admin)
 router.patch('/:fileId', asyncHandler(async (req: AuthRequest, res) => {
-  assertWriteAccess(await assertProjectAccess(req.params.projectId, req.userId!, req.userRole));
+  const access = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
+  assertWriteAccess(access);
   const { name } = fileRenameSchema.parse(req.body);
-  await fileOps.getFile(req.params.fileId, req.params.projectId);
+  const oldFile = await fileOps.getFile(req.params.fileId, req.params.projectId);
   const updated = await fileOps.renameFile(req.params.fileId, name);
+  if (access.isSystem) {
+    const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
+    if (project) renameFileOnDisk(project.name, oldFile.name, updated.name);
+  }
   res.json({ data: updated });
 }));
 
@@ -69,9 +79,14 @@ router.get('/:fileId/download', asyncHandler(async (req: AuthRequest, res) => {
 
 // Delete file (blocked for system projects unless admin)
 router.delete('/:fileId', asyncHandler(async (req: AuthRequest, res) => {
-  assertWriteAccess(await assertProjectAccess(req.params.projectId, req.userId!, req.userRole));
-  await fileOps.getFile(req.params.fileId, req.params.projectId);
+  const access = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
+  assertWriteAccess(access);
+  const file = await fileOps.getFile(req.params.fileId, req.params.projectId);
   await fileOps.deleteFile(req.params.fileId, req.userId!);
+  if (access.isSystem) {
+    const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
+    if (project) removeFileFromDisk(project.name, file.name);
+  }
   res.status(204).send();
 }));
 

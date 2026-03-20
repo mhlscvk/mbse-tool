@@ -1,26 +1,31 @@
-package DecisionAndMerge {
-  private import ScalarValues::*;
+package IfThenElse {
 
-  action def ProcessOrder;
-  action def ShipStandard;
-  action def ShipExpress;
-  action def NotifyCustomer;
+  action def CheckCondition;
+  action def ProcessNormal;
+  action def ProcessEmergency;
+  action def LogResult;
 
-  action fulfillOrder {
-    action processOrder : ProcessOrder;
-    action shipStandard : ShipStandard;
-    action shipExpress : ShipExpress;
-    action notifyCustomer : NotifyCustomer;
+  attribute def Status {
+    attribute isNormal : Boolean;
+  }
 
-    first start then processOrder;
-    first processOrder then decision1;
+  action handleEvent {
+    action check : CheckCondition;
+    action processNormal : ProcessNormal;
+    action processEmergency : ProcessEmergency;
+    action log : LogResult;
+
+    first start then check;
+    first check then decision1;
+
     decide decision1;
-    first decision1 then shipStandard;
-    first decision1 then shipExpress;
-    first shipStandard then merge1;
-    first shipExpress then merge1;
+    if isNormal then processNormal;
+    if isEmergency then processEmergency;
+
+    first processNormal then merge1;
+    first processEmergency then merge1;
     merge merge1;
-    first merge1 then notifyCustomer;
-    first notifyCustomer then done;
+    first merge1 then log;
+    first log then done;
   }
 }

@@ -78,6 +78,8 @@ export interface SysMLNode {
   isRef?: boolean;
   /** True for parallel state definitions/usages */
   isParallel?: boolean;
+  /** True when this directed param is owned by a port or action usage */
+  ownerIsPortOrActionUsage?: boolean;
   /** Multiplicity text, e.g. "[4]", "[1..*]", "[0..1]" */
   multiplicity?: string;
   children: SysMLNode[];
