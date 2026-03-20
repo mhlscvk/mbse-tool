@@ -625,7 +625,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 525 vitest tests across 19 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers)
+- [x] Automated tests: 19 vitest tests across 19 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 30 files across 8 subprojects)
@@ -680,7 +680,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (525 unit tests across 19 suites) + 36 live penetration tests |
+| Testing | Vitest (19 unit tests across 19 suites) + 36 live penetration tests |
 
 ---
 
@@ -695,7 +695,7 @@ pnpm --filter @systemodel/diagram-service test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 525 tests across 19 test suites:
+**Coverage:** 19 tests across 19 test suites:
 
 - **Parser tests** (109): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers, derived features, noncomposite membership, crossing operator, feature chains, use case/analysis case/verification case usages
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)

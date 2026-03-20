@@ -112,7 +112,7 @@ PostgreSQL via Prisma ORM. Schema at `packages/api-server/prisma/schema.prisma`.
 
 ## Testing
 
-**Total: 481 tests** (all passing)
+**Total: 19 tests** (all passing)
 
 - `api-server`: 60 tests across 6 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking

@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git ls-remote:*)",
+      "Bash(git clone:*)",
+      "Bash(shopt -s dotglob)",
+      "Bash(mv C:/SysteModel/SysteModel/* C:/SysteModel/SysteModel/.* C:/SysteModel/)",
+      "Bash(rmdir C:/SysteModel/SysteModel)",
+      "Bash(node:*)",
+      "Bash(docker compose:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s http://localhost:3003 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s http://localhost:3002 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s http://localhost:3001 -o /dev/null -w \"%{http_code}\")",
+      "Bash(docker exec:*)",
+      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"%{http_code} web-client\\\\n\")",
+      "Bash(curl -s http://localhost:3003 -o /dev/null -w \"%{http_code} api-server\\\\n\")",
+      "Bash(curl -s http://localhost:3002 -o /dev/null -w \"%{http_code} diagram-service\\\\n\")",
+      "Bash(curl -s http://localhost:3001 -o /dev/null -w \"%{http_code} lsp-server\\\\n\")",
+      "Bash(curl -s http://localhost:5173/api/projects -w '\\\\nHTTP %{http_code}')",
+      "Bash(npx tsx -e \":*)",
+      "Bash(curl:*)",
+      "Bash(chmod:*)",
+      "Bash(pnpm setup:*)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm --filter @systemodel/api-server test)",
+      "Bash(pnpm --filter @systemodel/diagram-service test)",
+      "Bash(npx tsc:*)",
+      "Bash(ssh:*)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(docker stop:*)",
+      "Bash(node --import tsx -e \":*)",
+      "Bash(npx vitest:*)"
+    ]
+  }
+}
