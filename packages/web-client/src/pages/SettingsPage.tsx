@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Layout/Header.js';
-import { api, type McpTokenInfo, type McpTokenCreated } from '../services/api-client.js';
+import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo } from '../services/api-client.js';
 import type { AiKeyInfo } from '../services/api-client.js';
 import { useTheme, type ThemeColors } from '../store/theme.js';
 import { useAuthStore } from '../store/auth.js';
@@ -65,7 +65,7 @@ const clients: { id: ClientId; label: string; file: string; generator: (url: str
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'ai-provider' | 'mcp' | 'admin';
+type SettingsTab = 'account' | 'ai-provider' | 'mcp' | 'admin' | 'bug-reports';
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -79,7 +79,10 @@ export default function SettingsPage() {
     { id: 'account', label: 'Account' },
     { id: 'ai-provider', label: 'AI Provider' },
     { id: 'mcp', label: 'MCP' },
-    ...(isAdmin ? [{ id: 'admin' as SettingsTab, label: 'Admin' }] : []),
+    ...(isAdmin ? [
+      { id: 'admin' as SettingsTab, label: 'Admin' },
+      { id: 'bug-reports' as SettingsTab, label: 'Bug Reports' },
+    ] : []),
   ];
 
   const initialTab = tabs.some(tab => tab.id === searchParams.get('tab')) ? searchParams.get('tab') as SettingsTab : 'account';
@@ -113,6 +116,7 @@ export default function SettingsPage() {
         {activeTab === 'ai-provider' && <AiProviderSection />}
         {activeTab === 'mcp' && <McpSection />}
         {activeTab === 'admin' && isAdmin && <AdminSection />}
+        {activeTab === 'bug-reports' && isAdmin && <BugReportsSection />}
       </div>
     </div>
   );
@@ -765,6 +769,139 @@ function AdminSection() {
           As admin, you can create, edit, and delete files in system projects from the Projects page.
         </p>
       </div>
+    </div>
+  );
+}
+
+// ─── Bug Reports Section (Admin) ────────────────────────────────────────────
+
+function BugReportsSection() {
+  const t = useTheme();
+  const [reports, setReports] = useState<BugReportInfo[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.bugReports.list(statusFilter || undefined, page, 10);
+      setReports(data.reports);
+      setTotal(data.total);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [page, statusFilter]);
+
+  useEffect(() => { fetchReports(); }, [fetchReports]);
+
+  const updateStatus = async (id: string, status: string) => {
+    try {
+      await api.bugReports.updateStatus(id, status);
+      fetchReports();
+    } catch { /* ignore */ }
+  };
+
+  const deleteReport = async (id: string) => {
+    if (!confirm('Delete this bug report?')) return;
+    try {
+      await api.bugReports.delete(id);
+      fetchReports();
+    } catch { /* ignore */ }
+  };
+
+  const statusColors: Record<string, string> = { OPEN: '#e07040', RESOLVED: '#40a060', CLOSED: '#808080' };
+  const totalPages = Math.ceil(total / 10);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h3 style={{ color: t.text, fontSize: 14, margin: 0 }}>Bug Reports ({total})</h3>
+        <select
+          value={statusFilter}
+          onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+          style={{ background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 4, padding: '4px 8px', color: t.text, fontSize: 12 }}
+        >
+          <option value="">All</option>
+          <option value="OPEN">Open</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="CLOSED">Closed</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <div style={{ color: t.textMuted, fontSize: 13 }}>Loading...</div>
+      ) : reports.length === 0 ? (
+        <div style={{ color: t.textMuted, fontSize: 13 }}>No bug reports found.</div>
+      ) : (
+        reports.map(r => (
+          <div key={r.id} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  background: statusColors[r.status] ?? '#808080', color: '#fff',
+                  fontSize: 10, padding: '2px 6px', borderRadius: 3, fontWeight: 600,
+                }}>{r.status}</span>
+                <span style={{ color: t.textSecondary, fontSize: 11 }}>
+                  {r.user?.name ?? 'Unknown'} ({r.user?.email})
+                </span>
+              </div>
+              <span style={{ color: t.textDim, fontSize: 10 }}>
+                {new Date(r.createdAt).toLocaleString()}
+              </span>
+            </div>
+
+            <p style={{ color: t.text, fontSize: 12, margin: '0 0 8px', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+              {r.description}
+            </p>
+
+            <div style={{ color: t.textDim, fontSize: 10, marginBottom: 8 }}>
+              Page: {r.pageUrl}
+            </div>
+
+            {r.screenshot && (
+              <img
+                src={r.screenshot}
+                alt="screenshot"
+                onClick={() => setPreviewImg(r.screenshot)}
+                style={{ maxWidth: 200, maxHeight: 100, borderRadius: 4, cursor: 'pointer', border: `1px solid ${t.border}` }}
+              />
+            )}
+
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              {r.status !== 'OPEN' && (
+                <button onClick={() => updateStatus(r.id, 'OPEN')} style={{ background: '#e07040', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Open</button>
+              )}
+              {r.status !== 'RESOLVED' && (
+                <button onClick={() => updateStatus(r.id, 'RESOLVED')} style={{ background: '#40a060', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Resolve</button>
+              )}
+              {r.status !== 'CLOSED' && (
+                <button onClick={() => updateStatus(r.id, 'CLOSED')} style={{ background: '#808080', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Close</button>
+              )}
+              <button onClick={() => deleteReport(r.id)} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: t.error, marginLeft: 'auto' }}>Delete</button>
+            </div>
+          </div>
+        ))
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ background: t.btnBg, border: `1px solid ${t.border}`, borderRadius: 3, padding: '4px 12px', fontSize: 11, cursor: page <= 1 ? 'default' : 'pointer', color: t.text, opacity: page <= 1 ? 0.4 : 1 }}>Prev</button>
+          <span style={{ color: t.textSecondary, fontSize: 11, lineHeight: '28px' }}>{page} / {totalPages}</span>
+          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ background: t.btnBg, border: `1px solid ${t.border}`, borderRadius: 3, padding: '4px 12px', fontSize: 11, cursor: page >= totalPages ? 'default' : 'pointer', color: t.text, opacity: page >= totalPages ? 0.4 : 1 }}>Next</button>
+        </div>
+      )}
+
+      {/* Screenshot preview modal */}
+      {previewImg && (
+        <div
+          onClick={() => setPreviewImg(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          <img src={previewImg} alt="full screenshot" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+        </div>
+      )}
     </div>
   );
 }

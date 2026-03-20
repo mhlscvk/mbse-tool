@@ -33,7 +33,8 @@
       "Bash(taskkill //F //IM node.exe)",
       "Bash(docker stop:*)",
       "Bash(node --import tsx -e \":*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(docker start:*)"
     ]
   }
 }

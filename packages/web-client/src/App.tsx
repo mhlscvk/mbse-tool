@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.js';
 import { useThemeStore } from './store/theme.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
+import BugReportButton from './components/BugReportButton.js';
 import LoginPage from './pages/LoginPage.js';
 import ProjectsPage from './pages/ProjectsPage.js';
 import EditorPage from './pages/EditorPage.js';
@@ -12,6 +13,11 @@ import SettingsPage from './pages/SettingsPage.js';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
   return token ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function AuthenticatedBugButton() {
+  const token = useAuthStore((s) => s.token);
+  return token ? <BugReportButton /> : null;
 }
 
 export default function App() {
@@ -31,6 +37,7 @@ export default function App() {
           <Route path="/training" element={<TrainingPage />} />
           <Route path="*" element={<Navigate to="/projects" replace />} />
         </Routes>
+        <AuthenticatedBugButton />
       </BrowserRouter>
     </ErrorBoundary>
   );

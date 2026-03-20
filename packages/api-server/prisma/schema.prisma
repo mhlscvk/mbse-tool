@@ -26,6 +26,7 @@ model User {
   aiChatMessages  AiChatMessage[]
   mcpTokens       McpToken[]
   aiProviderKeys  AiProviderKey[]
+  bugReports      BugReport[]
 
   @@map("users")
 }
@@ -131,4 +132,25 @@ enum Role {
   VIEWER
   EDITOR
   ADMIN
+}
+
+enum BugReportStatus {
+  OPEN
+  RESOLVED
+  CLOSED
+}
+
+model BugReport {
+  id          String          @id @default(cuid())
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  description String          @db.Text
+  screenshot  String?         @db.Text
+  pageUrl     String
+  status      BugReportStatus @default(OPEN)
+  createdAt   DateTime        @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@map("bug_reports")
 }

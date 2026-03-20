@@ -129,6 +129,22 @@ export const api = {
     syncExamples: () =>
       request<{ message: string }>('/admin/sync-examples', { method: 'POST' }),
   },
+  bugReports: {
+    create: (description: string, pageUrl: string, screenshot?: string) =>
+      request<BugReportInfo>('/bug-reports', {
+        method: 'POST', body: JSON.stringify({ description, pageUrl, screenshot }),
+      }),
+    list: (status?: string, page = 1, limit = 20) =>
+      request<{ reports: BugReportInfo[]; total: number }>(`/bug-reports?${new URLSearchParams({
+        ...(status ? { status } : {}), page: String(page), limit: String(limit),
+      })}`),
+    updateStatus: (id: string, status: string) =>
+      request<BugReportInfo>(`/bug-reports/${id}`, {
+        method: 'PATCH', body: JSON.stringify({ status }),
+      }),
+    delete: (id: string) =>
+      request<void>(`/bug-reports/${id}`, { method: 'DELETE' }),
+  },
   mcpTokens: {
     list: () => request<McpTokenInfo[]>('/mcp-tokens'),
     create: (name: string, expiresInDays?: number) =>
@@ -171,5 +187,16 @@ export interface McpTokenCreated {
   name: string;
   token: string;
   expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface BugReportInfo {
+  id: string;
+  userId: string;
+  user?: { id: string; name: string; email: string };
+  description: string;
+  screenshot: string | null;
+  pageUrl: string;
+  status: string;
   createdAt: string;
 }

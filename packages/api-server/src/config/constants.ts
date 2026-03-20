@@ -23,7 +23,12 @@ export const RATE_LIMIT = {
   api:      { windowMs: 60 * 1000,      max: 100 },
   aiChat:   { windowMs: 60 * 1000,      max: 20 },
   mcp:      { windowMs: 60 * 1000,      max: 200 },
+  bugReport: { windowMs: 60 * 60 * 1000, max: 10 },
 } as const;
 
 // ── Project ──────────────────────────────────────────────────────────────────
 export const MAX_PROJECT_DEPTH = 2;
+
+// ── Bug Reports ─────────────────────────────────────────────────────────────
+export const MAX_BUG_SCREENSHOT_BYTES = 5 * 1024 * 1024;  // 5 MB
+export const MAX_BUG_REPORTS_PER_HOUR = 5;
