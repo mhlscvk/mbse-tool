@@ -20,6 +20,28 @@ systemodel/
 │   └── web-client/        # React frontend: Monaco editor + SVG diagram viewer (port 5173)
 ```
 
+### API Server Internal Architecture
+
+The api-server uses a **service-layer architecture** for easy development:
+
+```
+api-server/src/
+├── config/                # Centralized configuration
+│   ├── constants.ts       # All magic numbers (rate limits, file sizes, TTLs)
+│   └── schemas.ts         # Shared Zod schemas (email, password, provider)
+├── lib/                   # Shared utilities
+│   ├── errors.ts          # AppError classes + asyncHandler wrapper
+│   └── auth-helpers.ts    # isAdmin(), assertProjectAccess(), assertWriteAccess()
+├── services/              # Business logic (no Express dependency)
+│   └── file-ops.ts        # Unified file CRUD — used by REST, AI tools, AND MCP
+├── middleware/             # Express middleware (auth, error handling)
+├── routes/                # Thin HTTP handlers: validate → call service → respond
+├── ai/                    # LLM provider adapters, tool definitions, encryption
+└── mcp/                   # Model Context Protocol server, tools, resources, prompts
+```
+
+**Key principle:** Business logic lives in `services/`. Route handlers, AI tools, and MCP tools all call the same service functions — zero duplication. All routes use `asyncHandler` (no manual try/catch) and throw typed `AppError` instances.
+
 ### Service Ports
 
 | Service | URL | Protocol |
@@ -579,7 +601,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 454 vitest tests across 15 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features)
+- [x] Automated tests: 481 vitest tests across 19 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for all users, directory-based seed data, 30 files across 8 subprojects)
@@ -624,7 +646,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (406 unit tests) + 36 live penetration tests |
+| Testing | Vitest (481 unit tests across 19 suites) + 36 live penetration tests |
 
 ---
 
@@ -632,14 +654,14 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 
 ```bash
 # Run all tests
-cd packages/diagram-service && pnpm test
-cd packages/web-client && pnpm test
+pnpm --filter @systemodel/api-server test
+pnpm --filter @systemodel/diagram-service test
 
 # Watch mode
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 406 tests across 13 test suites:
+**Coverage:** 481 tests across 19 test suites:
 
 - **Parser tests** (89): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
@@ -654,6 +676,14 @@ cd packages/diagram-service && pnpm test:watch
 - **WebSocket server tests** (17): origin verification (accept/reject/empty/multi-origin/case-sensitive), viewType protocol (default/requested/invalid/filtering), empty content clear, rate limiting, security hardening (malformed JSON, error sanitization, invalid fields, oversized messages, concurrent connections)
 - **Theme store tests** (20): dark/light theme definitions, key completeness, toggle/setMode operations, invalid mode rejection, CSS color format validation, XSS vector scanning, security merge validation
 - **Recent files store tests** (13): add/remove/clear operations, 10-entry cap, deduplication, CUID ID acceptance, path traversal rejection, XSS ID rejection, special character rejection
+
+**API Server** (60 tests across 6 suites):
+- **AI encryption tests** (14): AES-256-GCM encrypt/decrypt round-trip, ciphertext tampering detection, IV uniqueness, key masking format, empty/special character handling
+- **AI tools tests** (12): tool execution with mocked Prisma, access control enforcement, 10MB content size limits, file name sanitization, search query bounds, unknown tool handling
+- **AI providers tests** (5): tool schema validation, required parameter enforcement across all providers
+- **Auth middleware tests** (12): JWT verification, missing/malformed tokens, expired tokens, wrong secret, role extraction, requireAdmin enforcement
+- **Error middleware tests** (4): ZodError → 400, AppError status propagation, 500+ error message sanitization, internal detail leakage prevention
+- **CSRF middleware tests** (13): Content-Type enforcement for POST/PUT/PATCH/DELETE, DELETE-without-body passthrough, MCP endpoint exemption, text/event-stream allowance
 
 ---
 
