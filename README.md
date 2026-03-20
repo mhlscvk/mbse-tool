@@ -68,37 +68,43 @@ api-server/src/
 
 ## Setup
 
-### 1. Clone the repository
+### Quick Setup (Recommended)
 
 ```bash
 git clone https://github.com/mhlscvk/mbse-tool.git
 cd mbse-tool
+pnpm run local-setup
 ```
 
-### 2. Install monorepo dependencies
+This single command handles everything: Docker PostgreSQL, dependency installation, `.env` file generation (with random secrets), Prisma client generation, database migrations, and seeding (admin account + example projects).
+
+> **Prerequisites:** Node.js >= 20.10.0, pnpm >= 9.x, Docker
+
+### Manual Setup
+
+<details>
+<summary>Click to expand manual setup steps</summary>
+
+#### 1. Clone and install
 
 ```bash
+git clone https://github.com/mhlscvk/mbse-tool.git
+cd mbse-tool
 pnpm install
 ```
 
-### 3. Start PostgreSQL via Docker
+#### 2. Start PostgreSQL via Docker
 
 ```bash
-docker run -d \
-  --name systemodel-db \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=systemodel \
-  -e POSTGRES_USER=postgres \
-  -p 5432:5432 \
-  postgres:16
+docker compose up -d
 ```
 
-### 4. Create environment files
+#### 3. Create environment files
 
 **`packages/api-server/.env`**
 ```env
 PORT=3003
-DATABASE_URL=postgresql://postgres:password@localhost:5432/systemodel
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/systemodel
 JWT_SECRET=<generate with: openssl rand -hex 32>
 JWT_EXPIRES_IN=7d
 NODE_ENV=development
@@ -136,20 +142,19 @@ VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 
 > **Note:** In development mode (`NODE_ENV !== 'production'`), email verification is skipped — new users are auto-verified on registration.
 
-### 5. Run database migration
+#### 4. Run database migration and seed
 
 ```bash
 cd packages/api-server
-pnpm db:generate
-pnpm db:migrate
+npx prisma generate
+npx prisma migrate deploy
+npx prisma db seed
 cd ../..
 ```
 
-### 6. Build all packages
+The seed creates a system user, an admin account, and the Examples project with 30 SysML files across 8 subprojects. It is idempotent — safe to run multiple times.
 
-```bash
-pnpm run build
-```
+</details>
 
 ---
 
@@ -190,8 +195,18 @@ cd packages/web-client && pnpm preview
 ## Restarting after machine reboot
 
 ```bash
-docker start systemodel-db
+docker compose up -d
 pnpm run dev
+```
+
+## Stopping
+
+```bash
+# Stop dev server (Windows)
+taskkill //F //IM node.exe
+
+# Stop PostgreSQL
+docker stop systemodel-db
 ```
 
 ---
@@ -212,27 +227,24 @@ Internet → Nginx (port 80/443, SSL via Let's Encrypt)
 
 ```bash
 git push origin master
-ssh root@<VPS_IP> "cd /opt/systemodel && git pull && pnpm install && \
-  cd packages/api-server && npx prisma db push --skip-generate && npx prisma generate && \
-  cd ../.. && pnpm run build && pm2 start ecosystem.config.cjs && \
-  bash scripts/health-check.sh"
+ssh root@<VPS_IP>
+cd /opt/systemodel && git pull && pnpm install
+cd packages/api-server && npx prisma generate && npx prisma migrate deploy && npx prisma db seed
+cd /opt/systemodel && pnpm build
+pm2 start ecosystem.config.cjs
+bash scripts/health-check.sh
 ```
 
-> **Important:** Always use `pm2 start ecosystem.config.cjs` (not bare `pm2 restart all`) to ensure correct `cwd` for each service. The ecosystem config sets `cwd` per service so `dotenv` can find `.env` files. Services will abort on startup if `ALLOWED_ORIGINS` is misconfigured in production.
+> **Notes:**
+> - Always use `pm2 start ecosystem.config.cjs` (not `pm2 restart all`) to ensure correct `cwd` for dotenv.
+> - The api-server build may exit with code 2 due to pre-existing TS warnings — JS files are still emitted.
+> - If a migration fails with "column already exists", resolve it with: `npx prisma migrate resolve --applied <migration_name>`
 
-### Deploy Examples project (seed data)
+### Examples Project
 
-Example `.sysml` files are stored in `packages/api-server/prisma/examples/` as a directory tree (version-controlled, human-readable diffs).
+Example `.sysml` files are stored in `packages/api-server/prisma/examples/` as a directory tree (version-controlled). The seed script imports them on first run and skips existing subprojects on subsequent runs.
 
-```bash
-# Export from local DB to disk
-cd packages/api-server && npx tsx prisma/seed-examples.ts export
-
-# Import from disk to DB (local or live server)
-cd packages/api-server && npx tsx prisma/seed-examples.ts import
-```
-
-Admins can also sync examples from the Settings > Admin tab on the live site without SSH access.
+When an admin edits example files via the web UI, changes are automatically synced back to the `prisma/examples/` directory on disk. Admins can also force-reset all examples from disk via Settings > Admin > Sync Examples.
 
 ---
 
@@ -273,11 +285,13 @@ Admins can also sync examples from the Settings > Admin tab on the live site wit
 |---|---|---|---|
 | **General View** | GV | Everything: defs, usages, all edges | Nothing (default) |
 | **Interconnection View** | IV | Parts, ports (boundary nodes), connections, interfaces, flows | Defs (standalone), actions, states, successions |
-| **Action Flow View** | AFV | Actions, parameters, control nodes, successions, flows | Parts, ports, structural defs, type-reference edges |
-| **State Transition View** | STV | States, transitions, entry/do/exit | Actions (non-state), parts, ports, structural elements |
+| **Action Flow View** | AFV | Actions, use cases, parameters, port usages, control nodes, successions, flows | Parts, structural defs, orphan nodes with no connections |
+| **State Transition View** | STV | States, transitions, entry/do/exit | Actions, parts, ports, orphan nodes with no connections |
 
 - **View selector** — toolbar buttons `[ GV | IV | AFV | STV ]` switch between standard views
-- **Port boundary rendering** — in IV, ports render as small squares on parent part boundaries (per spec 8.2.3.12)
+- **Port boundary rendering** — port usages render as small squares on part boundaries in IV and AFV, with directional arrows (in=inward green, out=outward orange, inout/none=horizontal line)
+- **Action parameter rendering** — in/out/inout items on action usages render as small boundary squares in AFV only
+- **Orphan removal** — nodes with no connections to other visible content are hidden in AFV and STV
 - **IV is always nested** — per spec 8.2.3.11, IV uses compound layout (no tree option)
 - **Dynamic legend** — shows only relevant node/edge types per active view
 
@@ -297,17 +311,23 @@ Admins can also sync examples from the Settings > Admin tab on the live site wit
 `part`, `attribute`, `connection`, `port`, `action`, `state`, `item`
 
 **Extended definitions & usages:**
-`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `use case`, `analysis case`, `verification case`, `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `occurrence`
+`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `use case` (def + usage), `analysis case` (def + usage), `verification case` (def + usage), `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `occurrence`
 
 **Specialization operators:**
 
 | Operator | Keyword | Meaning |
 |---|---|---|
-| `:>` | `specializes` | Subclassification (on definitions) |
-| `:>` | `subsets` | Subsetting (on usages) |
-| `:>>` | `redefines` | Redefinition |
+| `:>` | `specializes` | Subclassification (on definitions) — inherits all features |
+| `:>` | `subsets` | Subsetting (on usages) — feature chain targets supported (`parents.siblings`) |
+| `:>>` | `redefines` | Redefinition — feature chain targets supported |
 | `::>` | `references` | Reference subsetting |
-| `:` | — | Typing (defined by) |
+| `=>` | `crosses` | Crossing — cross-feature relationship |
+| `:` | `defined by` | Typing |
+
+**Inherited & derived features:**
+- Inherited features shown with `^` prefix in compartments (toggle via "Inherited" button)
+- Derived features shown with `/` prefix (`derived attribute speed : Real`)
+- `ref` features use noncomposite membership (open diamond per spec)
 
 **Behavioral / Action flow:**
 - `first start;` / `then terminate;` — start and terminate nodes (filled circle / X-circle), scoped per container
@@ -353,8 +373,10 @@ Admins can also sync examples from the Settings > Admin tab on the live site wit
 
 **Other supported syntax:**
 - `abstract` keyword on definitions
-- `ref` keyword for referential parts/items
+- `derived` keyword on usages (prefixed with `/` in compartments)
+- `ref` keyword for referential parts/items (noncomposite/open diamond membership)
 - `in` / `out` / `inout` directed features
+- Feature chains: `item x :> parents.siblings.children` (dot-separated targets for subsetting/redefinition)
 - `comment Comment1 /* body */` — named comment (folded-corner note shape)
 - `comment about Target /* body */` — annotation with `«annotate»` dashed edge
 - `/* block comment */` — anonymous comment element (visible in diagram)
@@ -391,7 +413,9 @@ Edge styles per Section 8.2.3:
 | Subsetting | Solid | — | Open arrow (>) |
 | Redefinition | Solid | Vertical bar | Open arrow (>) |
 | Ref subsetting | Solid | — | Open arrow (>) |
+| Crossing | Solid | — | Open arrow (>) |
 | Composition | Solid | Filled diamond | — |
+| Noncomposite | Solid | Open diamond | — |
 | Flow | Solid | — | Filled arrowhead |
 | Succession | Solid | — | Open arrowhead |
 | Transition | Solid | — | Filled arrowhead |
@@ -584,7 +608,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] OMG-compliant graphical notation per spec 8.2.3 (action pill, state rounded, use case ellipse, requirement icon, ref dashed, directed items nested in port defs)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
-- [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV, STV with orphan reparenting (per spec 9.2.20)
+- [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV (with use case support), STV with orphan reparenting and pruning (per spec 9.2.20)
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics
 - [x] Element panel with step-by-step collapse, visibility toggles, saved views
@@ -601,11 +625,13 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 481 vitest tests across 19 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers)
+- [x] Automated tests: 525 vitest tests across 19 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
-- [x] System "Examples" project (read-only for all users, directory-based seed data, 30 files across 8 subprojects)
+- [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 30 files across 8 subprojects)
+- [x] Admin can edit/create/delete files in system projects; changes sync to `prisma/examples/` on disk
 - [x] "Copy to My Project" for example files (right-click context menu)
+- [x] Automated local setup script (`pnpm run local-setup`) — Docker, deps, env, migrations, seed in one command
 - [x] Single-quoted names, alias declarations, visibility-prefixed imports, `ref` keyword
 - [x] Comment declarations (`comment`, `doc`, `/* */`), folded-corner note shape, `«annotate»` edges
 - [x] Legend toggle (show/hide via Relations tab checkbox)
@@ -614,8 +640,16 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Typed redefines (`part x : Type redefines y`), unnamed redefines (`part redefines x[4]`), post-type multiplicity
 - [x] Conjugated ports (`port p : ~PortDef`), binding connections (open circle markers)
 - [x] Succession flow, message, and flow payload edges (`succession flow`, `message of Payload`)
-- [x] Action parameters as boundary nodes in AFV (in=left, out=right, direction arrows)
-- [x] Port direction arrows in IV (in=green inward, out=pink outward, inout=blue bidirectional)
+- [x] Port usages as boundary squares on parts in IV + AFV (in=green inward, out=orange outward, inout/none=horizontal line)
+- [x] Action parameters (in/out/inout items) as boundary squares on action usages in AFV only
+- [x] Port/action definitions render as nested containers (not boundary squares)
+- [x] Orphan node removal in AFV and STV (iterative control node chain pruning)
+- [x] Use case, analysis case, verification case usage parsing and rendering
+- [x] Inherited features display with `^` prefix (toggle via "Inherited" button), multi-level and diamond inheritance, redefined exclusion
+- [x] Derived features with `/` prefix (`derived attribute speed : Real`)
+- [x] Noncomposite feature membership (open diamond for `ref` features per spec)
+- [x] Crossing operator (`=>` / `crosses`) parsing and rendering
+- [x] Feature chains with dot notation (`item x :> parents.siblings.children`)
 - [x] Full directed item keywords (`«in item»`, `«out item»` instead of abbreviated `«in»`, `«out»`)
 - [x] Default editor/diagram split 35/65 for better diagram visibility
 - [x] Production deployment (Nginx, SSL, PM2, Hetzner VPS)
@@ -646,7 +680,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (481 unit tests across 19 suites) + 36 live penetration tests |
+| Testing | Vitest (525 unit tests across 19 suites) + 36 live penetration tests |
 
 ---
 
@@ -661,18 +695,19 @@ pnpm --filter @systemodel/diagram-service test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 481 tests across 19 test suites:
+**Coverage:** 525 tests across 19 test suites:
 
-- **Parser tests** (89): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers
+- **Parser tests** (109): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers, derived features, noncomposite membership, crossing operator, feature chains, use case/analysis case/verification case usages
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
 - **Parser audit tests** (34): ReDoS resistance, isParallel false positive prevention, connection dedup correctness, shorthand transitions in state usages, entry/exit/do edge cases, transition components, entry-then succession, no-duplicate-edge verification, regression (action flow, parts, packages, imports, relationships), performance benchmarks
 - **Parser robustness tests** (53): empty/minimal inputs, malformed syntax, special characters, large inputs, comment edge cases, imports, diagnostic quality, source ranges, connection edge cases, rapid parsing, input size limits, control flow
 - **Parser security tests** (13): XSS vectors, DoS resistance, path traversal, input type safety, error message sanitization
 - **Transformer tests** (20): node shapes, keyword display, compartments, edges, empty inputs
+- **Transformer new features tests** (13+): inherited features (basic, multi-level, diamond, redefined exclusion, `^` prefix, `__inherited__` IDs), derived `/` prefix, port/action boundary rules
 - **Transformer state tests** (17): state def/usage cssClasses, exhibit state, entry/exit/do compartment rendering, transition edge type, composition edges, full pipeline
 - **Transformer audit tests** (16): sharp/rounded corner compliance, parallel kind text, behavior compartment rendering, transition vs succession edge types, node/edge structure integrity, full spec example pipelines
 - **Transformer robustness tests** (23): empty/minimal models, node structure validation, labels, edge CSS classes, compartments, control nodes, performance, full pipeline integration
-- **View filter tests** (36): GV pass-through, IV structural filtering, AFV behavioral filtering, STV state filtering, cross-view consistency, graph ID tagging, empty model handling, edge kind validation, applyViewFilter direct API
+- **View filter tests** (47): GV pass-through, IV structural filtering, AFV behavioral filtering, STV state filtering, cross-view consistency, graph ID tagging, empty model handling, edge kind validation, applyViewFilter direct API, orphan removal (AFV/STV), control node chain pruning, package preservation, use case types in AFV, use case exclusion from STV
 - **WebSocket server tests** (17): origin verification (accept/reject/empty/multi-origin/case-sensitive), viewType protocol (default/requested/invalid/filtering), empty content clear, rate limiting, security hardening (malformed JSON, error sanitization, invalid fields, oversized messages, concurrent connections)
 - **Theme store tests** (20): dark/light theme definitions, key completeness, toggle/setMode operations, invalid mode rejection, CSS color format validation, XSS vector scanning, security merge validation
 - **Recent files store tests** (13): add/remove/clear operations, 10-entry cap, deduplication, CUID ID acceptance, path traversal rejection, XSS ID rejection, special character rejection

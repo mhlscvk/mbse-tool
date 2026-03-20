@@ -476,3 +476,180 @@ describe('View Filters: applyViewFilter direct', () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('View Filters: orphan removal', () => {
+  it('AFV hides nodes with no connections', () => {
+    const code = `
+      action def StandAlone;
+      action def Flow {
+        action a;
+        action b;
+        first a then b;
+      }
+    `;
+    const { nodes } = pipeline(code, 'action-flow');
+    // StandAlone has no succession edges and no attributes → should be removed
+    expect(findNode(nodes, 'StandAlone')).toBeUndefined();
+    // Flow's children should remain since they have succession edges
+    expect(findNode(nodes, 'a')).toBeDefined();
+    expect(findNode(nodes, 'b')).toBeDefined();
+  });
+
+  it('STV hides nodes with no connections', () => {
+    const code = `
+      state def Orphan;
+      state def SM {
+        state idle;
+        state running;
+        transition first idle then running;
+      }
+    `;
+    const { nodes } = pipeline(code, 'state-transition');
+    // Orphan has no transition edges → should be removed
+    expect(findNode(nodes, 'Orphan')).toBeUndefined();
+    // SM and its children should remain
+    expect(findNode(nodes, 'idle')).toBeDefined();
+    expect(findNode(nodes, 'running')).toBeDefined();
+  });
+
+  it('control node chains with no content neighbors are pruned (STV)', () => {
+    const code = `
+      state def SM {
+        fork f1;
+        join j1;
+      }
+    `;
+    const { nodes } = pipeline(code, 'state-transition');
+    // Fork and join with no state content neighbors → pruned
+    expect(nodes.filter(n => n.cssClasses?.[0] === 'forknode').length).toBe(0);
+    expect(nodes.filter(n => n.cssClasses?.[0] === 'joinnode').length).toBe(0);
+  });
+
+  it('control nodes connected to real states are kept (STV)', () => {
+    const code = `
+      state def SM {
+        state idle;
+        state active;
+        fork f1;
+        first f1 then idle;
+        first f1 then active;
+      }
+    `;
+    const { nodes } = pipeline(code, 'state-transition');
+    expect(nodes.some(n => n.cssClasses?.[0] === 'forknode')).toBe(true);
+    expect(findNode(nodes, 'idle')).toBeDefined();
+    expect(findNode(nodes, 'active')).toBeDefined();
+  });
+
+  it('packages are never removed as orphans', () => {
+    const code = `
+      package TopLevel {
+        state def SM {
+          state a;
+          state b;
+          transition first a then b;
+        }
+      }
+    `;
+    const { nodes: stvNodes } = pipeline(code, 'state-transition');
+    expect(findNode(stvNodes, 'TopLevel')).toBeDefined();
+
+    const { nodes: afvNodes } = pipeline(code, 'action-flow');
+    expect(findNode(afvNodes, 'TopLevel')).toBeDefined();
+  });
+
+  it('AFV: disconnected action with no edges is removed', () => {
+    const code = `
+      action def Process {
+        action a;
+        action b;
+        first a then b;
+      }
+      action def Orphan { }
+    `;
+    const { nodes } = pipeline(code, 'action-flow');
+    expect(findNode(nodes, 'Orphan')).toBeUndefined();
+    expect(findNode(nodes, 'a')).toBeDefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('View Filters: AFV includes use case types', () => {
+  it('AFV includes UseCaseUsage', () => {
+    const code = `
+      use case def Drive;
+      action def Main {
+        use case drive : Drive;
+        action step;
+        first drive then step;
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    const useCaseNodes = filtered.nodes.filter(n => n.kind === 'UseCaseUsage');
+    expect(useCaseNodes.length).toBeGreaterThan(0);
+  });
+
+  it('AFV includes UseCaseDefinition', () => {
+    const code = `
+      use case def DriveVehicle {
+        action accelerate;
+        action brake;
+        first accelerate then brake;
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    const ucDefNodes = filtered.nodes.filter(n => n.kind === 'UseCaseDefinition');
+    expect(ucDefNodes.length).toBeGreaterThan(0);
+  });
+
+  it('AFV includes AnalysisCaseUsage and VerificationCaseUsage', () => {
+    const code = `
+      analysis case def PerfAnalysis;
+      verification case def MassTest;
+      action def Main {
+        analysis case perf : PerfAnalysis;
+        verification case mass : MassTest;
+        action step;
+        first perf then step;
+        first step then mass;
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    expect(filtered.nodes.some(n => n.kind === 'AnalysisCaseUsage')).toBe(true);
+    expect(filtered.nodes.some(n => n.kind === 'VerificationCaseUsage')).toBe(true);
+  });
+});
+
+describe('View Filters: STV does not show use case nodes', () => {
+  it('STV excludes UseCaseUsage', () => {
+    const code = `
+      use case def Drive;
+      state def SM {
+        state idle;
+        state moving;
+        transition first idle then moving;
+      }
+      use case drive : Drive;
+    `;
+    const { nodes } = pipeline(code, 'state-transition');
+    const ucNodes = nodes.filter(n => n.cssClasses?.[0] === 'usecaseusage');
+    expect(ucNodes.length).toBe(0);
+  });
+
+  it('STV excludes UseCaseDefinition', () => {
+    const code = `
+      use case def Drive { }
+      state def SM {
+        state idle;
+        state running;
+        transition first idle then running;
+      }
+    `;
+    const { nodes } = pipeline(code, 'state-transition');
+    const ucDefNodes = nodes.filter(n => n.cssClasses?.[0] === 'usecasedefinition');
+    expect(ucDefNodes.length).toBe(0);
+  });
+});

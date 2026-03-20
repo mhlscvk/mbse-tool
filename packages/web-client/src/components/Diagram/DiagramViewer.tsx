@@ -35,6 +35,10 @@ interface DiagramViewerProps {
   viewType?: ViewType;
   /** Called when user selects a different view type */
   onViewTypeChange?: (viewType: ViewType) => void;
+  /** Show inherited features in definition compartments */
+  showInherited?: boolean;
+  /** Called when user toggles inherited features */
+  onShowInheritedChange?: (show: boolean) => void;
 }
 
 interface ContextMenu {
@@ -237,6 +241,8 @@ const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: st
   subsetting:          { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
   redefinition:        { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',  markerStart: 'url(#bar-redef)',   labelColor: '#9e9e9e' },
   composition:         { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                  markerStart: 'url(#diamond-comp)',labelColor: '#9cdcfe' },
+  noncomposite:        { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                  markerStart: 'url(#diamond-noncomp)',labelColor: '#9cdcfe' },
+  crossing:            { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
   association:         { stroke: '#777',    dash: undefined, markerEnd: 'url(#arrow-assoc)',                                   labelColor: '#777'    },
   flow:                { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-flow-filled)',                             labelColor: '#4ec9b0' },
   succession:          { stroke: '#4ec9b0', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#4ec9b0' },
@@ -281,6 +287,8 @@ export default function DiagramViewer({
   showLegend = true,
   viewType = 'general',
   onViewTypeChange,
+  showInherited = false,
+  onShowInheritedChange,
 }: DiagramViewerProps) {
   const t = useTheme();
   const isDark = t.mode === 'dark';
@@ -398,7 +406,7 @@ export default function DiagramViewer({
   const parentOf = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of allEdges) {
-      if (e.cssClasses?.[0] === 'composition') map.set(e.targetId, e.sourceId);
+      if (e.cssClasses?.[0] === 'composition' || e.cssClasses?.[0] === 'noncomposite') map.set(e.targetId, e.sourceId);
     }
     return map;
   }, [allEdges]);
@@ -441,7 +449,7 @@ export default function DiagramViewer({
     // Dynamically compute size based on content labels
     const kindLabel = node.children.find((c) => c.id.endsWith('__kind'));
     const nameLabel = node.children.find((c) => c.id.endsWith('__label'));
-    const attrLabels = node.children.filter((c) => c.id.includes('__usage__'));
+    const attrLabels = node.children.filter((c) => c.id.includes('__usage__') || c.id.includes('__inherited__'));
 
     if (attrLabels.length > 0) {
       const HEADER_H = 48;
@@ -620,7 +628,7 @@ export default function DiagramViewer({
       const topLevelFlowEdges: Array<{ id: string; sources: string[]; targets: string[] }> = [];
       for (const e of edges) {
         const ek3 = e.cssClasses?.[0];
-        if (ek3 === 'composition') continue;
+        if (ek3 === 'composition' || ek3 === 'noncomposite') continue;
         // Flow/succession edges between top-level nodes go directly into top-level layout
         if (ek3 === 'flow' || ek3 === 'succession' || ek3 === 'transition') {
           const srcTop = topAncestor(e.sourceId);
@@ -859,7 +867,7 @@ export default function DiagramViewer({
   const edgeCurveOffset = useMemo(() => {
     const pairMap = new Map<string, string[]>();
     for (const e of edges) {
-      if (e.cssClasses?.[0] === 'composition') continue;
+      if (e.cssClasses?.[0] === 'composition' || e.cssClasses?.[0] === 'noncomposite') continue;
       const a = e.sourceId < e.targetId ? e.sourceId : e.targetId;
       const b = e.sourceId < e.targetId ? e.targetId : e.sourceId;
       const key = `${a}|${b}`;
@@ -1171,7 +1179,7 @@ export default function DiagramViewer({
     const cache = new Map<string, { x: number; y: number }[]>();
     for (const e of edges) {
       const ek2 = e.cssClasses?.[0];
-      if (ek2 === 'composition' || ek2 === 'flow' || ek2 === 'succession' || ek2 === 'transition') continue;
+      if (ek2 === 'composition' || ek2 === 'noncomposite' || ek2 === 'flow' || ek2 === 'succession' || ek2 === 'transition') continue;
       const path = routeOrthogonal(e.sourceId, e.targetId);
       if (path && path.length >= 2) {
         cache.set(e.id, path);
@@ -1460,7 +1468,7 @@ export default function DiagramViewer({
   const renderEdges = effectiveViewMode === 'tree'
     ? edges.filter(e => visibleNodeIds.has(e.sourceId) && visibleNodeIds.has(e.targetId))
     : edges.filter(e =>
-        e.cssClasses?.[0] !== 'composition' &&
+        e.cssClasses?.[0] !== 'composition' && e.cssClasses?.[0] !== 'noncomposite' &&
         visibleNodeIds.has(e.sourceId) &&
         visibleNodeIds.has(e.targetId),
       );
@@ -1540,6 +1548,23 @@ export default function DiagramViewer({
             })}
           </div>
         </>}
+        {onShowInheritedChange && (
+          <button
+            onClick={() => onShowInheritedChange(!showInherited)}
+            title={showInherited ? 'Hide inherited features' : 'Show inherited features from parent definitions'}
+            style={{
+              background: showInherited ? t.statusBar : t.bgSecondary,
+              border: '1px solid', borderColor: showInherited ? t.statusBar : t.btnBorder,
+              color: showInherited ? '#fff' : t.text,
+              fontSize: 10, borderRadius: 3, padding: '3px 6px', cursor: 'pointer',
+              fontWeight: showInherited ? 700 : 400,
+            }}
+            onMouseEnter={e => { if (!showInherited) e.currentTarget.style.background = t.btnBgHover; }}
+            onMouseLeave={e => { if (!showInherited) e.currentTarget.style.background = t.bgSecondary; }}
+          >
+            Inherited
+          </button>
+        )}
         <button
           onClick={fitToWindow}
           title="Fit all visible elements to window"
@@ -1597,6 +1622,10 @@ export default function DiagramViewer({
           {/* ── Composition: filled diamond at owner end ── */}
           <marker id="diamond-comp" markerWidth="16" markerHeight="9" refX="1" refY="4.5" orient="auto">
             <polygon points="1 4.5, 7 1, 13 4.5, 7 8" fill="#9cdcfe" stroke="#9cdcfe" strokeWidth="1" />
+          </marker>
+          {/* ── Noncomposite (ref): open diamond at owner end ── */}
+          <marker id="diamond-noncomp" markerWidth="16" markerHeight="9" refX="1" refY="4.5" orient="auto">
+            <polygon points="1 4.5, 7 1, 13 4.5, 7 8" fill={t.bg} stroke="#9cdcfe" strokeWidth="1" />
           </marker>
           {/* ── Connection: open arrowhead ── */}
           <marker id="arrow-assoc" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
@@ -2047,10 +2076,13 @@ export default function DiagramViewer({
                 : (isIn ? '#30a060' : isOut ? '#a06020' : isInOut ? '#2060a0' : '#4a5a7a');
 
               // Compartment labels (attributes/usages inside definitions)
-              const attrLabels = node.children.filter((c) => c.id.includes('__usage__'));
+              const ownLabels = node.children.filter((c) => c.id.includes('__usage__'));
+              const inheritedLabels = node.children.filter((c) => c.id.includes('__inherited__'));
+              const attrLabels = [...ownLabels, ...inheritedLabels];
               const HEADER_H = 48;
               const ROW_H = 18;
               const hasCompartment = attrLabels.length > 0;
+              const hasInherited = inheritedLabels.length > 0;
               // Dynamically compute height: header + compartment rows
               const dynamicH = hasCompartment
                 ? HEADER_H + 6 + attrLabels.length * ROW_H + 4
@@ -2113,7 +2145,7 @@ export default function DiagramViewer({
                   {hasCompartment && (
                     <>
                       <line x1={0} y1={HEADER_H} x2={dynamicW} y2={HEADER_H} stroke={borderColor} strokeWidth={0.5} />
-                      {attrLabels.map((label, i) => (
+                      {ownLabels.map((label, i) => (
                         <text
                           key={label.id}
                           x={8}
@@ -2125,6 +2157,25 @@ export default function DiagramViewer({
                           {label.text}
                         </text>
                       ))}
+                      {hasInherited && (
+                        <>
+                          <line x1={4} y1={HEADER_H + 6 + ownLabels.length * ROW_H + 2} x2={dynamicW - 4} y2={HEADER_H + 6 + ownLabels.length * ROW_H + 2} stroke={borderColor} strokeWidth={0.3} strokeDasharray="3 2" />
+                          {inheritedLabels.map((label, i) => (
+                            <text
+                              key={label.id}
+                              x={8}
+                              y={HEADER_H + 6 + (ownLabels.length + i + 1) * ROW_H - 4}
+                              fill={svgAttrText}
+                              fontSize={10}
+                              fontFamily="monospace"
+                              fontStyle="italic"
+                              opacity={0.6}
+                            >
+                              {label.text}
+                            </text>
+                          ))}
+                        </>
+                      )}
                     </>
                   )}
                 </g>
@@ -2244,6 +2295,7 @@ export default function DiagramViewer({
             const baseOffset = viewType === 'interconnection' ? 88 : (viewType === 'general' ? 72 : 56);
             const legendItems: { label: string; color: string; dash?: string }[] = [];
             if (effectiveViewMode === 'tree') legendItems.push({ label: '◆── composition', color: '#9cdcfe' });
+            if (effectiveViewMode === 'tree') legendItems.push({ label: '◇── noncomposite (ref)', color: '#9cdcfe' });
             if (viewType === 'general' || viewType === 'interconnection') {
               legendItems.push({ label: '◁── specializes :>', color: '#9e9e9e' });
               legendItems.push({ label: '──▷ subsets :>', color: '#9e9e9e' });

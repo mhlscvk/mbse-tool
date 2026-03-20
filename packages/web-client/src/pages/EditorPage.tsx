@@ -99,6 +99,9 @@ export default function EditorPage() {
   // SysML v2 standard view type
   const [viewType, setViewType] = useLocalStorage<ViewType>(`${lsPrefix}:viewType`, 'general');
 
+  // Show inherited features toggle
+  const [showInherited, setShowInherited] = useLocalStorage(`${lsPrefix}:showInherited`, false);
+
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
   const t = useTheme();
@@ -174,7 +177,7 @@ export default function EditorPage() {
       .then((f) => {
         setFile(f);
         setContent(f.content);
-        diagramClient.sendText(`file://${fileId}`, f.content, viewType);
+        diagramClient.sendText(`file://${fileId}`, f.content, viewType, showInherited);
       })
       .catch((e) => setError(e.message));
     // Fetch sibling files for file switcher
@@ -204,7 +207,7 @@ export default function EditorPage() {
     if (readOnly) return;
     setContent(value);
     // Send text to diagram-service for server-side parsing → BDD generation
-    diagramClient.sendText(`file://${fileId}`, value, viewType);
+    diagramClient.sendText(`file://${fileId}`, value, viewType, showInherited);
 
     // Debounced autosave
     clearTimeout(saveTimer.current);
@@ -523,7 +526,12 @@ export default function EditorPage() {
               onViewTypeChange={(vt) => {
                 setViewType(vt);
                 // Re-request diagram with the new view type
-                if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt);
+                if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt, showInherited);
+              }}
+              showInherited={showInherited}
+              onShowInheritedChange={(v) => {
+                setShowInherited(v);
+                if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
               }}
             />
             {aiOpen && (

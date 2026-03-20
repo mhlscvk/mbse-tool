@@ -16,8 +16,8 @@ const IV_NODE_KINDS = new Set([
 ]);
 
 const IV_EDGE_KINDS = new Set([
-  'composition', 'flow', 'successionflow', 'message', 'bind', 'association', 'typereference',
-  'subsetting', 'redefinition', 'referencesubsetting',
+  'composition', 'noncomposite', 'flow', 'successionflow', 'message', 'bind', 'association', 'typereference',
+  'subsetting', 'redefinition', 'referencesubsetting', 'crossing',
 ]);
 
 function filterInterconnectionView(model: SysMLModel): FilteredModel {
@@ -57,7 +57,7 @@ const AFV_NODE_KINDS = new Set([
 ]);
 
 const AFV_EDGE_KINDS = new Set([
-  'succession', 'flow', 'successionflow', 'transition', 'composition', 'typereference',
+  'succession', 'flow', 'successionflow', 'transition', 'composition', 'noncomposite', 'typereference',
 ]);
 
 function filterActionFlowView(model: SysMLModel): FilteredModel {
@@ -94,7 +94,7 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
   // Reparent: if a kept node's parent is filtered out, find nearest kept ancestor
   const parentOf = new Map<string, string>();
   for (const c of model.connections) {
-    if (c.kind === 'composition') parentOf.set(c.targetId, c.sourceId);
+    if (c.kind === 'composition' || c.kind === 'noncomposite') parentOf.set(c.targetId, c.sourceId);
   }
   const reparentEdges: SysMLConnection[] = [];
   for (const nodeId of nodeIdSet) {
@@ -140,7 +140,7 @@ const STV_NODE_KINDS = new Set([
 ]);
 
 const STV_EDGE_KINDS = new Set([
-  'transition', 'succession', 'composition', 'typereference',
+  'transition', 'succession', 'composition', 'noncomposite', 'typereference',
 ]);
 
 function filterStateTransitionView(model: SysMLModel): FilteredModel {
@@ -152,7 +152,7 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
   // Build parent map from all composition edges
   const parentOf = new Map<string, string>();
   for (const c of model.connections) {
-    if (c.kind === 'composition') parentOf.set(c.targetId, c.sourceId);
+    if (c.kind === 'composition' || c.kind === 'noncomposite') parentOf.set(c.targetId, c.sourceId);
   }
 
   // Hide start nodes when an entry action node exists in the same parent

@@ -16,7 +16,7 @@ monaco.languages.setMonarchTokensProvider('sysml', {
     'package', 'part', 'attribute', 'connect', 'flow', 'action', 'state',
     'port', 'def', 'use', 'import', 'public', 'private', 'protected',
     'abstract', 'ref', 'in', 'out', 'inout', 'return', 'if', 'else',
-    'loop', 'do', 'then', 'specializes', 'redefines', 'about', 'comment',
+    'loop', 'do', 'then', 'first', 'transition', 'specializes', 'redefines', 'about', 'comment',
     'doc', 'language', 'metadata', 'item', 'connection', 'interface',
     'allocation', 'satisfy', 'verify', 'concern', 'stakeholder', 'view',
     'viewpoint', 'render', 'subject', 'expose',

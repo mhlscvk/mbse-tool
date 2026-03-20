@@ -76,6 +76,8 @@ export interface SysMLNode {
   isAbstract?: boolean;
   /** True for referential features (ref keyword) */
   isRef?: boolean;
+  /** True for derived features (derived keyword) */
+  isDerived?: boolean;
   /** True for parallel state definitions/usages */
   isParallel?: boolean;
   /** True when this directed param is owned by a port or action usage */
@@ -92,14 +94,20 @@ export interface SysMLAttribute {
   name: string;
   type?: string;
   value?: string;
+  /** True for derived features (derived keyword) */
+  isDerived?: boolean;
+  /** True for attributes inherited from a parent definition via specialization */
+  inherited?: boolean;
+  /** Name of the definition this attribute was inherited from */
+  inheritedFrom?: string;
 }
 
 export interface SysMLConnection {
   id: string;
   sourceId: string;
   targetId: string;
-  kind: 'association' | 'dependency' | 'composition' | 'flow' | 'succession' | 'transition' | 'typereference'
-      | 'subsetting' | 'redefinition' | 'referencesubsetting'
+  kind: 'association' | 'dependency' | 'composition' | 'noncomposite' | 'flow' | 'succession' | 'transition' | 'typereference'
+      | 'subsetting' | 'redefinition' | 'referencesubsetting' | 'crossing'
       | 'satisfy' | 'verify' | 'allocate' | 'bind' | 'annotate'
       | 'successionflow' | 'message';
   name?: string;

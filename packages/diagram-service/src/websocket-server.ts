@@ -6,8 +6,8 @@ import { parseSysMLText } from './parser/sysml-text-parser.js';
 
 // Incoming message from browser
 type DiagramRequest =
-  | { kind: 'parse'; uri: string; content: string; viewType?: ViewType }   // text → parse server-side
-  | { kind: 'model'; model: SysMLModel; viewType?: ViewType };              // pre-built AST (future: from LSP)
+  | { kind: 'parse'; uri: string; content: string; viewType?: ViewType; showInherited?: boolean }   // text → parse server-side
+  | { kind: 'model'; model: SysMLModel; viewType?: ViewType; showInherited?: boolean };              // pre-built AST (future: from LSP)
 
 const MAX_PAYLOAD = 10 * 1024 * 1024; // 10 MB
 const MAX_CONNECTIONS_PER_IP = 20;
@@ -103,7 +103,8 @@ export function createDiagramWebSocketServer(server: Server, allowedOrigins: str
         }
 
         // Transform AST to diagram model; client handles compound layout
-        const sModel = transformToBDD(model, viewType);
+        const showInherited = request.showInherited === true;
+        const sModel = transformToBDD(model, viewType, showInherited);
         send({ kind: 'model', model: sModel, diagnostics, viewType });
 
       } catch (err) {

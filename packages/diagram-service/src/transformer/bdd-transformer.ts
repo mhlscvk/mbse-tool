@@ -278,7 +278,13 @@ function nodeToSNode(node: SysMLNode): SNode {
         const kw = val ? `${USAGE_KEYWORD_DISPLAY[val] ?? val} ` : '';
         text = attr.type ? `${kw}${attr.name} : ${attr.type}` : `${kw}${attr.name}`;
       }
-      return makeLabel(`${node.id}__usage__${i}`, text);
+      // Use __inherited__ label ID for inherited attributes so the renderer can style them differently
+      const labelId = attr.inherited
+        ? `${node.id}__inherited__${i}`
+        : `${node.id}__usage__${i}`;
+      if (attr.isDerived) text = `/ ${text}`;
+      if (attr.inherited) text = `^ ${text}`;
+      return makeLabel(labelId, text);
     });
 
   const BASE_HEIGHT = 60;
@@ -313,9 +319,86 @@ function connectionToSEdge(conn: { id: string; sourceId: string; targetId: strin
   };
 }
 
-export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'): SModelRoot {
+/**
+ * Resolve inherited attributes for definitions that specialize other definitions.
+ * Walks the specialization chain and copies parent attributes (marked as inherited)
+ * into child definitions. Handles multi-level and diamond inheritance with dedup.
+ */
+function resolveInheritedAttributes(nodes: SysMLNode[], connections: { sourceId: string; targetId: string; kind: string; name?: string }[]): void {
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+  // Build parent map: childId → [parentIds] from specialization edges
+  const parentMap = new Map<string, string[]>();
+  for (const c of connections) {
+    if (c.kind === 'dependency' && c.name === '«specializes»') {
+      const parents = parentMap.get(c.sourceId) ?? [];
+      parents.push(c.targetId);
+      parentMap.set(c.sourceId, parents);
+    }
+  }
+
+  // Memoize resolved inherited attributes per node id
+  const cache = new Map<string, import('@systemodel/shared-types').SysMLAttribute[]>();
+
+  function getInherited(nodeId: string, visited: Set<string>): import('@systemodel/shared-types').SysMLAttribute[] {
+    if (cache.has(nodeId)) return cache.get(nodeId)!;
+    if (visited.has(nodeId)) return []; // cycle protection
+    visited.add(nodeId);
+
+    const parentIds = parentMap.get(nodeId) ?? [];
+    const inherited: import('@systemodel/shared-types').SysMLAttribute[] = [];
+    const seen = new Set<string>(); // dedup by attribute name
+
+    for (const pid of parentIds) {
+      const parent = nodeById.get(pid);
+      if (!parent) continue;
+
+      // First collect grandparent inherited attrs
+      for (const attr of getInherited(pid, visited)) {
+        if (!seen.has(attr.name)) {
+          seen.add(attr.name);
+          inherited.push(attr);
+        }
+      }
+
+      // Then parent's own attributes
+      for (const attr of parent.attributes ?? []) {
+        if (attr.name === '__doc__') continue;
+        if (!seen.has(attr.name)) {
+          seen.add(attr.name);
+          inherited.push({ ...attr, inherited: true, inheritedFrom: parent.name });
+        }
+      }
+    }
+
+    cache.set(nodeId, inherited);
+    return inherited;
+  }
+
+  // Inject inherited attributes into each definition node
+  for (const node of nodes) {
+    if (!node.kind.endsWith('Definition')) continue;
+    const parentIds = parentMap.get(node.id);
+    if (!parentIds || parentIds.length === 0) continue;
+
+    const inherited = getInherited(node.id, new Set());
+    // Filter out attributes already defined by this node (redefined)
+    const ownNames = new Set((node.attributes ?? []).map(a => a.name));
+    const toAdd = inherited.filter(a => !ownNames.has(a.name));
+    if (toAdd.length > 0) {
+      node.attributes = [...(node.attributes ?? []), ...toAdd];
+    }
+  }
+}
+
+export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general', showInherited = false): SModelRoot {
   // Apply view-specific filtering first
   const filtered = applyViewFilter(model, viewType);
+
+  // Optionally resolve inherited attributes before transformation
+  if (showInherited) {
+    resolveInheritedAttributes(filtered.nodes, filtered.connections);
+  }
 
   // ── Action-flow cleanup (General View only) ───────────────────────────
   // When a diagram contains succession edges (action flows), definition
@@ -345,7 +428,7 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
   const packageChildIds = new Set<string>();
   const packageNodeIds = new Set(filtered.nodes.filter(n => n.kind === 'Package').map(n => n.id));
   for (const c of filtered.connections) {
-    if (c.kind === 'composition' && packageNodeIds.has(c.sourceId)) {
+    if ((c.kind === 'composition' || c.kind === 'noncomposite') && packageNodeIds.has(c.sourceId)) {
       packageChildIds.add(c.targetId);
     }
   }

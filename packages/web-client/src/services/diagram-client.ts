@@ -20,7 +20,7 @@ export class DiagramClient {
   private reconnectDelay = 2000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
-  private pendingText: { uri: string; content: string; viewType?: ViewType } | null = null;
+  private pendingText: { uri: string; content: string; viewType?: ViewType; showInherited?: boolean } | null = null;
 
   connect(): void {
     // Clean up any pending reconnect
@@ -81,12 +81,12 @@ export class DiagramClient {
   }
 
   /** Send SysML text content to be parsed server-side */
-  sendText(uri: string, content: string, viewType?: ViewType): void {
+  sendText(uri: string, content: string, viewType?: ViewType, showInherited?: boolean): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.pendingText = { uri, content, viewType };
+      this.pendingText = { uri, content, viewType, showInherited };
       return;
     }
-    this.ws.send(JSON.stringify({ kind: 'parse', uri, content, viewType }));
+    this.ws.send(JSON.stringify({ kind: 'parse', uri, content, viewType, showInherited }));
   }
 
   /** Send a pre-built AST model (future: from LSP) */

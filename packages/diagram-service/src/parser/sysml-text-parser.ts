@@ -262,21 +262,23 @@ const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|stat
 // group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional, before or after type), group[5]=type
 // Core + extended usage keywords (all single-word keywords that can appear as usages)
 const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence';
-const USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+const USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
-const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(ref\\s+)?(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
+const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
 const IN_OUT_PATTERN = new RegExp(`\\b(in|out|inout)\\s+(${USAGE_KW})\\s+(\\w+)\\s*(?:\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*[;{]`, 'g');
 const IN_OUT_UNTYPED_PATTERN = new RegExp(`\\b(in|out|inout)\\s+(${USAGE_KW})\\s+(\\w+)\\s*[;{]`, 'g');
 const ATTRIBUTE_VALUE_PATTERN = /\battribute\s+(\w+)\s*(?::\s*([\w:]+))?\s*=\s*([^;]+);/g;
 // Subsetting: part x :> y; or part x subsets y; or part x : Type :> y; or part x : Type subsets y;
-const SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?::>(?!>)\\s*|\\bsubsets\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+const SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?::>(?!>)\\s*|\\bsubsets\\s+)([\\w:.]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Redefinition: part x :>> y; or part x redefines y; or part x : Type :>> y; or part x : Type redefines y;
-const REDEFINITION_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?::>>\\s*|\\bredefines\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+const REDEFINITION_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?::>>\\s*|\\bredefines\\s+)([\\w:.]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Reference subsetting: part x ::> y; or part x references y;
-const REFERENCE_SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?:::>\\s*|\\breferences\\s+)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+const REFERENCE_SUBSETTING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?:::>\\s*|\\breferences\\s+)([\\w:.]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Unnamed redefinition: part redefines x; or part redefines x[4];
-const UNNAMED_REDEFINE_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?:redefines\\s+|:>>\\s*)([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+const UNNAMED_REDEFINE_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?:redefines\\s+|:>>\\s*)([\\w:.]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+// Crossing: part x => y; or part x crosses y; or part x : Type => y;
+const CROSSING_PATTERN = new RegExp(`\\b(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*(?::\\s*([\\w:]+)\\s*)?(?:=>\\s*|\\bcrosses\\s+)([\\w:.]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
 // Conjugated port usage: port p : ~PortDef;
 const CONJUGATED_PORT_PATTERN = /\bport\s+(\w+)\s*:\s*~([\w:]+)\s*[;{]/g;
 const CONNECT_PATTERN = /\bconnect\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
@@ -855,7 +857,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     let um: RegExpExecArray | null;
     while ((um = USAGE_PATTERN.exec(clean)) !== null) {
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
-      usagePositions.push({ name: um[3], start: um.index, end }); // [3]=name (after ref?, keyword)
+      usagePositions.push({ name: um[4], start: um.index, end }); // [4]=name (after derived?, ref?, keyword)
     }
     // Untyped usages (e.g. `item SourceData { ... }`)
     UNTYPED_USAGE_PATTERN.lastIndex = 0;
@@ -864,7 +866,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const pre = clean.slice(Math.max(0, um.index - 7), um.index);
       if (/\b(inout|in|out|def)\s+$/.test(pre)) continue;
       // Skip duplicates already captured by typed pattern
-      const name = dequote(um[3], nameMap); // [3]=name (after ref?, keyword)
+      const name = dequote(um[4], nameMap); // [4]=name (after derived?, ref?, keyword)
       const start = um.index;
       if (usagePositions.some(up => up.start === start)) continue;
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
@@ -910,12 +912,13 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       if (/\b(inout|in|out|def|perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
       // Skip if the declaration header itself has `: Type` (typed usage, handled elsewhere)
       const header = cm[0]; // e.g. "action fulfillOrder {" — only the header, not body
-      const keyword = cm[2];
+      const keyword = cm[3];
       const afterKw = header.slice(header.indexOf(keyword) + keyword.length);
       if (/\w+\s*(?:\[[\d..*]+\])?\s*:\s*\w+/.test(afterKw)) continue;
 
-      const usageName = dequote(cm[3], nameMap);
-      const isRef = !!cm[1];
+      const usageName = dequote(cm[4], nameMap);
+      const isDerived = !!cm[1];
+      const isRef = !!cm[2];
       const usagePos = cm.index;
       const blockEnd = findBlockEnd(clean, cm.index + cm[0].length - 1);
 
@@ -934,6 +937,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const containerNode: SysMLNode = {
         id: usageId, kind: usageKind, name: usageName,
         ...(isRef ? { isRef: true } : {}),
+        ...(isDerived ? { isDerived: true } : {}),
         children: [], attributes: [], connections: [],
         range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
       };
@@ -941,12 +945,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       nodeIndex.set(`${ownerName}.${usageName}`, containerNode);
       if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, containerNode);
 
-      // Composition to owner
+      // Composition to owner (noncomposite for ref features)
       if (ownerNode || usagePkg) {
         const ownerId = ownerNode ? ownerNode.id : usagePkg!.id;
         connections.push({
           id: makeId('owns', `${ownerName}_${usageName}`),
-          sourceId: ownerId, targetId: usageId, kind: 'composition', name: '',
+          sourceId: ownerId, targetId: usageId, kind: isRef ? 'noncomposite' : 'composition', name: '',
         });
       }
     }
@@ -1203,9 +1207,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   USAGE_PATTERN.lastIndex = 0;
 
   while ((match = USAGE_PATTERN.exec(clean)) !== null) {
-    const [, refKw, keyword, rawUsageName, multBefore, typeName, multAfter] = match;
+    const [, derivedKw, refKw, keyword, rawUsageName, multBefore, typeName, multAfter] = match;
     const multiplicity = multBefore || multAfter || undefined;
     const usageName = dequote(rawUsageName, nameMap);
+    const isDerived = !!derivedKw;
     const isRef = !!refKw;
 
     // Skip if preceded by 'in', 'out', 'inout', 'perform', 'exhibit', 'entry', 'exit', 'do' — handled separately
@@ -1233,7 +1238,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Store in owner's attributes for compartment rendering (only for def owners)
     const displayName = multiplicity ? `${usageName}${multiplicity}` : usageName;
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: displayName, type: typeSimple, value: isRef ? `ref ${keyword}` : keyword });
+      ownerNode.attributes.push({ name: displayName, type: typeSimple, value: isRef ? `ref ${keyword}` : keyword, ...(isDerived ? { isDerived: true } : {}) });
     }
 
     // Build the usage SysMLNode
@@ -1249,6 +1254,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       name: usageName,
       qualifiedName: typeSimple,   // reuse qualifiedName to carry the type name
       ...(isRef ? { isRef: true } : {}),
+      ...(isDerived ? { isDerived: true } : {}),
       ...(multiplicity ? { multiplicity } : {}),
       children: [],
       attributes: [],
@@ -1265,14 +1271,14 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
     if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
 
-    // owner ──[composition]──► usage node (only if there's an actual owner)
+    // owner ──[composition/noncomposite]──► usage node (only if there's an actual owner)
     if (ownerNode || usagePkg) {
       const ownerId = ownerNode ? ownerNode.id : usagePkg!.id;
       connections.push({
         id: makeId('owns', `${ownerName}_${usageName}`),
         sourceId: ownerId,
         targetId: usageId,
-        kind: 'composition',
+        kind: isRef ? 'noncomposite' : 'composition',
         name: '',
       });
     }
@@ -1308,8 +1314,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   UNTYPED_USAGE_PATTERN.lastIndex = 0;
 
   while ((match = UNTYPED_USAGE_PATTERN.exec(clean)) !== null) {
-    const [fullMatch, refKw, keyword, rawUsageName] = match;
+    const [fullMatch, derivedKw, refKw, keyword, rawUsageName] = match;
     const usageName = dequote(rawUsageName, nameMap);
+    const isDerived = !!derivedKw;
     const isRef = !!refKw;
 
     // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', 'exhibit', 'entry', 'exit', 'do'
@@ -1342,7 +1349,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
 
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
-      ownerNode.attributes.push({ name: usageName, type: undefined, value: isRef ? `ref ${keyword}` : keyword });
+      ownerNode.attributes.push({ name: usageName, type: undefined, value: isRef ? `ref ${keyword}` : keyword, ...(isDerived ? { isDerived: true } : {}) });
     }
 
     const usageKind = `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` as SysMLNodeKind;
@@ -1356,6 +1363,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: usageKind,
       name: usageName,
       ...(isRef ? { isRef: true } : {}),
+      ...(isDerived ? { isDerived: true } : {}),
       children: [], attributes: [], connections: [],
       range: {
         start: { line: usageLine - 1, character: usageCol - 1 },
@@ -1373,7 +1381,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         id: makeId('owns', `${ownerName}_${usageName}`),
         sourceId: ownerId,
         targetId: usageId,
-        kind: 'composition',
+        kind: isRef ? 'noncomposite' : 'composition',
         name: '',
       });
     }
@@ -1657,11 +1665,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   // ── 2e. Specialization operators on usages: :> (subsets), :>> (redefines), ::> (references) ──
 
-  type SpecOpKind = 'subsetting' | 'redefinition' | 'referencesubsetting';
+  type SpecOpKind = 'subsetting' | 'redefinition' | 'referencesubsetting' | 'crossing';
   const specOpSpecs: [RegExp, string, SpecOpKind, string][] = [
     [SUBSETTING_PATTERN,          ':>',  'subsetting',          '«subsets»'],
     [REDEFINITION_PATTERN,        ':>>', 'redefinition',        '«redefines»'],
     [REFERENCE_SUBSETTING_PATTERN,'::>', 'referencesubsetting', '«references»'],
+    [CROSSING_PATTERN,            '=>',  'crossing',            '«crosses»'],
   ];
 
   for (const [pattern, op, connKind, label] of specOpSpecs) {

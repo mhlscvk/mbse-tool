@@ -838,3 +838,237 @@ describe('Diagnostics', () => {
     expect(diag?.column).toBeGreaterThan(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 11. DERIVED FEATURES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Derived features', () => {
+  it('parses derived attribute with isDerived=true on node', () => {
+    const code = `part def Vehicle { derived attribute speed : Real; }`;
+    const { model } = parse(code);
+    const vehicle = model.nodes.find(n => n.name === 'Vehicle');
+    expect(vehicle).toBeDefined();
+    // The attribute in the definition should have isDerived
+    const speedAttr = vehicle!.attributes.find(a => a.name === 'speed');
+    expect(speedAttr).toBeDefined();
+    expect(speedAttr!.isDerived).toBe(true);
+  });
+
+  it('derived keyword captured in attribute value', () => {
+    const code = `part def Vehicle { derived attribute speed : Real; }`;
+    const { model } = parse(code);
+    // The usage node itself should have isDerived
+    const speedNode = model.nodes.find(n => n.name === 'speed');
+    expect(speedNode).toBeDefined();
+    expect(speedNode!.isDerived).toBe(true);
+  });
+
+  it('non-derived attribute does not have isDerived', () => {
+    const code = `part def Vehicle { attribute mass : Real; }`;
+    const { model } = parse(code);
+    const massNode = model.nodes.find(n => n.name === 'mass');
+    expect(massNode).toBeDefined();
+    expect(massNode!.isDerived).toBeFalsy();
+  });
+
+  it('derived works with ref keyword combined', () => {
+    const code = `part def Vehicle { derived ref part sensor : Sensor; } part def Sensor;`;
+    const { model } = parse(code);
+    const sensorNode = model.nodes.find(n => n.name === 'sensor');
+    expect(sensorNode).toBeDefined();
+    expect(sensorNode!.isDerived).toBe(true);
+    expect(sensorNode!.isRef).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 12. NONCOMPOSITE MEMBERSHIP (ref part)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Noncomposite membership', () => {
+  it('ref part creates noncomposite edge', () => {
+    const code = `part def Vehicle { ref part driver : Person; } part def Person;`;
+    const { model } = parse(code);
+    const driverNode = model.nodes.find(n => n.name === 'driver');
+    expect(driverNode).toBeDefined();
+    expect(driverNode!.isRef).toBe(true);
+    // The composition edge from Vehicle to driver should be noncomposite
+    const ownerEdge = model.connections.find(c =>
+      c.targetId === driverNode!.id && (c.kind === 'composition' || c.kind === 'noncomposite')
+    );
+    expect(ownerEdge).toBeDefined();
+    expect(ownerEdge!.kind).toBe('noncomposite');
+  });
+
+  it('regular part creates composition edge (not noncomposite)', () => {
+    const code = `part def Vehicle { part engine : Engine; } part def Engine;`;
+    const { model } = parse(code);
+    const engineNode = model.nodes.find(n => n.name === 'engine');
+    expect(engineNode).toBeDefined();
+    const ownerEdge = model.connections.find(c =>
+      c.targetId === engineNode!.id && (c.kind === 'composition' || c.kind === 'noncomposite')
+    );
+    expect(ownerEdge).toBeDefined();
+    expect(ownerEdge!.kind).toBe('composition');
+  });
+
+  it('ref attribute creates noncomposite edge', () => {
+    const code = `part def Vehicle { ref attribute color : String; }`;
+    const { model } = parse(code);
+    const colorNode = model.nodes.find(n => n.name === 'color');
+    expect(colorNode).toBeDefined();
+    expect(colorNode!.isRef).toBe(true);
+    const ownerEdge = model.connections.find(c =>
+      c.targetId === colorNode!.id && (c.kind === 'composition' || c.kind === 'noncomposite')
+    );
+    expect(ownerEdge).toBeDefined();
+    expect(ownerEdge!.kind).toBe('noncomposite');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 13. CROSSING OPERATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Crossing operator', () => {
+  it('item x => target creates crossing connection', () => {
+    const code = `part def Vehicle { item fuel; item exhaust => fuel; }`;
+    const { model } = parse(code);
+    const crossingEdge = model.connections.find(c => c.kind === 'crossing');
+    expect(crossingEdge).toBeDefined();
+    expect(crossingEdge!.name).toBe('«crosses»');
+  });
+
+  it('item x crosses target creates crossing connection', () => {
+    const code = `part def Vehicle { item fuel; item exhaust crosses fuel; }`;
+    const { model } = parse(code);
+    const crossingEdge = model.connections.find(c => c.kind === 'crossing');
+    expect(crossingEdge).toBeDefined();
+    expect(crossingEdge!.name).toBe('«crosses»');
+  });
+
+  it('crossing creates proper usage node', () => {
+    const code = `part def Vehicle { item fuel; item exhaust => fuel; }`;
+    const { model } = parse(code);
+    const exhaustNode = model.nodes.find(n => n.name === 'exhaust');
+    expect(exhaustNode).toBeDefined();
+    expect(exhaustNode!.kind).toBe('ItemUsage');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 14. FEATURE CHAINS (dot notation in subsetting/redefinition targets)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Feature chains', () => {
+  it('subsetting with dot notation creates node and stores target in attribute', () => {
+    const code = `part def Family { item parents; item siblings :> parents.siblings; }`;
+    const { model } = parse(code);
+    const siblingsNode = model.nodes.find(n => n.name === 'siblings');
+    expect(siblingsNode).toBeDefined();
+    expect(siblingsNode!.kind).toBe('ItemUsage');
+    // The Family definition should have siblings stored as an attribute
+    const family = model.nodes.find(n => n.name === 'Family');
+    expect(family).toBeDefined();
+    const attr = family!.attributes.find(a => a.name === 'siblings');
+    expect(attr).toBeDefined();
+    // The target should contain the dotted path
+    expect(attr!.type).toContain('siblings');
+  });
+
+  it('redefinition with dot notation creates node', () => {
+    const code = `part def Family { item parents; item descendants :>> parents.siblings.children; }`;
+    const { model } = parse(code);
+    const descendantsNode = model.nodes.find(n => n.name === 'descendants');
+    expect(descendantsNode).toBeDefined();
+    expect(descendantsNode!.kind).toBe('ItemUsage');
+    // Attribute stored in owning definition
+    const family = model.nodes.find(n => n.name === 'Family');
+    expect(family).toBeDefined();
+    const attr = family!.attributes.find(a => a.name === 'descendants');
+    expect(attr).toBeDefined();
+  });
+
+  it('feature chain target is stored in definition attribute with operator', () => {
+    const code = `part def Family { item parents; item siblings :> parents.siblings; }`;
+    const { model } = parse(code);
+    const family = model.nodes.find(n => n.name === 'Family');
+    expect(family).toBeDefined();
+    const attr = family!.attributes.find(a => a.name === 'siblings');
+    expect(attr).toBeDefined();
+    // The value should contain the :> operator marker
+    expect(attr!.value).toContain(':>');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 15. USE CASE USAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Use case usage', () => {
+  it('typed use case usage creates UseCaseUsage node', () => {
+    const code = `use case def DriveVehicle; use case drive : DriveVehicle;`;
+    const { model } = parse(code);
+    const driveNode = model.nodes.find(n => n.name === 'drive');
+    expect(driveNode).toBeDefined();
+    expect(driveNode!.kind).toBe('UseCaseUsage');
+    expect(driveNode!.qualifiedName).toBe('DriveVehicle');
+  });
+
+  it('untyped use case usage creates UseCaseUsage node', () => {
+    const code = `use case drive;`;
+    const { model } = parse(code);
+    const driveNode = model.nodes.find(n => n.name === 'drive');
+    expect(driveNode).toBeDefined();
+    expect(driveNode!.kind).toBe('UseCaseUsage');
+  });
+
+  it('use case with children nested inside', () => {
+    const code = `use case drive { action accelerate; action brake; }`;
+    const { model } = parse(code);
+    const driveNode = model.nodes.find(n => n.name === 'drive');
+    expect(driveNode).toBeDefined();
+    expect(driveNode!.kind).toBe('UseCaseUsage');
+    // Children should exist
+    const accelNode = model.nodes.find(n => n.name === 'accelerate');
+    const brakeNode = model.nodes.find(n => n.name === 'brake');
+    expect(accelNode).toBeDefined();
+    expect(brakeNode).toBeDefined();
+    // Composition edges from use case to children
+    expect(model.connections.some(c =>
+      c.kind === 'composition' && c.sourceId === driveNode!.id && c.targetId === accelNode!.id
+    )).toBe(true);
+    expect(model.connections.some(c =>
+      c.kind === 'composition' && c.sourceId === driveNode!.id && c.targetId === brakeNode!.id
+    )).toBe(true);
+  });
+
+  it('analysis case usage creates AnalysisCaseUsage node', () => {
+    const code = `analysis case def PerfAnalysis; analysis case perf : PerfAnalysis;`;
+    const { model } = parse(code);
+    const perfNode = model.nodes.find(n => n.name === 'perf');
+    expect(perfNode).toBeDefined();
+    expect(perfNode!.kind).toBe('AnalysisCaseUsage');
+  });
+
+  it('verification case usage creates VerificationCaseUsage node', () => {
+    const code = `verification case def MassTest; verification case massCheck : MassTest;`;
+    const { model } = parse(code);
+    const massCheckNode = model.nodes.find(n => n.name === 'massCheck');
+    expect(massCheckNode).toBeDefined();
+    expect(massCheckNode!.kind).toBe('VerificationCaseUsage');
+  });
+
+  it('untyped analysis case usage', () => {
+    const code = `analysis case thermalCheck;`;
+    const { model } = parse(code);
+    expect(model.nodes.find(n => n.name === 'thermalCheck' && n.kind === 'AnalysisCaseUsage')).toBeDefined();
+  });
+
+  it('untyped verification case usage', () => {
+    const code = `verification case stressTest;`;
+    const { model } = parse(code);
+    expect(model.nodes.find(n => n.name === 'stressTest' && n.kind === 'VerificationCaseUsage')).toBeDefined();
+  });
+});
