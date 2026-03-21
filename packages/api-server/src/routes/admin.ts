@@ -6,6 +6,7 @@ import { prisma } from '../db.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import type { AuthRequest } from '../middleware/auth.js';
 import { asyncHandler, BadRequest } from '../lib/errors.js';
+import { generateProjectDisplayId, generateFileDisplayId } from '../lib/id-generator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES_DIR = resolve(__dirname, '../../prisma/examples');
@@ -34,7 +35,7 @@ router.post('/sync-examples', asyncHandler(async (_req: AuthRequest, res) => {
   });
   if (!root) {
     root = await prisma.project.create({
-      data: { name: 'Examples', ownerId: systemUser.id, parentId: null, depth: 0, isSystem: true },
+      data: { name: 'Examples', displayId: generateProjectDisplayId('SYSTEM', '0001'), ownerId: systemUser.id, parentId: null, depth: 0, isSystem: true, projectType: 'SYSTEM' },
     });
   }
 
@@ -52,7 +53,7 @@ router.post('/sync-examples', asyncHandler(async (_req: AuthRequest, res) => {
       await prisma.sysMLFile.deleteMany({ where: { projectId: sub.id } });
     } else {
       sub = await prisma.project.create({
-        data: { name: dirName, ownerId: systemUser.id, parentId: root.id, depth: 1, isSystem: true },
+        data: { name: dirName, displayId: generateProjectDisplayId('SYSTEM', '0001'), ownerId: systemUser.id, parentId: root.id, depth: 1, isSystem: true, projectType: 'SYSTEM' },
       });
     }
 
@@ -61,7 +62,7 @@ router.post('/sync-examples', asyncHandler(async (_req: AuthRequest, res) => {
       const filePath = resolve(dirPath, fileName);
       if (!filePath.startsWith(EXAMPLES_DIR)) return null;
       const content = readFileSync(filePath, 'utf-8');
-      return { name: basename(fileName, '.sysml'), content, size: Buffer.byteLength(content, 'utf-8'), projectId: sub!.id };
+      return { name: basename(fileName, '.sysml'), content, size: Buffer.byteLength(content, 'utf-8'), projectId: sub!.id, displayId: generateFileDisplayId() };
     }).filter(Boolean) as { name: string; content: string; size: number; projectId: string }[];
 
     if (fileData.length > 0) await prisma.sysMLFile.createMany({ data: fileData });

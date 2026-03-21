@@ -13,6 +13,9 @@ import aiChatRoutes from './routes/ai-chat.js';
 import aiKeysRoutes from './routes/ai-keys.js';
 import adminRoutes from './routes/admin.js';
 import bugReportRoutes from './routes/bug-reports.js';
+import startupRoutes from './routes/startups.js';
+import elementLockRoutes from './routes/element-locks.js';
+import notificationRoutes from './routes/notifications.js';
 import { errorHandler } from './middleware/error.js';
 
 const PORT = parseInt(process.env.PORT ?? '3003', 10);
@@ -157,6 +160,9 @@ app.use('/api/ai', aiChatLimiter, express.json({ limit: '2mb' }), aiChatRoutes);
 app.use('/api/ai/keys', apiLimiter, aiKeysRoutes);
 app.use('/api/admin', apiLimiter, adminRoutes);
 app.use('/api/bug-reports', apiLimiter, express.json({ limit: '8mb' }), bugReportRoutes);
+app.use('/api/startups', apiLimiter, startupRoutes);
+app.use('/api/projects/:projectId/element-locks', apiLimiter, elementLockRoutes);
+app.use('/api/notifications', apiLimiter, notificationRoutes);
 
 // MCP endpoint — Streamable HTTP transport for AI client integrations
 // MCP clients (Claude Desktop, Cursor, etc.) are desktop apps, not browsers.

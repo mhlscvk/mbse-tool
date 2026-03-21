@@ -27,43 +27,137 @@ model User {
   mcpTokens       McpToken[]
   aiProviderKeys  AiProviderKey[]
   bugReports      BugReport[]
+  startupMembers  StartupMember[]
+  elementLocks    ElementLock[]
+  sentNotifications     LockNotification[] @relation("NotificationSender")
+  receivedNotifications LockNotification[] @relation("NotificationReceiver")
+  auditLogs       AuditLog[]
 
   @@map("users")
 }
 
-model Project {
-  id          String      @id @default(cuid())
+model Startup {
+  id          String    @id       // e.g. "ENT-NUMERIC-001"
   name        String
-  description String?
-  owner       User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  ownerId     String
-  parentId    String?
-  parent      Project?    @relation("ProjectChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Project[]   @relation("ProjectChildren")
-  depth       Int         @default(0)
-  isSystem    Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  files       SysMLFile[]
+  slug        String    @unique   // URL-safe, e.g. "numeric"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  members     StartupMember[]
+  projects    Project[]
+
+  @@map("startups")
+}
+
+model StartupMember {
+  id          String        @id @default(cuid())
+  startup     Startup       @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  startupId   String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  role        StartupRole   @default(STARTUP_USER)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([startupId, userId])
+  @@index([startupId])
+  @@index([userId])
+  @@map("startup_members")
+}
+
+model Project {
+  id            String      @id @default(cuid())
+  displayId     String      @unique  // e.g. "PRJ-ENT-NUMERIC-X4P72"
+  name          String
+  description   String?
+  projectType   ProjectType @default(USER)
+  owner         User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId       String
+  startup       Startup?    @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  startupId     String?
+  parentId      String?
+  parent        Project?    @relation("ProjectChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Project[]   @relation("ProjectChildren")
+  depth         Int         @default(0)
+  isSystem      Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  files         SysMLFile[]
 
   @@index([ownerId])
   @@index([parentId])
+  @@index([startupId])
   @@map("projects")
 }
 
 model SysMLFile {
   id        String   @id @default(cuid())
+  displayId String   @unique  // e.g. "FIL-8D21K"
   name      String
   content   String   @db.Text
   size      Int
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId String
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   aiChatMessages  AiChatMessage[]
+  elementLocks    ElementLock[]
 
   @@index([projectId])
   @@map("sysml_files")
+}
+
+model ElementLock {
+  id          String    @id @default(cuid())
+  displayId   String    @unique  // e.g. "ELM-54PQ9"
+  fileId      String
+  file        SysMLFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  elementName String    // SysML element identifier (e.g. "Vehicle", "Engine")
+  lockedBy    String
+  user        User      @relation(fields: [lockedBy], references: [id], onDelete: Cascade)
+  lockedAt    DateTime  @default(now())
+  expiresAt   DateTime? // optional auto-expiry
+
+  @@unique([fileId, elementName])
+  @@index([fileId])
+  @@index([lockedBy])
+  @@map("element_locks")
+}
+
+model LockNotification {
+  id          String    @id @default(cuid())
+  displayId   String    @unique  // e.g. "NTF-99321"
+  elementName String
+  projectId   String
+  projectName String    // denormalized for display
+  fileId      String
+  fileName    String    // denormalized for display
+  requesterId String
+  requester   User      @relation("NotificationSender", fields: [requesterId], references: [id], onDelete: Cascade)
+  holderId    String
+  holder      User      @relation("NotificationReceiver", fields: [holderId], references: [id], onDelete: Cascade)
+  message     String?
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([holderId, read])
+  @@index([requesterId])
+  @@map("lock_notifications")
+}
+
+model AuditLog {
+  id          String        @id @default(cuid())
+  projectId   String
+  fileId      String
+  elementName String
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  operation   LockOperation
+  createdAt   DateTime      @default(now())
+
+  @@index([projectId, fileId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model AiUsage {
@@ -153,4 +247,21 @@ model BugReport {
   @@index([userId])
   @@index([status])
   @@map("bug_reports")
+}
+
+enum ProjectType {
+  SYSTEM
+  STARTUP
+  USER
+}
+
+enum StartupRole {
+  SITE_ADMIN
+  STARTUP_ADMIN
+  STARTUP_USER
+}
+
+enum LockOperation {
+  CHECK_OUT
+  CHECK_IN
 }

@@ -9,6 +9,7 @@ import {
   MAX_LINE_PREVIEW_LENGTH,
 } from '../config/constants.js';
 import { NotFound, BadRequest, PayloadTooLarge } from '../lib/errors.js';
+import { generateFileDisplayId } from '../lib/id-generator.js';
 
 // ── Pure business logic — no Express, no MCP SDK ─────────────────────────────
 
@@ -58,8 +59,9 @@ export async function createFile(
 ) {
   const safeName = sanitizeFileName(name);
   const size = assertContentSize(content);
+  const displayId = generateFileDisplayId();
   const file = await prisma.sysMLFile.create({
-    data: { name: safeName, content, size, projectId },
+    data: { name: safeName, content, size, projectId, displayId },
   });
   mcpEvents.emitFileChange({ fileId: file.id, userId, action: 'created' });
   return file;

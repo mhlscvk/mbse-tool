@@ -654,13 +654,24 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Default editor/diagram split 35/65 for better diagram visibility
 - [x] Production deployment (Nginx, SSL, PM2, Hetzner VPS)
 
+**Project Structure & Access Control:**
+- [x] Three project types: System (read-only), Startup (enterprise, team-isolated), User (personal)
+- [x] Startup (Enterprise) model with member management (CRUD, role assignment)
+- [x] Startup roles: Site Admin (global), Startup Admin (per-startup), Startup User (member)
+- [x] Startup isolation: users only see projects from their own startups
+- [x] Custom display IDs for all entities (PRJ-ENT-NUMERIC-X4P72, FIL-8D21K, ELM-54PQ9, NTF-99321)
+- [x] Element-level check-out/check-in (not file-level locking)
+- [x] Lock request notification system (request lock holder to release)
+- [x] Audit logging for all check-out/check-in operations
+- [x] Force check-in for admins (Site Admin / Startup Admin)
+
 ### Planned
 - [ ] LSP autocompletion (syside-languageserver integration)
 - [ ] Sequence and Activity diagram types
 - [ ] Payment and subscription tiers (Stripe)
-- [ ] User roles and access control
 - [ ] Export to PDF/image
-- [ ] Multi-user collaboration
+- [ ] Multi-user real-time collaboration (WebSocket-based)
+- [ ] Element lock status display in diagram UI (available/checked-out/read-only indicators)
 
 ---
 

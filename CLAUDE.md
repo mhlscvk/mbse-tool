@@ -26,16 +26,24 @@ src/
 │   └── schemas.ts         # Shared Zod schemas: email, password, fileName, provider
 ├── lib/
 │   ├── errors.ts          # AppError classes + asyncHandler (eliminates try/catch)
-│   └── auth-helpers.ts    # isAdmin(), assertProjectAccess(), assertWriteAccess()
+│   ├── auth-helpers.ts    # isAdmin(), assertProjectAccess(), assertWriteAccess()
+│   └── id-generator.ts    # Custom display ID generators (PRJ-*, FIL-*, ELM-*, NTF-*)
 ├── services/
-│   └── file-ops.ts        # Unified file CRUD — used by REST routes, AI tools, AND MCP tools
+│   ├── file-ops.ts        # Unified file CRUD — used by REST routes, AI tools, AND MCP tools
+│   ├── startup-ops.ts     # Startup CRUD, member management, access checks
+│   ├── element-lock-ops.ts # Element check-out/check-in with audit logging
+│   ├── notification-ops.ts # Lock request notifications
+│   └── audit-ops.ts       # Audit log queries
 ├── middleware/
 │   ├── auth.ts            # requireAuth, requireAdmin (JWT verification)
 │   └── error.ts           # Global error handler (AppError-aware)
 ├── routes/                # Thin handlers: validate → call service → respond
 │   ├── auth.ts            # Register, login, OAuth, password reset, email verify
-│   ├── projects.ts        # Project CRUD + tree builder
+│   ├── projects.ts        # Project CRUD + tree builder (supports 3 project types)
 │   ├── files.ts           # File CRUD (delegates to file-ops.ts)
+│   ├── startups.ts        # Startup CRUD + member management
+│   ├── element-locks.ts   # Element check-out/check-in + audit log
+│   ├── notifications.ts   # Lock request notifications
 │   ├── ai-chat.ts         # SSE streaming chat with tool-use loop
 │   ├── ai-keys.ts         # Encrypted API key management
 │   ├── mcp.ts             # MCP session management
@@ -78,11 +86,53 @@ src/
 
 PostgreSQL via Prisma ORM. Schema at `packages/api-server/prisma/schema.prisma`.
 
-**Models**: User, Project (recursive tree), SysMLFile, AiUsage, AiChatMessage, McpToken, AiProviderKey
+**Models**: User, Startup, StartupMember, Project (recursive tree), SysMLFile, ElementLock, LockNotification, AuditLog, AiUsage, AiChatMessage, McpToken, AiProviderKey
 
-**Key indexes**: projectId on SysMLFile, userId on AiUsage, token on McpToken
+**Enums**: Role (VIEWER/EDITOR/ADMIN), ProjectType (SYSTEM/STARTUP/USER), StartupRole (SITE_ADMIN/STARTUP_ADMIN/STARTUP_USER), LockOperation (CHECK_OUT/CHECK_IN)
 
-**Migration note**: The `resetToken`/`resetTokenExp` columns were added in migration `20260320120000_add_reset_token_and_indexes`. Run `prisma migrate deploy` when deploying.
+**Key indexes**: projectId on SysMLFile, startupId on Project, fileId+elementName on ElementLock (unique), holderId+read on LockNotification
+
+**Migration history**:
+- `20260315133754_init` — Initial schema
+- `20260317000000_add_email_verify_google_auth` — Email verification + Google OAuth
+- `20260317183818_add_ai_usage_tracking` — AI usage tracking
+- `20260317184703_add_ai_chat_messages` — AI chat messages
+- `20260318120000_add_mcp_tokens` — MCP tokens
+- `20260318150000_add_indexes` — Performance indexes
+- `20260318160000_add_ai_provider_keys` — AI provider key storage
+- `20260320120000_add_reset_token_and_indexes` — Password reset tokens
+- `20260321120000_add_startups_element_locks_project_types` — **Startups, element locks, project types, display IDs, notifications, audit log**
+
+Run `prisma migrate deploy` when deploying.
+
+## Project Types & Access Control
+
+### Three Project Types
+- **SYSTEM**: Read-only for all users, writable by admins only (e.g. Examples)
+- **STARTUP** (Enterprise): Isolated per startup, accessible only to startup members
+- **USER**: Personal projects, accessible only to the owner
+
+### Startup Roles
+- **SITE_ADMIN**: Full access to all startups and projects (maps to User.role=ADMIN)
+- **STARTUP_ADMIN**: Full access within their startup (manage projects, members, force check-in)
+- **STARTUP_USER**: Read all files, edit only checked-out elements
+
+### Element-Level Locking
+- Users check out individual SysML elements (right-click → Check-out)
+- Only one user can hold a lock on an element at a time
+- Non-locked elements are read-only for everyone
+- All check-out/check-in operations are audit-logged
+- Lock request notifications can be sent to the lock holder
+
+### Display IDs
+Custom human-readable IDs for all major entities:
+- Startup: `ENT-NUMERIC-001`
+- Project: `PRJ-ENT-NUMERIC-X4P72` / `PRJ-USR-U145-B9M31` / `PRJ-SYS-0001-A8K29`
+- File: `FIL-8D21K`
+- Element: `ELM-54PQ9`
+- Notification: `NTF-99321`
+
+Internal CUIDs remain the primary keys; display IDs are unique secondary identifiers.
 
 ## Authentication
 
@@ -146,6 +196,8 @@ Commits (chronological):
 2. `bb33968` — Deep audit: fix security vulnerabilities, bugs, and expand test coverage (11 files, +393/-31)
 3. `6fdcee4` — Add architecture plan for easy-to-develop modular refactor
 4. `25d3da6` — Refactor api-server: service layer, shared config, and asyncHandler (18 files, +964/-1142)
+5. `f729a65` — Add CLAUDE.md memory file and update README with new architecture
+6. (latest) — Add project types, startup isolation, element-level locking, display IDs, notifications, audit log
 
 ## Pre-existing TypeScript Warnings
 
@@ -163,3 +215,31 @@ Production at systemodel.com on Hetzner VPS:
 Nginx (80/443, SSL) → api-server (3003) + diagram-service (3002) + lsp-server (3001) + static SPA
 ```
 PM2 manages services. Always use `pm2 start ecosystem.config.cjs` (not `pm2 restart all`) to ensure correct `cwd` for dotenv.
+
+## New API Endpoints (from startup/lock feature)
+
+### Startups
+- `GET /api/startups` — List user's startups (admins see all)
+- `POST /api/startups` — Create startup (admin only)
+- `GET /api/startups/:id` — Get startup details
+- `PATCH /api/startups/:id` — Update startup
+- `DELETE /api/startups/:id` — Delete startup (admin only)
+- `GET /api/startups/:id/members` — List members
+- `POST /api/startups/:id/members` — Add member
+- `PATCH /api/startups/:id/members/:userId` — Update role
+- `DELETE /api/startups/:id/members/:userId` — Remove member
+
+### Element Locks
+- `GET /api/projects/:projectId/element-locks/files/:fileId/locks` — List file locks
+- `GET /api/projects/:projectId/element-locks/files/:fileId/locks/:elementName` — Get lock status
+- `POST /api/projects/:projectId/element-locks/files/:fileId/locks` — Check out element
+- `DELETE /api/projects/:projectId/element-locks/files/:fileId/locks/:elementName` — Check in element
+- `DELETE /api/projects/:projectId/element-locks/files/:fileId/locks/:elementName/force` — Force check-in (admin)
+- `GET /api/projects/:projectId/element-locks/audit-log` — Get audit log
+
+### Notifications
+- `GET /api/notifications` — List notifications
+- `GET /api/notifications/unread-count` — Get unread count
+- `POST /api/notifications` — Send lock request
+- `PATCH /api/notifications/:id/read` — Mark as read
+- `POST /api/notifications/mark-all-read` — Mark all as read

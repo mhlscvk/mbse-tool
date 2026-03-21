@@ -32,3 +32,8 @@ export const MAX_PROJECT_DEPTH = 2;
 // ── Bug Reports ─────────────────────────────────────────────────────────────
 export const MAX_BUG_SCREENSHOT_BYTES = 5 * 1024 * 1024;  // 5 MB
 export const MAX_BUG_REPORTS_PER_HOUR = 5;
+
+// ── Element Locks ───────────────────────────────────────────────────────────
+export const MAX_ELEMENT_NAME_LENGTH = 500;
+export const MAX_NOTIFICATIONS_PER_QUERY = 50;
+export const MAX_AUDIT_LOG_PER_QUERY = 100;
