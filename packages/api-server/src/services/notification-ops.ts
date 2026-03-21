@@ -1,11 +1,17 @@
 import { prisma } from '../db.js';
-import { NotFound } from '../lib/errors.js';
+import { NotFound, BadRequest, Forbidden } from '../lib/errors.js';
 import { generateNotificationDisplayId } from '../lib/id-generator.js';
+import { MAX_NOTIFICATIONS_PER_QUERY } from '../config/constants.js';
+import { assertProjectAccess } from '../lib/auth-helpers.js';
+
+/** Cooldown: prevent duplicate notifications for the same element from the same requester within 5 minutes. */
+const NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000;
 
 export async function createLockNotification(
   elementName: string,
   fileId: string,
   requesterId: string,
+  requesterRole?: string,
 ) {
   // Find the lock holder
   const lock = await prisma.elementLock.findUnique({
@@ -13,12 +19,36 @@ export async function createLockNotification(
   });
   if (!lock) throw NotFound('Element lock');
 
-  // Get file and project info
+  // Prevent self-notification
+  if (lock.lockedBy === requesterId) {
+    throw BadRequest('Cannot send a lock request for an element you hold');
+  }
+
+  // Get file and project info — also validates the file exists
   const file = await prisma.sysMLFile.findUnique({
     where: { id: fileId },
     include: { project: { select: { id: true, name: true } } },
   });
   if (!file) throw NotFound('File');
+
+  // Verify requester has access to the project this file belongs to
+  const access = await assertProjectAccess(file.project.id, requesterId, requesterRole);
+  if (!access.allowed) throw NotFound('File');
+
+  // Deduplication: prevent spamming the same notification
+  const cooldownCutoff = new Date(Date.now() - NOTIFICATION_COOLDOWN_MS);
+  const recent = await prisma.lockNotification.findFirst({
+    where: {
+      fileId,
+      elementName,
+      requesterId,
+      holderId: lock.lockedBy,
+      createdAt: { gte: cooldownCutoff },
+    },
+  });
+  if (recent) {
+    throw BadRequest('A lock request for this element was already sent recently');
+  }
 
   const displayId = generateNotificationDisplayId();
 
@@ -50,7 +80,7 @@ export async function listNotifications(userId: string, unreadOnly = false) {
       requester: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: 'desc' },
-    take: 50,
+    take: MAX_NOTIFICATIONS_PER_QUERY,
   });
 }
 

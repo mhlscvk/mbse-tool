@@ -159,12 +159,19 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 - File size: 10MB max, file names sanitized, search bounded (100 files, 50 results, 200-char lines)
 - MCP sessions: max 5/user, 500 total, 24h TTL
 - Error middleware: never leaks internal details (Prisma, stack traces)
+- Element locks: TOCTOU prevention via unique constraint catch (P2002), file-to-project validation
+- Element name sanitization: control characters stripped, length enforced (max 500)
+- Notification spam prevention: 5-minute cooldown dedup per requester/element/holder
+- Self-notification prevention: cannot request lock on element you hold
+- Notification access control: project membership verified before sending lock request
+- Startup ID race condition: retry loop with P2002 catch for concurrent creates
+- Audit log queries capped (100 entries max) to prevent resource exhaustion
 
 ## Testing
 
-**Total: 598 tests** (all passing)
+**Total: 609 tests** (all passing)
 
-- `api-server`: 121 tests across 10 suites
+- `api-server`: 132 tests across 10 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
   - `ai/tools.test.ts` (12): tool execution, access control, size limits, name sanitization
   - `ai/providers.test.ts` (5): tool schema validation
@@ -173,8 +180,8 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
   - `middleware/csrf.test.ts` (13): Content-Type enforcement for all methods
   - `lib/id-generator.test.ts` (16): display ID formats, uniqueness, truncation, ambiguous char exclusion
   - `services/startup-ops.test.ts` (23): startup CRUD, member management, role-based access, slug conflicts
-  - `services/element-lock-ops.test.ts` (12): check-out/check-in, force check-in, audit logging, lock status
-  - `services/notification-ops.test.ts` (10): create/list/read notifications, unread count, holder validation
+  - `services/element-lock-ops.test.ts` (18): check-out/check-in, force check-in, TOCTOU (P2002), file-project validation, element name sanitization, audit logging
+  - `services/notification-ops.test.ts` (15): create/list/read notifications, self-notification prevention, cooldown dedup, project access check, unread count
 - `diagram-service`: 477 tests across 13 suites (parser, transformer, view filters, WebSocket, etc.)
 
 Run tests:

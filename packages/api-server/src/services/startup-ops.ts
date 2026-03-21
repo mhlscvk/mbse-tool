@@ -5,24 +5,42 @@ import type { StartupRole } from '@prisma/client';
 
 // ── Startup CRUD ────────────────────────────────────────────────────────────
 
+/** Max retries for startup ID collision (count-based sequence race). */
+const MAX_STARTUP_ID_RETRIES = 5;
+
 export async function createStartup(name: string, slug: string, createdByUserId: string) {
   const existing = await prisma.startup.findUnique({ where: { slug } });
   if (existing) throw BadRequest('Startup slug already exists');
 
-  // Find next sequence number
-  const count = await prisma.startup.count();
-  const startupId = generateStartupId(slug, count + 1);
+  // Use retry loop to handle race condition on count-based sequence number.
+  // If two concurrent creates both read the same count, the unique PK constraint
+  // will reject one — we catch that and retry with a higher sequence.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < MAX_STARTUP_ID_RETRIES; attempt++) {
+    const count = await prisma.startup.count();
+    const startupId = generateStartupId(slug, count + 1 + attempt);
 
-  const startup = await prisma.startup.create({
-    data: { id: startupId, name, slug },
-  });
+    try {
+      const startup = await prisma.startup.create({
+        data: { id: startupId, name, slug },
+      });
 
-  // Creator becomes STARTUP_ADMIN
-  await prisma.startupMember.create({
-    data: { startupId: startup.id, userId: createdByUserId, role: 'STARTUP_ADMIN' },
-  });
+      // Creator becomes STARTUP_ADMIN
+      await prisma.startupMember.create({
+        data: { startupId: startup.id, userId: createdByUserId, role: 'STARTUP_ADMIN' },
+      });
 
-  return startup;
+      return startup;
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
+        lastErr = err;
+        continue; // retry with next sequence number
+      }
+      throw err; // non-duplicate error, propagate
+    }
+  }
+
+  throw BadRequest('Could not generate unique startup ID after retries');
 }
 
 export async function getStartup(startupId: string) {

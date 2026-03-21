@@ -33,6 +33,7 @@ router.post('/', asyncHandler(async (req: AuthRequest, res) => {
     body.elementName,
     body.fileId,
     req.userId!,
+    req.userRole,
   );
   res.status(201).json({ data: notification });
 }));

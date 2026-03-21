@@ -6,6 +6,7 @@ vi.mock('../db.js', () => ({
     sysMLFile: { findUnique: vi.fn() },
     lockNotification: {
       create: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -19,7 +20,12 @@ vi.mock('../lib/id-generator.js', () => ({
   generateNotificationDisplayId: vi.fn(() => 'NTF-TEST1'),
 }));
 
+vi.mock('../lib/auth-helpers.js', () => ({
+  assertProjectAccess: vi.fn(() => Promise.resolve({ allowed: true, isSystem: false, isAdmin: false })),
+}));
+
 import { prisma } from '../db.js';
+import { assertProjectAccess } from '../lib/auth-helpers.js';
 import {
   createLockNotification,
   listNotifications,
@@ -28,6 +34,8 @@ import {
   getUnreadCount,
 } from './notification-ops.js';
 
+const mockAssertProjectAccess = assertProjectAccess as ReturnType<typeof vi.fn>;
+
 const mock = prisma as any;
 
 beforeEach(() => {
@@ -35,12 +43,16 @@ beforeEach(() => {
 });
 
 describe('createLockNotification', () => {
+  const lockHolder = { lockedBy: 'holder1' };
+  const file = {
+    id: 'f1', name: 'Vehicle.sysml',
+    project: { id: 'p1', name: 'MyProject' },
+  };
+
   it('creates a notification for the lock holder', async () => {
-    mock.elementLock.findUnique.mockResolvedValue({ lockedBy: 'holder1' });
-    mock.sysMLFile.findUnique.mockResolvedValue({
-      id: 'f1', name: 'Vehicle.sysml',
-      project: { id: 'p1', name: 'MyProject' },
-    });
+    mock.elementLock.findUnique.mockResolvedValue(lockHolder);
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mock.lockNotification.findFirst.mockResolvedValue(null); // no recent duplicate
     mock.lockNotification.create.mockResolvedValue({
       id: 'n1', displayId: 'NTF-TEST1', elementName: 'Engine',
       holderId: 'holder1', requesterId: 'req1',
@@ -67,9 +79,45 @@ describe('createLockNotification', () => {
   });
 
   it('throws when file not found', async () => {
-    mock.elementLock.findUnique.mockResolvedValue({ lockedBy: 'holder1' });
+    mock.elementLock.findUnique.mockResolvedValue(lockHolder);
     mock.sysMLFile.findUnique.mockResolvedValue(null);
     await expect(createLockNotification('Engine', 'f1', 'req1')).rejects.toThrow('not found');
+  });
+
+  it('prevents self-notification (requester is the lock holder)', async () => {
+    mock.elementLock.findUnique.mockResolvedValue({ lockedBy: 'req1' });
+    await expect(createLockNotification('Engine', 'f1', 'req1')).rejects.toThrow('element you hold');
+  });
+
+  it('prevents duplicate notifications within cooldown period', async () => {
+    mock.elementLock.findUnique.mockResolvedValue(lockHolder);
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mock.lockNotification.findFirst.mockResolvedValue({ id: 'existing' }); // recent duplicate exists
+
+    await expect(createLockNotification('Engine', 'f1', 'req1')).rejects.toThrow('already sent recently');
+  });
+
+  it('throws when requester has no access to the file project', async () => {
+    mock.elementLock.findUnique.mockResolvedValue(lockHolder);
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mockAssertProjectAccess.mockResolvedValueOnce({ allowed: false, isSystem: false, isAdmin: false });
+
+    await expect(createLockNotification('Engine', 'f1', 'req1')).rejects.toThrow('not found');
+  });
+
+  it('allows notification after cooldown period (no recent found)', async () => {
+    mock.elementLock.findUnique.mockResolvedValue(lockHolder);
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mock.lockNotification.findFirst.mockResolvedValue(null); // no recent duplicate
+    mock.lockNotification.create.mockResolvedValue({
+      id: 'n2', displayId: 'NTF-TEST1', elementName: 'Engine',
+      holderId: 'holder1', requesterId: 'req1',
+      requester: { id: 'req1', name: 'Alice', email: 'alice@test.com' },
+      holder: { id: 'holder1', name: 'Bob', email: 'bob@test.com' },
+    });
+
+    const result = await createLockNotification('Engine', 'f1', 'req1');
+    expect(result.id).toBe('n2');
   });
 });
 
@@ -88,6 +136,14 @@ describe('listNotifications', () => {
     await listNotifications('u1', true);
     expect(mock.lockNotification.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { holderId: 'u1', read: false },
+    }));
+  });
+
+  it('limits results to MAX_NOTIFICATIONS_PER_QUERY', async () => {
+    mock.lockNotification.findMany.mockResolvedValue([]);
+    await listNotifications('u1');
+    expect(mock.lockNotification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 50, // MAX_NOTIFICATIONS_PER_QUERY
     }));
   });
 });
