@@ -625,7 +625,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 525 vitest tests across 19 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers)
+- [x] Automated tests: 598 vitest tests across 23 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 30 files across 8 subprojects)
@@ -691,7 +691,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (525 unit tests across 19 suites) + 36 live penetration tests |
+| Testing | Vitest (598 unit tests across 23 suites) + 36 live penetration tests |
 
 ---
 
@@ -706,7 +706,7 @@ pnpm --filter @systemodel/diagram-service test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 525 tests across 19 test suites:
+**Coverage:** 598 tests across 23 test suites:
 
 - **Parser tests** (109): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers, derived features, noncomposite membership, crossing operator, feature chains, use case/analysis case/verification case usages
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
@@ -723,13 +723,17 @@ cd packages/diagram-service && pnpm test:watch
 - **Theme store tests** (20): dark/light theme definitions, key completeness, toggle/setMode operations, invalid mode rejection, CSS color format validation, XSS vector scanning, security merge validation
 - **Recent files store tests** (13): add/remove/clear operations, 10-entry cap, deduplication, CUID ID acceptance, path traversal rejection, XSS ID rejection, special character rejection
 
-**API Server** (60 tests across 6 suites):
+**API Server** (121 tests across 10 suites):
 - **AI encryption tests** (14): AES-256-GCM encrypt/decrypt round-trip, ciphertext tampering detection, IV uniqueness, key masking format, empty/special character handling
 - **AI tools tests** (12): tool execution with mocked Prisma, access control enforcement, 10MB content size limits, file name sanitization, search query bounds, unknown tool handling
 - **AI providers tests** (5): tool schema validation, required parameter enforcement across all providers
 - **Auth middleware tests** (12): JWT verification, missing/malformed tokens, expired tokens, wrong secret, role extraction, requireAdmin enforcement
 - **Error middleware tests** (4): ZodError → 400, AppError status propagation, 500+ error message sanitization, internal detail leakage prevention
 - **CSRF middleware tests** (13): Content-Type enforcement for POST/PUT/PATCH/DELETE, DELETE-without-body passthrough, MCP endpoint exemption, text/event-stream allowance
+- **ID generator tests** (16): display ID formats (PRJ/FIL/ELM/NTF), uniqueness verification, owner ref truncation, ambiguous character exclusion (I/O/0/1), startup ID sequencing
+- **Startup ops tests** (23): startup CRUD, member add/update/remove, slug conflict detection, role-based access (SITE_ADMIN/STARTUP_ADMIN/STARTUP_USER), write access enforcement
+- **Element lock ops tests** (12): check-out/check-in lifecycle, exclusive locking, same-user re-checkout rejection, cross-user lock blocking, force check-in, audit log creation, lock status queries
+- **Notification ops tests** (10): lock request creation, holder/requester validation, list/filter notifications, mark read, mark all read, unread count
 
 ---
 

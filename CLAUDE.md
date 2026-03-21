@@ -162,15 +162,19 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 
 ## Testing
 
-**Total: 537 tests** (all passing)
+**Total: 598 tests** (all passing)
 
-- `api-server`: 60 tests across 6 suites
+- `api-server`: 121 tests across 10 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
   - `ai/tools.test.ts` (12): tool execution, access control, size limits, name sanitization
   - `ai/providers.test.ts` (5): tool schema validation
   - `middleware/auth.test.ts` (12): JWT validation, expired tokens, role checks
   - `middleware/error.test.ts` (4): Zod errors, AppError, info leakage prevention
   - `middleware/csrf.test.ts` (13): Content-Type enforcement for all methods
+  - `lib/id-generator.test.ts` (16): display ID formats, uniqueness, truncation, ambiguous char exclusion
+  - `services/startup-ops.test.ts` (23): startup CRUD, member management, role-based access, slug conflicts
+  - `services/element-lock-ops.test.ts` (12): check-out/check-in, force check-in, audit logging, lock status
+  - `services/notification-ops.test.ts` (10): create/list/read notifications, unread count, holder validation
 - `diagram-service`: 477 tests across 13 suites (parser, transformer, view filters, WebSocket, etc.)
 
 Run tests:
