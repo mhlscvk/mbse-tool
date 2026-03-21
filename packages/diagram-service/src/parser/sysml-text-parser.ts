@@ -2533,14 +2533,37 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const pre = clean.slice(Math.max(0, match.index - 13), match.index);
     if (/\bsuccession\s+$/.test(pre)) continue;
     const [, flowName, payload, rawFrom, rawTo] = match;
-    const sourceNode = resolveFlowEnd(dequote(rawFrom, nameMap));
-    const targetNode = resolveFlowEnd(dequote(rawTo, nameMap));
+    const fromStr = dequote(rawFrom, nameMap);
+    const toStr = dequote(rawTo, nameMap);
+    const sourceNode = resolveFlowEnd(fromStr);
+    const targetNode = resolveFlowEnd(toStr);
     if (!sourceNode || !targetNode) continue;
-    const label = payload ? `«flow» of ${simpleName(payload)}` : (flowName ? `«flow» ${flowName}` : '«flow»');
+    const fromParts2 = fromStr.split('.');
+    const toParts2 = toStr.split('.');
+    const hasPortEndpoints = fromParts2.length > 1 && toParts2.length > 1;
+    // Label: keep payload/name labels; skip generic «flow» when pins already show item names
+    let label: string | undefined;
+    if (payload) {
+      label = `«flow» of ${simpleName(payload)}`;
+    } else if (flowName) {
+      label = `«flow» ${flowName}`;
+    } else if (hasPortEndpoints) {
+      label = undefined; // pins show item names, no need for redundant label
+    } else {
+      label = '«flow»';
+    }
+    const flowStart = lineCol(source, match.index);
+    const flowEnd = lineCol(source, match.index + match[0].length);
     connections.push({
       id: makeId('flow', `${sourceNode.id}_${targetNode.id}_${match.index}`),
       sourceId: sourceNode.id, targetId: targetNode.id,
       kind: 'flow', name: label,
+      sourcePort: hasPortEndpoints ? fromParts2.slice(1).join('.') : undefined,
+      targetPort: hasPortEndpoints ? toParts2.slice(1).join('.') : undefined,
+      range: {
+        start: { line: flowStart.line - 1, character: flowStart.column - 1 },
+        end: { line: flowEnd.line - 1, character: flowEnd.column - 1 },
+      },
     });
   }
 

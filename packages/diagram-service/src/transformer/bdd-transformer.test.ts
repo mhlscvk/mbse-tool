@@ -152,3 +152,180 @@ describe('Transformer: empty/edge cases', () => {
     expect(nodes.length).toBe(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AFV: pin cloning, flow retargeting, compartment hiding
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function afvPipeline(code: string) {
+  const { model } = parseSysMLText('test://afv', code);
+  const diagram = transformToBDD(model, 'action-flow');
+  const nodes = diagram.children.filter((c): c is SNode => c.type === 'node');
+  const edges = diagram.children.filter((c): c is SEdge => c.type === 'edge');
+  return { nodes, edges, diagram };
+}
+
+const AFV_CODE = `package ActionFlow {
+  action def GenerateTorque {
+    in item engineTorque : Torque;
+    in item fuelCmd : FuelCmd;
+  }
+  action def AmplifyTorque {
+    in item engineTorque : Torque;
+    out item transmissionTorque : Torque;
+  }
+  action def TransferTorque {
+    in item transmissionTorque : Torque;
+    out item driveshaftTorque : Torque;
+  }
+  action providePower : ProvidePower {
+    action generateTorque : GenerateTorque;
+    action amplifyTorque : AmplifyTorque;
+    action transferTorque : TransferTorque;
+    flow generateTorque.engineTorque to amplifyTorque.engineTorque;
+    flow amplifyTorque.transmissionTorque to transferTorque.transmissionTorque;
+  }
+}`;
+
+describe('AFV: pin cloning from definitions into usages', () => {
+  it('clones directed items from action defs into action usages as pins', () => {
+    const { nodes } = afvPipeline(AFV_CODE);
+    const pins = nodes.filter(n => {
+      const css = n.cssClasses?.[0];
+      return css === 'actionin' || css === 'actionout' || css === 'actioninout';
+    });
+    expect(pins.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('cloned in-pins get actionin cssClass', () => {
+    const { nodes } = afvPipeline(AFV_CODE);
+    const inPins = nodes.filter(n => n.cssClasses?.[0] === 'actionin');
+    expect(inPins.length).toBeGreaterThanOrEqual(3);
+    // Each in-pin should have direction data
+    for (const pin of inPins) {
+      expect(pin.data?.direction).toBe('in');
+    }
+  });
+
+  it('cloned out-pins get actionout cssClass', () => {
+    const { nodes } = afvPipeline(AFV_CODE);
+    const outPins = nodes.filter(n => n.cssClasses?.[0] === 'actionout');
+    expect(outPins.length).toBeGreaterThanOrEqual(2);
+    for (const pin of outPins) {
+      expect(pin.data?.direction).toBe('out');
+    }
+  });
+
+  it('cloned pins are small (16x16)', () => {
+    const { nodes } = afvPipeline(AFV_CODE);
+    const pins = nodes.filter(n => {
+      const css = n.cssClasses?.[0];
+      return css === 'actionin' || css === 'actionout';
+    });
+    for (const pin of pins) {
+      expect(pin.size.width).toBe(16);
+      expect(pin.size.height).toBe(16);
+    }
+  });
+
+  it('cloned pins are connected to parent usage via composition', () => {
+    const { edges, nodes } = afvPipeline(AFV_CODE);
+    const pins = nodes.filter(n => n.cssClasses?.[0] === 'actionin' || n.cssClasses?.[0] === 'actionout');
+    for (const pin of pins) {
+      const compEdge = edges.find(e => e.cssClasses?.[0] === 'composition' && e.targetId === pin.id);
+      expect(compEdge).toBeDefined();
+    }
+  });
+
+  it('does not duplicate pins if usage already has own params', () => {
+    const code = `package P {
+      action def A { in item x : T; }
+      action b : A { in item x : T; }
+    }`;
+    const { nodes } = afvPipeline(code);
+    // Should have exactly one in-pin for x, not two
+    const pins = nodes.filter(n => n.cssClasses?.[0] === 'actionin');
+    const xPins = pins.filter(n => n.children.some(c => c.text.includes('x')));
+    expect(xPins.length).toBe(1);
+  });
+});
+
+describe('AFV: flow retargeting to pins', () => {
+  it('flow edges connect pin-to-pin, not action-to-action', () => {
+    const { edges } = afvPipeline(AFV_CODE);
+    const flows = edges.filter(e => e.cssClasses?.[0] === 'flow');
+    expect(flows.length).toBe(2);
+    for (const flow of flows) {
+      // Source and target should be pin node IDs (contain __param__)
+      expect(flow.sourceId).toContain('__param__');
+      expect(flow.targetId).toContain('__param__');
+    }
+  });
+
+  it('flow edges have no label when connecting pin-to-pin', () => {
+    const { edges } = afvPipeline(AFV_CODE);
+    const flows = edges.filter(e => e.cssClasses?.[0] === 'flow');
+    for (const flow of flows) {
+      // No label children (pin names are shown on the pins themselves)
+      expect(flow.children.length).toBe(0);
+    }
+  });
+
+  it('flow edges carry source range for click navigation', () => {
+    const { edges } = afvPipeline(AFV_CODE);
+    const flows = edges.filter(e => e.cssClasses?.[0] === 'flow');
+    for (const flow of flows) {
+      expect(flow.data?.range).toBeDefined();
+      const range = flow.data!.range as { start: { line: number }; end: { line: number } };
+      expect(range.start.line).toBeGreaterThanOrEqual(0);
+      expect(range.end.line).toBeGreaterThanOrEqual(range.start.line);
+    }
+  });
+});
+
+describe('AFV: compartment hiding for definitions', () => {
+  it('action definitions hide directed items from compartments', () => {
+    const { nodes } = afvPipeline(AFV_CODE);
+    const genDef = nodes.find(n =>
+      n.cssClasses?.[0] === 'actiondefinition' &&
+      n.children.some(c => c.text === 'GenerateTorque')
+    );
+    expect(genDef).toBeDefined();
+    // Should NOT have usage labels for in/out items
+    const usageLabels = genDef!.children.filter(c => c.id.includes('__usage__'));
+    expect(usageLabels.length).toBe(0);
+  });
+
+  it('non-AFV view keeps directed items in definition compartments', () => {
+    const { model } = parseSysMLText('test://gv', AFV_CODE);
+    const diagram = transformToBDD(model, 'general');
+    const nodes = diagram.children.filter((c): c is SNode => c.type === 'node');
+    const genDef = nodes.find(n =>
+      n.cssClasses?.[0] === 'actiondefinition' &&
+      n.children.some(c => c.text === 'GenerateTorque')
+    );
+    expect(genDef).toBeDefined();
+    const usageLabels = genDef!.children.filter(c => c.id.includes('__usage__'));
+    expect(usageLabels.length).toBeGreaterThan(0);
+  });
+});
+
+describe('AFV: flow with payload keeps label', () => {
+  it('flow of Payload keeps «flow» label even with pin endpoints', () => {
+    const code = `package P {
+      item def Fuel;
+      action def T { out item fuelOut : Fuel; }
+      action def E { in item fuelIn : Fuel; }
+      action p {
+        action tank : T;
+        action engine : E;
+        flow of Fuel from tank.fuelOut to engine.fuelIn;
+      }
+    }`;
+    const { edges } = afvPipeline(code);
+    const flows = edges.filter(e => e.cssClasses?.[0] === 'flow');
+    expect(flows.length).toBe(1);
+    expect(flows[0].children.length).toBe(1);
+    expect(flows[0].children[0].text).toContain('Fuel');
+  });
+});

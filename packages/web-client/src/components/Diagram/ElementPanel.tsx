@@ -176,7 +176,7 @@ function getEdgeKind(edge: SEdge): string {
 
 function getEdgeLabel(edge: SEdge, nodeIndex: Map<string, string>): string {
   const edgeLabel = edge.children[0]?.text;
-  if (edgeLabel && edgeLabel !== '' && edgeLabel !== '«flow»' && !edgeLabel.includes('→')) {
+  if (edgeLabel && edgeLabel !== '' && edgeLabel !== '\u00ABflow\u00BB' && !edgeLabel.includes('\u2192')) {
     return edgeLabel;
   }
   const src = nodeIndex.get(edge.sourceId) ?? edge.sourceId.split('__').pop() ?? '?';

@@ -111,6 +111,12 @@ export interface SysMLConnection {
       | 'satisfy' | 'verify' | 'allocate' | 'bind' | 'annotate'
       | 'successionflow' | 'message';
   name?: string;
+  /** Item/port name on the source end (e.g., "engineTorque" from "action.engineTorque") */
+  sourcePort?: string;
+  /** Item/port name on the target end (e.g., "engineTorque" from "action.engineTorque") */
+  targetPort?: string;
+  /** Source range for navigating to the statement in the editor */
+  range?: SourceRange;
 }
 
 export interface SourceRange {

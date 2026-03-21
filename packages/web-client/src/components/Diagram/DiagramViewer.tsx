@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import ELKModule from 'elkjs/lib/elk.bundled.js';
 import type { SModelRoot, SNode, SEdge, ViewType } from '@systemodel/shared-types';
+import { getViewConfig } from '../../config/view-config.js';
 import { useLocalStorage } from '../../hooks/useLocalStorage.js';
 import { useTheme } from '../../store/theme.js';
 
@@ -315,7 +316,8 @@ export default function DiagramViewer({
   const svgLegendText = isDark ? '#ccc' : '#333';
   // IV is always nested per SysML v2 spec (Section 9.2.20, 8.2.3.11):
   // "Default compartment for a part" — nested features as nested nodes with boundary ports
-  const effectiveViewMode: 'nested' | 'tree' = viewType === 'interconnection' ? 'nested' : viewMode;
+  const effectiveViewMode: 'nested' | 'tree' = viewMode;
+  const vcfg = useMemo(() => getViewConfig(viewType), [viewType]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -431,13 +433,9 @@ export default function DiagramViewer({
       return { w: override.w, h: Math.max(override.h, node.size.height) };
     }
 
-    // In Interconnection View, port usages are small boundary squares
+    // Small boundary squares only in nested mode (when configured for this view)
     const css = node.cssClasses?.[0];
-    if (viewType === 'interconnection' && css && PORT_CSS.has(css)) {
-      return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
-    }
-    // In Action Flow View, port usages + action parameters are small boundary squares
-    if (viewType === 'action-flow' && css && (PARAM_CSS.has(css) || PORT_CSS.has(css))) {
+    if (effectiveViewMode === 'nested' && css && vcfg.pinCssClasses.has(css)) {
       return { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE };
     }
 
@@ -551,6 +549,16 @@ export default function DiagramViewer({
           const arr = flowEdgesByParent.get(srcParent) ?? [];
           arr.push({ id: e.id, sources: [e.sourceId], targets: [e.targetId] });
           flowEdgesByParent.set(srcParent, arr);
+        } else if (srcParent && tgtParent && srcParent !== tgtParent) {
+          // Pin-to-pin flow: lift to action-usage-to-action-usage for layout ordering
+          // srcParent and tgtParent are sibling action usages — find their common grandparent
+          const srcGrand = effectiveParent(srcParent);
+          const tgtGrand = effectiveParent(tgtParent);
+          if (srcGrand && srcGrand === tgtGrand) {
+            const arr = flowEdgesByParent.get(srcGrand) ?? [];
+            arr.push({ id: `${e.id}__layout`, sources: [srcParent], targets: [tgtParent] });
+            flowEdgesByParent.set(srcGrand, arr);
+          }
         }
       }
 
@@ -568,23 +576,33 @@ export default function DiagramViewer({
         if (childIds.length > 0) {
           const isPkgNode = cssClass === 'package';
           const isBehavioural = BEHAVIOURAL_KINDS.has(cssClass);
+          // Check if all children are small pins (actionin/actionout/actioninout/portusage)
+          const allChildrenArePins = vcfg.compactPinContainers && childIds.every(cId => {
+            const cn = nodeMap.get(cId);
+            const cc = cn?.cssClasses?.[0] ?? '';
+            return vcfg.pinCssClasses.has(cc);
+          });
           // Use DOWN layout for packages, behavioural, and containers with 3+ children
           // (RIGHT direction causes horizontal cramming with many children)
           const isDownLayout = isPkgNode || isBehavioural || childIds.length >= 3;
-          const minW = Math.max(w, 140);
-          const minH = Math.max(h, isPkgNode ? 80 : 70);
+          const minW = allChildrenArePins ? Math.max(w, 80) : Math.max(w, 140);
+          const minH = allChildrenArePins ? Math.max(h, 40) : Math.max(h, isPkgNode ? 80 : 70);
 
           // Collect internal flow edges for behavioural containers (successions)
           const internalEdges = isBehavioural ? (flowEdgesByParent.get(nodeId) ?? []) : [];
 
+          const padTop = isPkgNode ? 48 : allChildrenArePins ? 30 : isBehavioural ? 50 : 52;
+          const padSide = isPkgNode ? 20 : allChildrenArePins ? 10 : isBehavioural ? 24 : 20;
+          const padBottom = isPkgNode ? 20 : allChildrenArePins ? 10 : 20;
+
           const result = {
             id: nodeId,
             layoutOptions: {
-              'elk.padding': `[top=${isPkgNode ? 48 : isBehavioural ? 50 : 52},left=${isPkgNode ? 20 : isBehavioural ? 24 : 20},bottom=${isPkgNode ? 20 : 20},right=${isPkgNode ? 20 : isBehavioural ? 24 : 20}]`,
+              'elk.padding': `[top=${padTop},left=${padSide},bottom=${padBottom},right=${padSide}]`,
               'elk.algorithm': 'layered',
               'elk.direction': isDownLayout ? 'DOWN' : 'RIGHT',
-              'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? '24' : '24',
-              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? '32' : '30',
+              'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? String(vcfg.behavioralNodeSpacing) : '24',
+              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? String(vcfg.behavioralLayerSpacing) : '30',
               'elk.edgeRouting': 'ORTHOGONAL',
               'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
               'elk.nodeSize.constraints': 'MINIMUM_SIZE',
@@ -686,75 +704,39 @@ export default function DiagramViewer({
       }
       for (const child of result.children ?? []) collectPos(child, 0, 0);
 
-      // In Interconnection View, snap port nodes to parent boundary
-      if (viewType === 'interconnection') {
+      // Snap pin nodes to parent boundary (nested mode only, config-driven)
+      if (effectiveViewMode === 'nested' && vcfg.pinCssClasses.size > 0) {
         const half = PORT_BORDER_SIZE / 2;
-        for (const n of nodes) {
-          if (!PORT_CSS.has(n.cssClasses?.[0] ?? '')) continue;
-          const pid = parentOf.get(n.id);
-          if (!pid) continue;
-          const parentPos = newPositions.get(pid);
-          const parentSz = newIbdSizes.get(pid);
-          const portPos = newPositions.get(n.id);
-          if (!parentPos || !parentSz || !portPos) continue;
-
-          // Determine which parent edge the port center is closest to
-          const portCx = portPos.x + half;
-          const portCy = portPos.y + half;
-          const dLeft   = Math.abs(portCx - parentPos.x);
-          const dRight  = Math.abs(portCx - (parentPos.x + parentSz.w));
-          const dTop    = Math.abs(portCy - parentPos.y);
-          const dBottom = Math.abs(portCy - (parentPos.y + parentSz.h));
-          const minD = Math.min(dLeft, dRight, dTop, dBottom);
-
-          // Snap port to straddle that edge (half in, half out)
-          if (minD === dLeft) {
-            newPositions.set(n.id, { x: parentPos.x - half, y: portCy - half });
-          } else if (minD === dRight) {
-            newPositions.set(n.id, { x: parentPos.x + parentSz.w - half, y: portCy - half });
-          } else if (minD === dTop) {
-            newPositions.set(n.id, { x: portCx - half, y: parentPos.y - half });
-          } else {
-            newPositions.set(n.id, { x: portCx - half, y: parentPos.y + parentSz.h - half });
-          }
-          newIbdSizes.set(n.id, { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE });
-        }
-      }
-
-      // In Action Flow View, snap parameter nodes to parent boundary
-      // Per spec convention: in params on LEFT, out params on RIGHT, inout on nearest edge
-      if (viewType === 'action-flow') {
-        const half = PORT_BORDER_SIZE / 2;
+        const pp = vcfg.pinPlacement;
         for (const n of nodes) {
           const css = n.cssClasses?.[0] ?? '';
-          if (!PARAM_CSS.has(css) && !PORT_CSS.has(css)) continue;
+          if (!vcfg.pinCssClasses.has(css)) continue;
           const pid = parentOf.get(n.id);
           if (!pid) continue;
           const parentPos = newPositions.get(pid);
           const parentSz = newIbdSizes.get(pid);
-          const paramPos = newPositions.get(n.id);
-          if (!parentPos || !parentSz || !paramPos) continue;
+          const pinPos = newPositions.get(n.id);
+          if (!parentPos || !parentSz || !pinPos) continue;
 
-          const cy = paramPos.y + half;
-          const cx = paramPos.x + half;
+          const cx = pinPos.x + half;
+          const cy = pinPos.y + half;
+          const dir = n.data?.direction as 'in' | 'out' | 'inout' | undefined;
 
-          // Direction-based side: in=left, out=right, inout=nearest
-          const dir = n.data?.direction as string | undefined;
+          // Determine side from config placement
           let side: 'left' | 'right' | 'top' | 'bottom';
-          if (dir === 'in') {
-            side = 'left';
-          } else if (dir === 'out') {
-            side = 'right';
-          } else {
-            // inout or unknown: snap to nearest edge
+          const placement = dir ? pp[dir] : 'nearest';
+          if (placement === 'nearest') {
             const dL = Math.abs(cx - parentPos.x);
             const dR = Math.abs(cx - (parentPos.x + parentSz.w));
             const dT = Math.abs(cy - parentPos.y);
             const dB = Math.abs(cy - (parentPos.y + parentSz.h));
             const minD = Math.min(dL, dR, dT, dB);
             side = minD === dR ? 'right' : minD === dT ? 'top' : minD === dB ? 'bottom' : 'left';
+          } else {
+            side = placement;
           }
 
+          // Snap to straddle parent edge
           if (side === 'left') {
             newPositions.set(n.id, { x: parentPos.x - half, y: cy - half });
           } else if (side === 'right') {
@@ -1516,8 +1498,8 @@ export default function DiagramViewer({
             );
           })}
         </div>
-        {/* Layout mode selector — hidden for IV (always nested per spec 8.2.3.11) */}
-        {viewType !== 'interconnection' && <>
+        {/* Layout mode selector */}
+        {<>
           <span style={{ color: t.textDim, fontSize: 10 }}>|</span>
           <div style={{ display: 'flex', gap: 2 }}>
             {(['nested', 'tree'] as const).map(mode => {
@@ -1871,8 +1853,8 @@ export default function DiagramViewer({
               );
             }
 
-            // ── Port node in Interconnection View: small square on parent boundary ──
-            if (viewType === 'interconnection' && PORT_CSS.has(cssClass)) {
+            // ── Port node: small square on parent boundary (nested only, config-driven) ──
+            if (effectiveViewMode === 'nested' && PORT_CSS.has(cssClass) && vcfg.pinCssClasses.has(cssClass)) {
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#b080e0' : '#7a5a9a';
               const portColor = NODE_COLORS[cssClass] ?? '#1e0a30';
               const portName = nameLabel?.text ?? node.id;
@@ -1898,15 +1880,17 @@ export default function DiagramViewer({
               // Direction-aware arrow: in=inward, out=outward, inout=bidirectional, none=inward default
               const s = PORT_BORDER_SIZE;
               const portDir = node.data?.direction as string | undefined;
+              const aRight = `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`;
+              const aLeft  = `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`;
+              const aDown  = `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`;
+              const aUp    = `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`;
+              // Inward: arrow points INTO the parent (left side → right arrow, right side → left arrow)
               const arrowInward: Record<string, string> = {
-                left:   `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`,
-                right:  `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`,
-                top:    `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`,
-                bottom: `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`,
+                left: aRight, right: aLeft, top: aDown, bottom: aUp,
               };
+              // Outward: arrow points AWAY from the parent
               const arrowOutward: Record<string, string> = {
-                left: arrowInward.right, right: arrowInward.left,
-                top: arrowInward.bottom, bottom: arrowInward.top,
+                left: aLeft, right: aRight, top: aUp, bottom: aDown,
               };
 
               // Label placement outside parent boundary
@@ -1947,8 +1931,8 @@ export default function DiagramViewer({
               );
             }
 
-            // ── Parameter/port node in Action Flow View: small square on parent boundary ──
-            if (viewType === 'action-flow' && (PARAM_CSS.has(cssClass) || PORT_CSS.has(cssClass))) {
+            // ── Parameter/port node: small square on parent boundary (nested only, config-driven) ──
+            if (effectiveViewMode === 'nested' && vcfg.pinCssClasses.has(cssClass) && !PORT_CSS.has(cssClass)) {
               const portDir = node.data?.direction as string | undefined;
               const isIn = cssClass === 'actionin' || portDir === 'in';
               const isOut = cssClass === 'actionout' || portDir === 'out';
@@ -1975,15 +1959,18 @@ export default function DiagramViewer({
               }
 
               const s = PORT_BORDER_SIZE;
-              // Direction arrow: in=inward, out=outward
+              // Direction arrow: in=pointing inward (into action), out=pointing outward (out of action)
+              // left side: inward=right arrow, outward=left arrow
+              // right side: inward=left arrow, outward=right arrow
+              const arrowRight = `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`;
+              const arrowLeft  = `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`;
+              const arrowDown  = `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`;
+              const arrowUp    = `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`;
               const arrowIn: Record<string, string> = {
-                left:   `M${s * 0.7},${s * 0.3} L${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.7}`,
-                right:  `M${s * 0.3},${s * 0.3} L${s * 0.7},${s * 0.5} L${s * 0.3},${s * 0.7}`,
-                top:    `M${s * 0.3},${s * 0.7} L${s * 0.5},${s * 0.3} L${s * 0.7},${s * 0.7}`,
-                bottom: `M${s * 0.3},${s * 0.3} L${s * 0.5},${s * 0.7} L${s * 0.7},${s * 0.3}`,
+                left: arrowRight, right: arrowLeft, top: arrowDown, bottom: arrowUp,
               };
               const arrowOut: Record<string, string> = {
-                left:   arrowIn.right, right: arrowIn.left, top: arrowIn.bottom, bottom: arrowIn.top,
+                left: arrowLeft, right: arrowRight, top: arrowUp, bottom: arrowDown,
               };
               const arrowPath = isIn ? arrowIn[side] : isOut ? arrowOut[side] : `M${s * 0.3},${s * 0.5} L${s * 0.7},${s * 0.5}`;
 

@@ -12,6 +12,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage.js';
 import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
 import { useRecentFilesStore } from '../store/recent-files.js';
+import { useIsMobile } from '../hooks/useIsMobile.js';
 import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
@@ -111,32 +112,36 @@ export default function EditorPage() {
   const fileSwitcherRef = useRef<HTMLDivElement>(null);
   const addRecentEntry = useRecentFilesStore((s) => s.addEntry);
 
+  const isMobile = useIsMobile();
+  // Mobile tab: which pane is shown
+  const [mobileTab, setMobileTab] = useState<'editor' | 'diagram' | 'ai'>('diagram');
+
   // Editor open/close
   const [editorOpen, setEditorOpen] = useLocalStorage(`${lsPrefix}:editorOpen`, true);
   const lastSplitPct = useRef(50); // remember split before closing
 
   // Resizable split pane state
-  const [splitPct, setSplitPct] = useLocalStorage(`${lsPrefix}:splitPct`, 35); // editor % width
+  const [splitPct, setSplitPct] = useLocalStorage(`${lsPrefix}:splitPct`, 25); // editor % width
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const dividerCleanupRef = useRef<(() => void) | null>(null);
 
-  const onDividerMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    // Clean up any previous drag listeners first
+  const startDrag = useCallback((startX: number) => {
     dividerCleanupRef.current?.();
-
     isDragging.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
-    const onMouseMove = (ev: MouseEvent) => {
+    const onMove = (clientX: number) => {
       if (!isDragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      const pct = ((clientX - rect.left) / rect.width) * 100;
       setSplitPct(Math.min(100 - MIN_PANE_PCT, Math.max(MIN_PANE_PCT, pct)));
     };
+
+    const onMouseMove = (ev: MouseEvent) => onMove(ev.clientX);
+    const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); onMove(ev.touches[0].clientX); };
 
     const cleanup = () => {
       isDragging.current = false;
@@ -144,13 +149,27 @@ export default function EditorPage() {
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', cleanup);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', cleanup);
       dividerCleanupRef.current = null;
     };
 
     dividerCleanupRef.current = cleanup;
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', cleanup);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', cleanup);
   }, []);
+
+  const onDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    startDrag(e.clientX);
+  }, [startDrag]);
+
+  const onDividerTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    startDrag(e.touches[0].clientX);
+  }, [startDrag]);
 
   useEffect(() => {
     diagramClient.connect();
@@ -298,257 +317,365 @@ export default function EditorPage() {
         onSave={handleSave}
         saving={saving}
       />
-      <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Editor pane */}
+      {/* ── Mobile tab bar ────────────────────────────────────────── */}
+      {isMobile && (
         <div style={{
-          width: editorOpen ? `${splitPct}%` : 0,
-          flexShrink: 0,
-          overflow: 'hidden',
-          transition: 'width 0.2s ease',
-          display: 'flex',
-          flexDirection: 'column',
+          display: 'flex', flexShrink: 0,
+          borderBottom: `1px solid ${t.border}`, background: t.bgSecondary,
         }}>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <MonacoEditor
-              ref={monacoRef}
-              value={content}
-              onChange={handleChange}
-              readOnly={readOnly}
-              markers={diagnostics.map((d): EditorMarker => ({
-                severity: d.severity,
-                message: d.message,
-                line: d.line,
-                column: d.column,
-                endLine: d.endLine,
-                endColumn: d.endColumn,
-                fixes: d.fixes as EditorMarkerFix[] | undefined,
-              }))}
-            />
-          </div>
-          {/* Debug / Problems panel */}
-          {debugOpen && (
-            <div style={{
-              height: 160, flexShrink: 0, background: t.bg,
-              borderTop: `1px solid ${t.border}`, overflow: 'auto', fontSize: 12,
-            }}>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '3px 10px', background: t.bgTertiary,
-                borderBottom: `1px solid ${t.border}`, position: 'sticky', top: 0,
-              }}>
-                <span style={{ color: t.text, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>Problems</span>
-                <span style={{ color: t.textSecondary, fontSize: 11 }}>
-                  {diagnostics.filter(d => d.severity === 'error').length} errors,&nbsp;
-                  {diagnostics.filter(d => d.severity === 'warning').length} warnings
-                </span>
-              </div>
-              {diagnostics.length === 0 ? (
-                <div style={{ padding: '8px 12px', color: t.textDim, fontStyle: 'italic' }}>No problems detected.</div>
-              ) : (
-                diagnostics.map((d, i) => (
-                  <div key={i} style={{
-                    padding: '4px 12px 6px', borderBottom: `1px solid ${t.borderLight}`,
-                    background: d.severity === 'error' ? t.errorBg : d.severity === 'warning' ? (t.mode === 'dark' ? '#2a2210' : '#fff8e1') : 'transparent',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                      <span style={{ color: d.severity === 'error' ? t.error : d.severity === 'warning' ? t.warning : t.info, flexShrink: 0, fontSize: 14 }}>
-                        {d.severity === 'error' ? '✕' : d.severity === 'warning' ? '⚠' : 'ℹ'}
-                      </span>
-                      <span
-                        style={{ color: t.text, flex: 1, cursor: 'pointer' }}
-                        onClick={() => monacoRef.current?.revealRange(d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1)}
-                      >{d.message}</span>
-                      <span style={{ color: t.textDim, whiteSpace: 'nowrap' }}>Ln {d.line}, Col {d.column}</span>
-                    </div>
-                    {d.fixes && d.fixes.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 22, marginTop: 4 }}>
-                        {d.fixes.map((fix, fi) => (
-                          <button
-                            key={fi}
-                            onClick={() => monacoRef.current?.applyFix(
-                              d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1, fix.newText,
-                            )}
-                            title={`Apply: ${fix.title}`}
-                            style={{
-                              background: t.accent, border: `1px solid ${t.accentHover}`, borderRadius: 3,
-                              color: '#fff', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
-                            }}
-                          >
-                            ⚡ {fix.title}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+          {(['diagram', 'editor', 'ai'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setMobileTab(tab)}
+              style={{
+                flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: mobileTab === tab ? 600 : 400,
+                background: mobileTab === tab ? t.bg : t.bgSecondary,
+                color: mobileTab === tab ? t.text : t.textSecondary,
+                borderBottom: mobileTab === tab ? `2px solid ${t.accent}` : '2px solid transparent',
+              }}
+            >
+              {tab === 'diagram' ? 'Diagram' : tab === 'editor' ? 'Editor' : 'AI'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Mobile layout ──────────────────────────────────────────── */}
+      {isMobile ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Editor tab */}
+          {mobileTab === 'editor' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <MonacoEditor
+                ref={monacoRef}
+                value={content}
+                onChange={handleChange}
+                readOnly={readOnly}
+                markers={diagnostics.map((d): EditorMarker => ({
+                  severity: d.severity, message: d.message,
+                  line: d.line, column: d.column,
+                  endLine: d.endLine, endColumn: d.endColumn,
+                  fixes: d.fixes as EditorMarkerFix[] | undefined,
+                }))}
+              />
             </div>
           )}
-        </div>
-
-        {/* Divider with toggle button */}
-        <div style={{
-          width: 22,
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          background: t.bgSecondary,
-          borderLeft: `1px solid ${t.border}`,
-          borderRight: `1px solid ${t.border}`,
-          position: 'relative',
-          zIndex: 1,
-        }}>
-          {/* Drag handle — only active when editor is open */}
-          {editorOpen && (
-            <div
-              onMouseDown={onDividerMouseDown}
-              style={{
-                position: 'absolute', inset: 0,
-                cursor: 'col-resize',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#007acc22')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            />
+          {/* Diagram tab */}
+          {mobileTab === 'diagram' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <DiagramViewer
+                model={diagram}
+                hiddenNodeIds={hiddenNodeIds}
+                hiddenEdgeIds={hiddenEdgeIds}
+                storageKey={lsPrefix}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                onNodeSelect={(range) => {
+                  monacoRef.current?.revealRange(
+                    range.start.line + 1, range.start.character + 1,
+                    range.end.line + 1,   range.end.character + 1,
+                  );
+                  setMobileTab('editor');
+                }}
+                onEdgeSelect={(range) => {
+                  monacoRef.current?.revealRange(
+                    range.start.line + 1, range.start.character + 1,
+                    range.end.line + 1,   range.end.character + 1,
+                  );
+                  setMobileTab('editor');
+                }}
+                onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
+                onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
+                onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+                onHideEdges={(ids) => setHiddenEdgeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+                selectedNodeId={diagramSelectedNodeId}
+                selectedEdgeId={diagramSelectedEdgeId}
+                onSelectedNodeChange={setDiagramSelectedNodeId}
+                onSelectedEdgeChange={setDiagramSelectedEdgeId}
+                showLegend={showLegend}
+                viewType={viewType}
+                onViewTypeChange={(vt) => {
+                  setViewType(vt);
+                  if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt, showInherited);
+                }}
+                showInherited={showInherited}
+                onShowInheritedChange={(v) => {
+                  setShowInherited(v);
+                  if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
+                }}
+              />
+            </div>
           )}
-          {/* Toggle button centered on divider */}
-          <button
-            onClick={() => {
-              if (editorOpen) {
-                lastSplitPct.current = splitPct;
-                setEditorOpen(false);
-              } else {
-                setSplitPct(lastSplitPct.current);
-                setEditorOpen(true);
-              }
-            }}
-            title={editorOpen ? 'Close editor' : 'Open editor'}
-            style={{
-              position: 'relative', zIndex: 2,
-              marginTop: 'auto', marginBottom: 'auto',
-              background: t.btnBg, border: 'none',
-              color: t.text, cursor: 'pointer',
-              width: 18, height: 32, borderRadius: 3,
-              fontSize: 12, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', padding: 0,
-              lineHeight: 1,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = t.statusBar)}
-            onMouseLeave={e => (e.currentTarget.style.background = t.btnBg)}
-          >
-            {editorOpen ? '‹' : '›'}
-          </button>
-        </div>
-
-        {/* Diagram pane: element panel + viewer + AI panel */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Diagram toolbar */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px',
-            background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0,
-          }}>
-            <span style={{ fontSize: 11, color: t.text, fontWeight: 600, marginRight: 4 }}>
-              {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
-            </span>
-            <span style={{ fontSize: 10, color: t.textMuted }}>SysML v2</span>
-            <span style={{ flex: 1 }} />
-            <button
-              onClick={() => setAiOpen((v) => !v)}
-              style={{
-                background: aiOpen ? t.statusBar : t.btnBg,
-                border: '1px solid', borderColor: aiOpen ? t.statusBar : t.btnBorder,
-                borderRadius: 3, color: aiOpen ? '#fff' : t.text, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '2px 10px', fontSize: 11, fontWeight: aiOpen ? 600 : 400,
-              }}
-              onMouseEnter={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBgHover; }}
-              onMouseLeave={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBg; }}
-              title={aiOpen ? 'Close AI chat' : 'Open AI chat'}
-            >
-              &#10022; AI
-            </button>
-          </div>
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            <ElementPanel
-              nodes={diagramNodes}
-              edges={diagramEdges}
-              hiddenNodeIds={hiddenNodeIds}
-              hiddenEdgeIds={hiddenEdgeIds}
-              onToggleNode={toggleNode}
-              onToggleGroup={toggleGroup}
-              onToggleAll={toggleAll}
-              onToggleEdge={toggleEdge}
-              onToggleEdgeGroup={toggleEdgeGroup}
-              viewStorageKey={lsPrefix}
-              onRestoreView={(nodes, edges) => { setHiddenNodeIds(nodes); setHiddenEdgeIds(edges); }}
-              diagramSelectedNodeId={diagramSelectedNodeId}
-              diagramSelectedEdgeId={diagramSelectedEdgeId}
-              showLegend={showLegend}
-              onToggleLegend={() => setShowLegend(!showLegend)}
-            />
-            <DiagramViewer
-              model={diagram}
-              hiddenNodeIds={hiddenNodeIds}
-              hiddenEdgeIds={hiddenEdgeIds}
-              storageKey={lsPrefix}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              onNodeSelect={(range) => {
-                monacoRef.current?.revealRange(
-                  range.start.line + 1, range.start.character + 1,
-                  range.end.line + 1,   range.end.character + 1,
-                );
-                if (!editorOpen) {
-                  setSplitPct(lastSplitPct.current);
-                  setEditorOpen(true);
-                }
-              }}
-              onEdgeSelect={(range) => {
-                monacoRef.current?.revealRange(
-                  range.start.line + 1, range.start.character + 1,
-                  range.end.line + 1,   range.end.character + 1,
-                );
-                if (!editorOpen) {
-                  setSplitPct(lastSplitPct.current);
-                  setEditorOpen(true);
-                }
-              }}
-              onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
-              onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
-              onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
-              onHideEdges={(ids) => setHiddenEdgeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
-              selectedNodeId={diagramSelectedNodeId}
-              selectedEdgeId={diagramSelectedEdgeId}
-              onSelectedNodeChange={setDiagramSelectedNodeId}
-              onSelectedEdgeChange={setDiagramSelectedEdgeId}
-              showLegend={showLegend}
-              viewType={viewType}
-              onViewTypeChange={(vt) => {
-                setViewType(vt);
-                // Re-request diagram with the new view type
-                if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt, showInherited);
-              }}
-              showInherited={showInherited}
-              onShowInheritedChange={(v) => {
-                setShowInherited(v);
-                if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
-              }}
-            />
-            {aiOpen && (
+          {/* AI tab */}
+          {mobileTab === 'ai' && (
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
               <AiAssistant
-                onClose={() => setAiOpen(false)}
+                onClose={() => setMobileTab('diagram')}
                 projectId={projectId}
                 fileId={fileId}
                 fileContent={content}
                 fileName={file?.name}
               />
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ── Desktop layout (unchanged) ──────────────────────────── */
+        <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {/* Editor pane */}
+          <div style={{
+            width: editorOpen ? `${splitPct}%` : 0,
+            flexShrink: 0,
+            overflow: 'hidden',
+            transition: 'width 0.2s ease',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <MonacoEditor
+                ref={monacoRef}
+                value={content}
+                onChange={handleChange}
+                readOnly={readOnly}
+                markers={diagnostics.map((d): EditorMarker => ({
+                  severity: d.severity,
+                  message: d.message,
+                  line: d.line,
+                  column: d.column,
+                  endLine: d.endLine,
+                  endColumn: d.endColumn,
+                  fixes: d.fixes as EditorMarkerFix[] | undefined,
+                }))}
+              />
+            </div>
+            {/* Debug / Problems panel */}
+            {debugOpen && (
+              <div style={{
+                height: 160, flexShrink: 0, background: t.bg,
+                borderTop: `1px solid ${t.border}`, overflow: 'auto', fontSize: 12,
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '3px 10px', background: t.bgTertiary,
+                  borderBottom: `1px solid ${t.border}`, position: 'sticky', top: 0,
+                }}>
+                  <span style={{ color: t.text, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>Problems</span>
+                  <span style={{ color: t.textSecondary, fontSize: 11 }}>
+                    {diagnostics.filter(d => d.severity === 'error').length} errors,&nbsp;
+                    {diagnostics.filter(d => d.severity === 'warning').length} warnings
+                  </span>
+                </div>
+                {diagnostics.length === 0 ? (
+                  <div style={{ padding: '8px 12px', color: t.textDim, fontStyle: 'italic' }}>No problems detected.</div>
+                ) : (
+                  diagnostics.map((d, i) => (
+                    <div key={i} style={{
+                      padding: '4px 12px 6px', borderBottom: `1px solid ${t.borderLight}`,
+                      background: d.severity === 'error' ? t.errorBg : d.severity === 'warning' ? (t.mode === 'dark' ? '#2a2210' : '#fff8e1') : 'transparent',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <span style={{ color: d.severity === 'error' ? t.error : d.severity === 'warning' ? t.warning : t.info, flexShrink: 0, fontSize: 14 }}>
+                          {d.severity === 'error' ? '✕' : d.severity === 'warning' ? '⚠' : 'ℹ'}
+                        </span>
+                        <span
+                          style={{ color: t.text, flex: 1, cursor: 'pointer' }}
+                          onClick={() => monacoRef.current?.revealRange(d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1)}
+                        >{d.message}</span>
+                        <span style={{ color: t.textDim, whiteSpace: 'nowrap' }}>Ln {d.line}, Col {d.column}</span>
+                      </div>
+                      {d.fixes && d.fixes.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 22, marginTop: 4 }}>
+                          {d.fixes.map((fix, fi) => (
+                            <button
+                              key={fi}
+                              onClick={() => monacoRef.current?.applyFix(
+                                d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1, fix.newText,
+                              )}
+                              title={`Apply: ${fix.title}`}
+                              style={{
+                                background: t.accent, border: `1px solid ${t.accentHover}`, borderRadius: 3,
+                                color: '#fff', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
+                              }}
+                            >
+                              {'\u26A1'} {fix.title}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
+
+          {/* Divider with toggle button */}
+          <div style={{
+            width: 22,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            background: t.bgSecondary,
+            borderLeft: `1px solid ${t.border}`,
+            borderRight: `1px solid ${t.border}`,
+            position: 'relative',
+            zIndex: 1,
+          }}>
+            {/* Drag handle — only active when editor is open */}
+            {editorOpen && (
+              <div
+                onMouseDown={onDividerMouseDown}
+                onTouchStart={onDividerTouchStart}
+                style={{
+                  position: 'absolute', inset: 0,
+                  cursor: 'col-resize',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#007acc22')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              />
+            )}
+            {/* Toggle button centered on divider */}
+            <button
+              onClick={() => {
+                if (editorOpen) {
+                  lastSplitPct.current = splitPct;
+                  setEditorOpen(false);
+                } else {
+                  setSplitPct(lastSplitPct.current);
+                  setEditorOpen(true);
+                }
+              }}
+              title={editorOpen ? 'Close editor' : 'Open editor'}
+              style={{
+                position: 'relative', zIndex: 2,
+                marginTop: 'auto', marginBottom: 'auto',
+                background: t.btnBg, border: 'none',
+                color: t.text, cursor: 'pointer',
+                width: 18, height: 32, borderRadius: 3,
+                fontSize: 12, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', padding: 0,
+                lineHeight: 1,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = t.statusBar)}
+              onMouseLeave={e => (e.currentTarget.style.background = t.btnBg)}
+            >
+              {editorOpen ? '\u2039' : '\u203A'}
+            </button>
+          </div>
+
+          {/* Diagram pane: element panel + viewer + AI panel */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Diagram toolbar */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px',
+              background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 11, color: t.text, fontWeight: 600, marginRight: 4 }}>
+                {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
+              </span>
+              <span style={{ fontSize: 10, color: t.textMuted }}>SysML v2</span>
+              <span style={{ flex: 1 }} />
+              <button
+                onClick={() => setAiOpen((v) => !v)}
+                style={{
+                  background: aiOpen ? t.statusBar : t.btnBg,
+                  border: '1px solid', borderColor: aiOpen ? t.statusBar : t.btnBorder,
+                  borderRadius: 3, color: aiOpen ? '#fff' : t.text, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '2px 10px', fontSize: 11, fontWeight: aiOpen ? 600 : 400,
+                }}
+                onMouseEnter={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBgHover; }}
+                onMouseLeave={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBg; }}
+                title={aiOpen ? 'Close AI chat' : 'Open AI chat'}
+              >
+                &#10022; AI
+              </button>
+            </div>
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <ElementPanel
+                nodes={diagramNodes}
+                edges={diagramEdges}
+                hiddenNodeIds={hiddenNodeIds}
+                hiddenEdgeIds={hiddenEdgeIds}
+                onToggleNode={toggleNode}
+                onToggleGroup={toggleGroup}
+                onToggleAll={toggleAll}
+                onToggleEdge={toggleEdge}
+                onToggleEdgeGroup={toggleEdgeGroup}
+                viewStorageKey={lsPrefix}
+                onRestoreView={(nodes, edges) => { setHiddenNodeIds(nodes); setHiddenEdgeIds(edges); }}
+                diagramSelectedNodeId={diagramSelectedNodeId}
+                diagramSelectedEdgeId={diagramSelectedEdgeId}
+                showLegend={showLegend}
+                onToggleLegend={() => setShowLegend(!showLegend)}
+              />
+              <DiagramViewer
+                model={diagram}
+                hiddenNodeIds={hiddenNodeIds}
+                hiddenEdgeIds={hiddenEdgeIds}
+                storageKey={lsPrefix}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                onNodeSelect={(range) => {
+                  monacoRef.current?.revealRange(
+                    range.start.line + 1, range.start.character + 1,
+                    range.end.line + 1,   range.end.character + 1,
+                  );
+                  if (!editorOpen) {
+                    setSplitPct(lastSplitPct.current);
+                    setEditorOpen(true);
+                  }
+                }}
+                onEdgeSelect={(range) => {
+                  monacoRef.current?.revealRange(
+                    range.start.line + 1, range.start.character + 1,
+                    range.end.line + 1,   range.end.character + 1,
+                  );
+                  if (!editorOpen) {
+                    setSplitPct(lastSplitPct.current);
+                    setEditorOpen(true);
+                  }
+                }}
+                onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
+                onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
+                onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+                onHideEdges={(ids) => setHiddenEdgeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
+                selectedNodeId={diagramSelectedNodeId}
+                selectedEdgeId={diagramSelectedEdgeId}
+                onSelectedNodeChange={setDiagramSelectedNodeId}
+                onSelectedEdgeChange={setDiagramSelectedEdgeId}
+                showLegend={showLegend}
+                viewType={viewType}
+                onViewTypeChange={(vt) => {
+                  setViewType(vt);
+                  if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt, showInherited);
+                }}
+                showInherited={showInherited}
+                onShowInheritedChange={(v) => {
+                  setShowInherited(v);
+                  if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
+                }}
+              />
+              {aiOpen && (
+                <AiAssistant
+                  onClose={() => setAiOpen(false)}
+                  projectId={projectId}
+                  fileId={fileId}
+                  fileContent={content}
+                  fileName={file?.name}
+                />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Status bar ───────────────────────────────────────────── */}
       <div style={{
         height: 24, background: t.statusBar, display: 'flex', alignItems: 'center',
-        padding: '0 12px', gap: 12, fontSize: 12, color: '#fff', flexShrink: 0,
+        padding: '0 12px', gap: isMobile ? 6 : 12, fontSize: isMobile ? 10 : 12, color: '#fff', flexShrink: 0,
       }}>
         <span>SysML v2</span>
         <span style={{ opacity: 0.5 }}>|</span>
@@ -559,21 +686,21 @@ export default function EditorPage() {
           onClick={() => setDebugOpen(v => !v)}
           style={{
             background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
-            display: 'flex', alignItems: 'center', gap: 6, padding: 0, fontSize: 12,
+            display: 'flex', alignItems: 'center', gap: 6, padding: 0, fontSize: isMobile ? 10 : 12,
           }}
           title="Toggle Problems panel"
         >
           {diagnostics.filter(d => d.severity === 'error').length > 0 && (
             <span style={{ color: '#ffc0b0' }}>
-              ✕ {diagnostics.filter(d => d.severity === 'error').length}
+              {'\u2715'} {diagnostics.filter(d => d.severity === 'error').length}
             </span>
           )}
           {diagnostics.filter(d => d.severity === 'warning').length > 0 && (
             <span style={{ color: '#ffe080' }}>
-              ⚠ {diagnostics.filter(d => d.severity === 'warning').length}
+              {'\u26A0'} {diagnostics.filter(d => d.severity === 'warning').length}
             </span>
           )}
-          {diagnostics.length === 0 && <span style={{ opacity: 0.7 }}>✓ No problems</span>}
+          {diagnostics.length === 0 && <span style={{ opacity: 0.7 }}>{'\u2713'} No problems</span>}
         </button>
         <span style={{ flex: 1 }} />
         <span>{(content.match(/\n/g) ?? []).length + 1} lines</span>

@@ -1,4 +1,5 @@
-import type { SysMLModel, SysMLNode, SModelRoot, SNode, SEdge, SLabel, ViewType } from '@systemodel/shared-types';
+import type { SysMLModel, SysMLNode, SModelRoot, SNode, SEdge, SLabel, ViewType, ViewConfig } from '@systemodel/shared-types';
+import { getViewConfig } from '@systemodel/shared-types/dist/view-config.js';
 import { applyViewFilter } from './view-filters.js';
 
 const KEYWORD_VALUES = new Set([
@@ -100,7 +101,7 @@ function textWidth(text: string, fontSize: number): number {
   return text.length * fontSize * 0.62 + 16;
 }
 
-function nodeToSNode(node: SysMLNode): SNode {
+function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
   const isStdlib = node.id.startsWith('stdlib__');
   const baseKindText = isStdlib
     ? `«${node.qualifiedName?.split('::')[0] ?? 'stdlib'}»`
@@ -191,13 +192,13 @@ function nodeToSNode(node: SysMLNode): SNode {
       const dirKindLabel = makeLabel(`${node.id}__kind`, baseKw.replace('«', `«${node.direction} `));
 
       if (node.ownerIsPortOrActionUsage) {
-        // Owner is an action usage → small boundary square with directional arrow (AFV only)
+        // Owner is an action usage → small boundary square with directional arrow
+        // Size is kept small (16×16) since viewer overrides to PORT_BORDER_SIZE in nested mode
         const cssClass = node.direction === 'in' ? 'actionin' : node.direction === 'out' ? 'actionout' : 'actioninout';
-        const width = Math.max(80, Math.max(textWidth(nameText, 11), textWidth(dirKindLabel.text, 10)) + 20);
         return {
           type: 'node', id: node.id,
           position: { x: 0, y: 0 },
-          size: { width, height: 50 },
+          size: { width: 16, height: 16 },
           children: [dirKindLabel, nameLabel],
           cssClasses: [cssClass],
           data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
@@ -254,8 +255,12 @@ function nodeToSNode(node: SysMLNode): SNode {
   }
 
   // Definition nodes: build usage/attribute compartment labels
+  // When configured, skip directed items from def compartments (they appear as pins on usages)
+  const skipDirected = vcfg.hideDirectedFromDefCompartments && vcfg.defKindsForCompartmentHiding.has(node.kind);
+  const DIRECTED_VALUES = new Set(['in', 'out', 'inout', 'in item', 'out item', 'in attribute', 'out attribute']);
   const usageLabels: SLabel[] = (node.attributes ?? [])
     .filter(a => a.name !== '__doc__')
+    .filter(a => !(skipDirected && a.value && DIRECTED_VALUES.has(a.value)))
     .map((attr, i) => {
       let text: string;
       const val = attr.value ?? '';
@@ -307,7 +312,7 @@ function nodeToSNode(node: SysMLNode): SNode {
   };
 }
 
-function connectionToSEdge(conn: { id: string; sourceId: string; targetId: string; kind: string; name?: string }): SEdge {
+function connectionToSEdge(conn: { id: string; sourceId: string; targetId: string; kind: string; name?: string; range?: import('@systemodel/shared-types').SourceRange }): SEdge {
   const children: SLabel[] = conn.name
     ? [makeLabel(`${conn.id}__label`, conn.name)]
     : [];
@@ -316,6 +321,7 @@ function connectionToSEdge(conn: { id: string; sourceId: string; targetId: strin
     type: 'edge', id: conn.id,
     sourceId: conn.sourceId, targetId: conn.targetId,
     children, cssClasses: [conn.kind],
+    ...(conn.range ? { data: { range: conn.range } } : {}),
   };
 }
 
@@ -391,13 +397,110 @@ function resolveInheritedAttributes(nodes: SysMLNode[], connections: { sourceId:
   }
 }
 
+/**
+ * For AFV: clone directed (in/out/inout) item/attribute nodes from action definitions
+ * into their action usages, so they render as boundary pins on the usage nodes.
+ */
+function resolveActionUsageParams(nodes: SysMLNode[], connections: { id: string; sourceId: string; targetId: string; kind: string; name?: string; sourcePort?: string; targetPort?: string }[]): void {
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+  // Build type map: usage → definition from typereference edges
+  const typeOf = new Map<string, string>();
+  for (const c of connections) {
+    if (c.kind === 'typereference') typeOf.set(c.sourceId, c.targetId);
+  }
+
+  // Find all composition children of each node
+  const childrenOf = new Map<string, string[]>();
+  for (const c of connections) {
+    if (c.kind === 'composition') {
+      const kids = childrenOf.get(c.sourceId) ?? [];
+      kids.push(c.targetId);
+      childrenOf.set(c.sourceId, kids);
+    }
+  }
+
+  // Find action usages that reference a definition
+  const ACTION_USAGE_KINDS = new Set(['ActionUsage', 'PerformActionUsage']);
+  const usageNodes = nodes.filter(n => ACTION_USAGE_KINDS.has(n.kind));
+
+  // Map: usageId → Map<itemName, pinNodeId> for retargeting flow edges
+  const pinIndex = new Map<string, Map<string, string>>();
+
+  for (const usage of usageNodes) {
+    const defId = typeOf.get(usage.id);
+    if (!defId) continue;
+
+    const usagePins = new Map<string, string>();
+    pinIndex.set(usage.id, usagePins);
+
+    // Check if usage already has its own directed param children
+    const existingKids = childrenOf.get(usage.id) ?? [];
+    const existingParamNames = new Set<string>();
+    for (const id of existingKids) {
+      const n = nodeById.get(id);
+      if (n?.direction) {
+        existingParamNames.add(n.name);
+        usagePins.set(n.name, n.id);
+      }
+    }
+
+    // Get definition's directed children (in/out/inout items/attributes)
+    const defKids = childrenOf.get(defId) ?? [];
+    for (const kidId of defKids) {
+      const kid = nodeById.get(kidId);
+      if (!kid || !kid.direction) continue;
+      if (existingParamNames.has(kid.name)) continue;
+
+      // Clone the param node as a child of the action usage
+      const cloneId = `${usage.id}__param__${kid.direction}_${kid.name}`;
+      const clonedNode: SysMLNode = {
+        ...kid,
+        id: cloneId,
+        ownerIsPortOrActionUsage: true,
+        // keep original range so clicking pin navigates to the item definition
+      };
+      nodes.push(clonedNode);
+      connections.push({
+        id: `${cloneId}__comp`,
+        sourceId: usage.id,
+        targetId: cloneId,
+        kind: 'composition',
+      });
+      usagePins.set(kid.name, cloneId);
+    }
+  }
+
+  // Retarget flow/successionflow edges to pin nodes
+  for (const conn of connections) {
+    if (conn.kind !== 'flow' && conn.kind !== 'successionflow') continue;
+    if (conn.sourcePort) {
+      const pins = pinIndex.get(conn.sourceId);
+      const pinId = pins?.get(conn.sourcePort);
+      if (pinId) conn.sourceId = pinId;
+    }
+    if (conn.targetPort) {
+      const pins = pinIndex.get(conn.targetId);
+      const pinId = pins?.get(conn.targetPort);
+      if (pinId) conn.targetId = pinId;
+    }
+  }
+}
+
 export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general', showInherited = false): SModelRoot {
+  const vcfg = getViewConfig(viewType);
+
   // Apply view-specific filtering first
   const filtered = applyViewFilter(model, viewType);
 
   // Optionally resolve inherited attributes before transformation
   if (showInherited) {
     resolveInheritedAttributes(filtered.nodes, filtered.connections);
+  }
+
+  // Clone directed items from definitions into usages as boundary pins (when configured)
+  if (vcfg.cloneDefParamsAsUsagePins) {
+    resolveActionUsageParams(filtered.nodes, filtered.connections);
   }
 
   // ── Action-flow cleanup (General View only) ───────────────────────────
@@ -455,7 +558,7 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
 
   const sNodes: SNode[] = filtered.nodes
     .filter(n => !hiddenNodeIds.has(n.id))
-    .map(nodeToSNode);
+    .map(n => nodeToSNode(n, vcfg));
 
   const sEdges: SEdge[] = filtered.connections
     .filter((conn) => {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
+import { useIsMobile } from '../hooks/useIsMobile.js';
 import Header from '../components/Layout/Header.js';
 import type { Project, SysMLFile } from '@systemodel/shared-types';
 
@@ -56,6 +57,7 @@ export default function ProjectsPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
   const t = useTheme();
+  const isMobile = useIsMobile();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<SysMLFile[]>([]);
@@ -427,9 +429,16 @@ export default function ProjectsPage() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header />
       {contextMenu && <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden' }}>
         {/* Projects panel */}
-        <div style={{ width: 280, borderRight: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          width: isMobile ? '100%' : 280,
+          ...(isMobile && selectedProject ? { display: 'none' } : {}),
+          borderRight: isMobile ? 'none' : `1px solid ${t.border}`,
+          display: isMobile && selectedProject ? 'none' : 'flex',
+          flexDirection: 'column',
+          flex: isMobile ? 1 : undefined,
+        }}>
           <div style={{ padding: '16px 16px 8px', borderBottom: `1px solid ${t.border}` }}>
             <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Projects</div>
             <form onSubmit={createProject} style={{ display: 'flex', gap: 8 }}>
@@ -463,15 +472,25 @@ export default function ProjectsPage() {
         </div>
 
         {/* Files panel */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, display: isMobile && !selectedProject ? 'none' : 'flex', flexDirection: 'column' }}>
           {selectedProject ? (
             <>
-              <div style={{ padding: '16px 20px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>
+              <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  {isMobile && (
+                    <button
+                      onClick={() => { setSelectedProject(null); setFiles([]); }}
+                      style={{ background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4, color: t.textSecondary, cursor: 'pointer', fontSize: 12, padding: '3px 8px', flexShrink: 0 }}
+                    >
+                      &#8592; Back
+                    </button>
+                  )}
+                  <span style={{ color: t.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {selectedProject.name}
                   {selectedProject.isSystem && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
                   {selectedProject.isSystem && isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(System)</span>}
                 </span>
+                </div>
                 {(!selectedProject.isSystem || isAdmin) && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input

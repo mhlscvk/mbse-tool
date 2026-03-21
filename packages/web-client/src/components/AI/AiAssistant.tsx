@@ -4,6 +4,7 @@ import { useAiSettings } from '../../store/ai-settings.js';
 import { streamChat, fetchFreeTierStatus, fetchChatHistory, clearChatHistory, type ToolCallDisplay, type FreeTierStatus } from '../../services/ai-client.js';
 import { api, type AiKeyInfo } from '../../services/api-client.js';
 import { useTheme } from '../../store/theme.js';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 
 interface AiAssistantProps {
   onClose: () => void;
@@ -26,6 +27,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
   const navigate = useNavigate();
   const { provider, setProvider } = useAiSettings();
   const t = useTheme();
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -175,9 +177,9 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
 
   return (
     <div style={{
-      width: 320, flexShrink: 0,
+      width: isMobile ? '100%' : 320, flexShrink: 0,
       display: 'flex', flexDirection: 'column',
-      background: t.bg, borderLeft: `1px solid ${t.border}`,
+      background: t.bg, borderLeft: isMobile ? 'none' : `1px solid ${t.border}`,
       overflow: 'hidden',
     }}>
       {/* Header */}

@@ -112,7 +112,7 @@ PostgreSQL via Prisma ORM. Schema at `packages/api-server/prisma/schema.prisma`.
 
 ## Testing
 
-**Total: 525 tests** (all passing)
+**Total: 537 tests** (all passing)
 
 - `api-server`: 60 tests across 6 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
@@ -121,7 +121,7 @@ PostgreSQL via Prisma ORM. Schema at `packages/api-server/prisma/schema.prisma`.
   - `middleware/auth.test.ts` (12): JWT validation, expired tokens, role checks
   - `middleware/error.test.ts` (4): Zod errors, AppError, info leakage prevention
   - `middleware/csrf.test.ts` (13): Content-Type enforcement for all methods
-- `diagram-service`: 421 tests across 13 suites (parser, transformer, view filters, WebSocket, etc.)
+- `diagram-service`: 477 tests across 13 suites (parser, transformer, view filters, WebSocket, etc.)
 
 Run tests:
 ```bash

@@ -203,7 +203,7 @@ export default function LoginPage() {
 
   return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.bg }}>
-      <div style={{ background: t.bgSecondary, padding: 40, borderRadius: 8, width: 360, border: `1px solid ${t.border}` }}>
+      <div style={{ background: t.bgSecondary, padding: '40px 24px', borderRadius: 8, width: '100%', maxWidth: 360, margin: '0 16px', border: `1px solid ${t.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <h1 style={{ color: '#A0522D', fontSize: 28, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic', margin: 0 }}>SysteModel</h1>
           <button
