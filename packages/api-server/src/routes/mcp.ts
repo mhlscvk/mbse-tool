@@ -19,6 +19,22 @@ interface McpSession {
 }
 
 const sessions = new Map<string, McpSession>();
+/** Per-user session count — avoids O(n) scan on every POST. */
+const userSessionCounts = new Map<string, number>();
+
+function trackSession(sessionId: string, session: McpSession) {
+  sessions.set(sessionId, session);
+  userSessionCounts.set(session.userId, (userSessionCounts.get(session.userId) ?? 0) + 1);
+}
+
+function untrackSession(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  sessions.delete(sessionId);
+  const count = (userSessionCounts.get(session.userId) ?? 1) - 1;
+  if (count <= 0) userSessionCounts.delete(session.userId);
+  else userSessionCounts.set(session.userId, count);
+}
 
 // Clean up stale sessions every 30 minutes (sessions older than 24h)
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -27,7 +43,7 @@ setInterval(() => {
   for (const [id, session] of sessions) {
     if (now - session.createdAt > SESSION_TTL_MS) {
       session.server.close().catch((err) => { console.error('[MCP] close error:', err); });
-      sessions.delete(id);
+      untrackSession(id);
     }
   }
 }, 30 * 60 * 1000);
@@ -101,15 +117,20 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const userSessionCount = [...sessions.values()].filter(s => s.userId === userId).length;
+  const userSessionCount = userSessionCounts.get(userId) ?? 0;
   if (userSessionCount >= MAX_SESSIONS_PER_USER) {
     // Evict oldest session for this user
-    const oldest = [...sessions.entries()]
-      .filter(([, s]) => s.userId === userId)
-      .sort((a, b) => a[1].createdAt - b[1].createdAt)[0];
-    if (oldest) {
-      oldest[1].server.close().catch((err) => { console.error('[MCP] close error:', err); });
-      sessions.delete(oldest[0]);
+    let oldestId: string | null = null;
+    let oldestTime = Infinity;
+    for (const [id, s] of sessions) {
+      if (s.userId === userId && s.createdAt < oldestTime) {
+        oldestId = id;
+        oldestTime = s.createdAt;
+      }
+    }
+    if (oldestId) {
+      sessions.get(oldestId)!.server.close().catch((err) => { console.error('[MCP] close error:', err); });
+      untrackSession(oldestId);
     }
   }
 
@@ -132,19 +153,15 @@ router.post('/', async (req: Request, res: Response) => {
   // Pre-reserve a slot to prevent race conditions: store session before async handling.
   // Use a placeholder session ID until the transport assigns one.
   const placeholderId = `pending_${randomUUID()}`;
-  sessions.set(placeholderId, { transport, server, userId, createdAt: Date.now() });
+  const sessionData = { transport, server, userId, createdAt: Date.now() };
+  trackSession(placeholderId, sessionData);
 
   await transport.handleRequest(req, res);
 
   // Replace placeholder with real session ID
-  sessions.delete(placeholderId);
+  untrackSession(placeholderId);
   if (transport.sessionId) {
-    sessions.set(transport.sessionId, {
-      transport,
-      server,
-      userId,
-      createdAt: Date.now(),
-    });
+    trackSession(transport.sessionId, sessionData);
     console.log(`[MCP] New session ${transport.sessionId} for user ${userId}`);
   } else {
     // No session ID → server not needed, clean up
@@ -199,7 +216,7 @@ router.delete('/', async (req: Request, res: Response) => {
 
   await session.transport.handleRequest(req, res);
   session.server.close().catch((err) => { console.error('[MCP] close error:', err); });
-  sessions.delete(sessionId);
+  untrackSession(sessionId);
   console.log(`[MCP] Session ${sessionId} terminated`);
 });
 

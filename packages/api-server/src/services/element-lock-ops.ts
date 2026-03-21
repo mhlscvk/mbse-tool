@@ -37,27 +37,26 @@ export async function checkOutElement(
   const safeName = sanitizeElementName(elementName);
   const file = await verifyFileInProject(fileId, projectId);
 
-  // Use a transaction to prevent TOCTOU race conditions.
-  // If two users try to check out the same element simultaneously,
-  // the unique constraint will cause one to fail — we catch that cleanly.
+  // Create lock + audit log in a single transaction to reduce DB round-trips.
+  // The unique constraint on [fileId, elementName] prevents TOCTOU races.
   try {
     const displayId = generateElementDisplayId();
 
-    const lock = await prisma.elementLock.create({
-      data: { displayId, fileId, elementName: safeName, lockedBy: userId },
-      include: { user: { select: { id: true, name: true, email: true } } },
-    });
-
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        projectId: file.project.id,
-        fileId,
-        elementName: safeName,
-        userId,
-        operation: 'CHECK_OUT',
-      },
-    });
+    const [lock] = await prisma.$transaction([
+      prisma.elementLock.create({
+        data: { displayId, fileId, elementName: safeName, lockedBy: userId },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      }),
+      prisma.auditLog.create({
+        data: {
+          projectId: file.project.id,
+          fileId,
+          elementName: safeName,
+          userId,
+          operation: 'CHECK_OUT',
+        },
+      }),
+    ]);
 
     return lock;
   } catch (err: unknown) {
@@ -94,20 +93,20 @@ export async function checkInElement(
     throw Forbidden('You can only check in elements you have checked out');
   }
 
-  await prisma.elementLock.delete({
-    where: { fileId_elementName: { fileId, elementName: safeName } },
-  });
-
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      projectId: file.project.id,
-      fileId,
-      elementName: safeName,
-      userId,
-      operation: 'CHECK_IN',
-    },
-  });
+  await prisma.$transaction([
+    prisma.elementLock.delete({
+      where: { fileId_elementName: { fileId, elementName: safeName } },
+    }),
+    prisma.auditLog.create({
+      data: {
+        projectId: file.project.id,
+        fileId,
+        elementName: safeName,
+        userId,
+        operation: 'CHECK_IN',
+      },
+    }),
+  ]);
 
   return { elementName: safeName, status: 'checked_in' };
 }
@@ -126,20 +125,20 @@ export async function forceCheckIn(
   });
   if (!lock) throw NotFound('Element lock');
 
-  await prisma.elementLock.delete({
-    where: { fileId_elementName: { fileId, elementName: safeName } },
-  });
-
-  // Log with admin's userId
-  await prisma.auditLog.create({
-    data: {
-      projectId: file.project.id,
-      fileId,
-      elementName: safeName,
-      userId: adminUserId,
-      operation: 'CHECK_IN',
-    },
-  });
+  await prisma.$transaction([
+    prisma.elementLock.delete({
+      where: { fileId_elementName: { fileId, elementName: safeName } },
+    }),
+    prisma.auditLog.create({
+      data: {
+        projectId: file.project.id,
+        fileId,
+        elementName: safeName,
+        userId: adminUserId,
+        operation: 'CHECK_IN',
+      },
+    }),
+  ]);
 
   return { elementName: safeName, status: 'force_checked_in' };
 }

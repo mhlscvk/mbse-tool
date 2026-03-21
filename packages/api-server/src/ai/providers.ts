@@ -29,32 +29,26 @@ export interface AiProvider {
 
 const VALID_TOOL_NAMES = new Set(AI_TOOLS.map(t => t.name));
 
-// ─── Tool schema conversion ──────────────────────────────────────────────────
+// ─── Tool schema conversion (cached — schemas are static) ───────────────────
 
-function anthropicTools(): Anthropic.Messages.Tool[] {
-  return AI_TOOLS.map(t => ({
+const ANTHROPIC_TOOLS: Anthropic.Messages.Tool[] = AI_TOOLS.map(t => ({
+  name: t.name,
+  description: t.description,
+  input_schema: { type: 'object' as const, properties: t.parameters.properties, required: t.parameters.required },
+}));
+
+const OPENAI_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = AI_TOOLS.map(t => ({
+  type: 'function' as const,
+  function: { name: t.name, description: t.description, parameters: t.parameters },
+}));
+
+const GEMINI_TOOLS = [{
+  functionDeclarations: AI_TOOLS.map(t => ({
     name: t.name,
     description: t.description,
-    input_schema: { type: 'object' as const, properties: t.parameters.properties, required: t.parameters.required },
-  }));
-}
-
-function openaiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  return AI_TOOLS.map(t => ({
-    type: 'function' as const,
-    function: { name: t.name, description: t.description, parameters: t.parameters },
-  }));
-}
-
-function geminiTools() {
-  return [{
-    functionDeclarations: AI_TOOLS.map(t => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-    })),
-  }];
-}
+    parameters: t.parameters,
+  })),
+}];
 
 // ─── Anthropic ────────────────────────────────────────────────────────────────
 
@@ -84,7 +78,7 @@ class AnthropicProvider implements AiProvider {
       model: this.model,
       max_tokens: 4096,
       system,
-      tools: anthropicTools(),
+      tools: ANTHROPIC_TOOLS,
       messages: anthropicMsgs,
     });
 
@@ -169,7 +163,7 @@ class OpenAIProvider implements AiProvider {
     const stream = await this.client.chat.completions.create({
       model: this.model,
       max_tokens: 4096,
-      tools: openaiTools(),
+      tools: OPENAI_TOOLS,
       messages: openaiMsgs,
       stream: true,
     });
@@ -248,7 +242,7 @@ class GeminiProvider implements AiProvider {
     const genModel = this.client.getGenerativeModel({
       model: this.model,
       systemInstruction: system,
-      tools: geminiTools() as never,
+      tools: GEMINI_TOOLS as never,
     });
 
     const result = await genModel.generateContentStream({ contents });

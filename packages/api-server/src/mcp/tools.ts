@@ -55,10 +55,11 @@ export function registerTools(server: McpServer, userId: string): void {
     async ({ fileId }) => {
       try {
         const file = await fileOps.readFileWithOwnerCheck(fileId, userId);
-        const numbered = file.content.split('\n')
+        const lines = file.content.split('\n');
+        const numbered = lines
           .map((line: string, i: number) => `${String(i + 1).padStart(4, ' ')} | ${line}`)
           .join('\n');
-        return mcpText(`File: ${file.name} (${file.content.split('\n').length} lines)\n\n${numbered}`);
+        return mcpText(`File: ${file.name} (${lines.length} lines)\n\n${numbered}`);
       } catch {
         return mcpText('Error: File not found or access denied', true);
       }

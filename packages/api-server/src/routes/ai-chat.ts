@@ -6,6 +6,7 @@ import { executeToolCall } from '../ai/tools.js';
 import { SYSTEM_PROMPT } from '../ai/system-prompt.js';
 import { decryptApiKey } from '../ai/encryption.js';
 import { prisma } from '../db.js';
+import { asyncHandler, NotFound } from '../lib/errors.js';
 import { MAX_TOOL_ROUNDS, MAX_FREE_TIER_TOOL_ROUNDS, MAX_CONTEXT_LINES } from '../config/constants.js';
 import { provider as providerSchema } from '../config/schemas.js';
 
@@ -63,49 +64,33 @@ router.get('/status', requireAuth, async (req: AuthRequest, res) => {
 
 // ─── GET /history/:fileId — load chat history for a file ─────────────────────
 
-router.get('/history/:fileId', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { fileId } = req.params;
-    const file = await prisma.sysMLFile.findUnique({
-      where: { id: fileId },
-      include: { project: { select: { ownerId: true } } },
-    });
-    if (!file || file.project.ownerId !== req.userId) {
-      res.status(404).json({ error: 'File not found' });
-      return;
-    }
-    const messages = await prisma.aiChatMessage.findMany({
-      where: { userId: req.userId!, fileId },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, role: true, text: true, edits: true, createdAt: true },
-    });
-    res.json({ data: messages });
-  } catch (err) {
-    console.error('[AI] History fetch failed:', err);
-    res.status(500).json({ error: 'Failed to retrieve chat history' });
-  }
-});
+router.get('/history/:fileId', requireAuth, asyncHandler(async (req: AuthRequest, res) => {
+  const { fileId } = req.params;
+  const file = await prisma.sysMLFile.findUnique({
+    where: { id: fileId },
+    include: { project: { select: { ownerId: true } } },
+  });
+  if (!file || file.project.ownerId !== req.userId) throw NotFound('File');
+  const messages = await prisma.aiChatMessage.findMany({
+    where: { userId: req.userId!, fileId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, role: true, text: true, edits: true, createdAt: true },
+  });
+  res.json({ data: messages });
+}));
 
 // ─── DELETE /history/:fileId — clear chat history for a file ─────────────────
 
-router.delete('/history/:fileId', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { fileId } = req.params;
-    const file = await prisma.sysMLFile.findUnique({
-      where: { id: fileId },
-      include: { project: { select: { ownerId: true } } },
-    });
-    if (!file || file.project.ownerId !== req.userId) {
-      res.status(404).json({ error: 'File not found' });
-      return;
-    }
-    await prisma.aiChatMessage.deleteMany({ where: { userId: req.userId!, fileId } });
-    res.json({ data: { success: true } });
-  } catch (err) {
-    console.error('[AI] History clear failed:', err);
-    res.status(500).json({ error: 'Failed to clear chat history' });
-  }
-});
+router.delete('/history/:fileId', requireAuth, asyncHandler(async (req: AuthRequest, res) => {
+  const { fileId } = req.params;
+  const file = await prisma.sysMLFile.findUnique({
+    where: { id: fileId },
+    include: { project: { select: { ownerId: true } } },
+  });
+  if (!file || file.project.ownerId !== req.userId) throw NotFound('File');
+  await prisma.aiChatMessage.deleteMany({ where: { userId: req.userId!, fileId } });
+  res.json({ data: { success: true } });
+}));
 
 // ─── POST /chat — streaming AI chat (hybrid: free tier or user's own key) ────
 

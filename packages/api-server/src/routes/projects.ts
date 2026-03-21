@@ -5,7 +5,7 @@ import { prisma } from '../db.js';
 import { isAdmin } from '../lib/auth-helpers.js';
 import { asyncHandler, NotFound, Forbidden, BadRequest } from '../lib/errors.js';
 import { MAX_PROJECT_DEPTH } from '../config/constants.js';
-import { generateProjectDisplayId, userOwnerRef } from '../lib/id-generator.js';
+import { generateProjectDisplayId, generateFileDisplayId, userOwnerRef } from '../lib/id-generator.js';
 
 const router: IRouter = Router();
 
@@ -18,6 +18,35 @@ const createSchema = z.object({
 });
 
 router.use(requireAuth);
+
+/** Check if the current user can access a project. Throws NotFound if not. */
+async function assertAccess(project: { ownerId: string; isSystem: boolean; projectType: string; startupId: string | null }, userId: string, userRole?: string) {
+  if (isAdmin(userRole)) return;
+  if (project.isSystem) return; // readable by all
+  if (project.projectType === 'STARTUP' && project.startupId) {
+    const membership = await prisma.startupMember.findUnique({
+      where: { startupId_userId: { startupId: project.startupId, userId } },
+    });
+    if (!membership) throw NotFound('Project');
+    return;
+  }
+  if (project.ownerId !== userId) throw NotFound('Project');
+}
+
+/** Check if user can write to a project. Throws NotFound/Forbidden if not. */
+async function assertWrite(project: { ownerId: string; isSystem: boolean; projectType: string; startupId: string | null }, userId: string, userRole?: string) {
+  const admin = isAdmin(userRole);
+  if (project.isSystem && !admin) throw Forbidden();
+  if (project.projectType === 'STARTUP' && project.startupId && !admin) {
+    const membership = await prisma.startupMember.findUnique({
+      where: { startupId_userId: { startupId: project.startupId, userId } },
+    });
+    if (!membership) throw NotFound('Project');
+    if (membership.role === 'STARTUP_USER') throw Forbidden('Startup users cannot modify projects');
+    return;
+  }
+  if (!project.isSystem && project.ownerId !== userId && !admin) throw NotFound('Project');
+}
 
 /** Build a tree from a flat list of projects. */
 interface ProjectRow { id: string; parentId: string | null; [key: string]: unknown }
@@ -156,40 +185,15 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res) => {
     },
   });
   if (!project) throw NotFound('Project');
-
-  // Access check
-  const admin = isAdmin(req.userRole);
-  if (!admin && !project.isSystem) {
-    if (project.projectType === 'STARTUP' && project.startupId) {
-      const membership = await prisma.startupMember.findUnique({
-        where: { startupId_userId: { startupId: project.startupId, userId: req.userId! } },
-      });
-      if (!membership) throw NotFound('Project');
-    } else if (project.ownerId !== req.userId) {
-      throw NotFound('Project');
-    }
-  }
-
+  await assertAccess(project, req.userId!, req.userRole);
   res.json({ data: project });
 }));
 
 // Rename project (blocked for system projects unless admin)
 router.patch('/:id', asyncHandler(async (req: AuthRequest, res) => {
-  const admin = isAdmin(req.userRole);
   const project = await prisma.project.findUnique({ where: { id: req.params.id } });
   if (!project) throw NotFound('Project');
-
-  // Access check
-  if (project.isSystem && !admin) throw Forbidden();
-  if (project.projectType === 'STARTUP' && project.startupId && !admin) {
-    const membership = await prisma.startupMember.findUnique({
-      where: { startupId_userId: { startupId: project.startupId, userId: req.userId! } },
-    });
-    if (!membership) throw NotFound('Project');
-    if (membership.role === 'STARTUP_USER') throw Forbidden('Startup users cannot rename projects');
-  } else if (!project.isSystem && project.ownerId !== req.userId && !admin) {
-    throw NotFound('Project');
-  }
+  await assertWrite(project, req.userId!, req.userRole);
 
   const body = createSchema.pick({ name: true, description: true }).partial().parse(req.body);
   const updated = await prisma.project.update({
@@ -206,19 +210,7 @@ router.get('/:id/download', asyncHandler(async (req: AuthRequest, res) => {
     include: { files: { select: { name: true, content: true } } },
   });
   if (!project) throw NotFound('Project');
-
-  // Access check
-  const admin = isAdmin(req.userRole);
-  if (!admin && !project.isSystem) {
-    if (project.projectType === 'STARTUP' && project.startupId) {
-      const membership = await prisma.startupMember.findUnique({
-        where: { startupId_userId: { startupId: project.startupId, userId: req.userId! } },
-      });
-      if (!membership) throw NotFound('Project');
-    } else if (project.ownerId !== req.userId) {
-      throw NotFound('Project');
-    }
-  }
+  await assertAccess(project, req.userId!, req.userRole);
 
   if (project.files.length === 1) {
     const file = project.files[0];
@@ -235,20 +227,9 @@ router.get('/:id/download', asyncHandler(async (req: AuthRequest, res) => {
 
 // Delete project (blocked for system projects unless admin)
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
-  const admin = isAdmin(req.userRole);
   const project = await prisma.project.findUnique({ where: { id: req.params.id } });
   if (!project) throw NotFound('Project');
-
-  if (project.isSystem && !admin) throw Forbidden();
-  if (project.projectType === 'STARTUP' && project.startupId && !admin) {
-    const membership = await prisma.startupMember.findUnique({
-      where: { startupId_userId: { startupId: project.startupId, userId: req.userId! } },
-    });
-    if (!membership) throw NotFound('Project');
-    if (membership.role === 'STARTUP_USER') throw Forbidden('Startup users cannot delete projects');
-  } else if (!project.isSystem && project.ownerId !== req.userId && !admin) {
-    throw NotFound('Project');
-  }
+  await assertWrite(project, req.userId!, req.userRole);
 
   await prisma.project.delete({ where: { id: req.params.id } });
   res.status(204).send();
@@ -269,7 +250,6 @@ router.post('/:id/clone', asyncHandler(async (req: AuthRequest, res) => {
   });
 
   if (source.files.length > 0) {
-    const { generateFileDisplayId } = await import('../lib/id-generator.js');
     await prisma.sysMLFile.createMany({
       data: source.files.map((f: { name: string; content: string; size: number }) => ({
         name: f.name, content: f.content, size: f.size, projectId: clonedProject.id,

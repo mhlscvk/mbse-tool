@@ -112,8 +112,9 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
 
       case 'read_file': {
         const file = await fileOps.readFileWithOwnerCheck(args.fileId, userId);
-        const numbered = file.content.split('\n').map((l: string, i: number) => `${String(i + 1).padStart(4, ' ')} | ${l}`).join('\n');
-        return { result: `File: ${file.name} (${file.content.split('\n').length} lines)\n\n${numbered}`, isError: false };
+        const lines = file.content.split('\n');
+        const numbered = lines.map((l: string, i: number) => `${String(i + 1).padStart(4, ' ')} | ${l}`).join('\n');
+        return { result: `File: ${file.name} (${lines.length} lines)\n\n${numbered}`, isError: false };
       }
 
       case 'create_file': {

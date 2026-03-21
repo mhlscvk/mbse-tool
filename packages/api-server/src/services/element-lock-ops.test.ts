@@ -1,17 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../db.js', () => ({
-  prisma: {
-    sysMLFile: { findUnique: vi.fn() },
-    elementLock: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      delete: vi.fn(),
-      findMany: vi.fn(),
+vi.mock('../db.js', () => {
+  const elementLock = {
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    delete: vi.fn(),
+    findMany: vi.fn(),
+  };
+  const auditLog = { create: vi.fn() };
+  return {
+    prisma: {
+      sysMLFile: { findUnique: vi.fn() },
+      elementLock,
+      auditLog,
+      $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     },
-    auditLog: { create: vi.fn() },
-  },
-}));
+  };
+});
 
 vi.mock('../lib/id-generator.js', () => ({
   generateElementDisplayId: vi.fn(() => 'ELM-TEST1'),
