@@ -7,10 +7,13 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "clean": "turbo run clean"
+    "test": "pnpm --filter @systemodel/api-server test && pnpm --filter @systemodel/diagram-service test",
+    "clean": "turbo run clean",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^20.x",
+    "husky": "^9.1.7",
     "tsx": "^4.21.0",
     "turbo": "^2.x",
     "typescript": "^5.1.3",
