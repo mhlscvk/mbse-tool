@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
 import { useIsMobile } from '../hooks/useIsMobile.js';
 import Header from '../components/Layout/Header.js';
-import type { Project, SysMLFile } from '@systemodel/shared-types';
+import type { Project, SysMLFile, Startup, ProjectType } from '@systemodel/shared-types';
 
 // ─── Context Menu ────────────────────────────────────────────────────────────
 
@@ -67,6 +67,9 @@ export default function ProjectsPage() {
   const [error, setError] = useState('');
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [projectFilter, setProjectFilter] = useState<'all' | 'SYSTEM' | 'STARTUP' | 'USER'>('all');
+  const [userStartups, setUserStartups] = useState<Startup[]>([]);
+  const [createTarget, setCreateTarget] = useState<'personal' | string>('personal'); // 'personal' or startupId
 
   const toggleCollapse = (id: string) =>
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -82,6 +85,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     refreshProjects().finally(() => setLoading(false));
+    api.startups.list().then(setUserStartups).catch(() => {});
   }, []);
 
   const selectProject = async (project: Project) => {
@@ -101,7 +105,9 @@ export default function ProjectsPage() {
     setCreating(true);
     setError('');
     try {
-      await api.projects.create(newProjectName.trim());
+      const projectType: ProjectType = createTarget === 'personal' ? 'USER' : 'STARTUP';
+      const startupId = createTarget === 'personal' ? undefined : createTarget;
+      await api.projects.create(newProjectName.trim(), undefined, undefined, projectType, startupId);
       await refreshProjects();
       setNewProjectName('');
     } catch (e) {
@@ -410,6 +416,9 @@ export default function ProjectsPage() {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {project.name}
           </span>
+          {project.projectType === 'STARTUP' && depth === 0 && (
+            <span title="Enterprise — restricted access" style={{ fontSize: 9, background: t.warning, color: '#fff', borderRadius: 3, padding: '1px 4px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 2 }}>&#128274; ENT</span>
+          )}
           {(project._count?.files ?? 0) > 0 && (
             <span style={{ color: t.textDim, fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>
               {project._count!.files}
@@ -441,14 +450,26 @@ export default function ProjectsPage() {
         }}>
           <div style={{ padding: '16px 16px 8px', borderBottom: `1px solid ${t.border}` }}>
             <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Projects</div>
-            <form onSubmit={createProject} style={{ display: 'flex', gap: 8 }}>
+            <form onSubmit={createProject} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
                 placeholder="New project name"
                 disabled={creating}
-                style={{ flex: 1, background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 4, padding: '6px 8px', color: t.text, fontSize: 12, outline: 'none' }}
+                style={{ flex: 1, minWidth: 100, background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 4, padding: '6px 8px', color: t.text, fontSize: 12, outline: 'none' }}
               />
+              {userStartups.length > 0 && (
+                <select
+                  value={createTarget}
+                  onChange={(e) => setCreateTarget(e.target.value)}
+                  style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 4, padding: '4px 6px', color: t.text, fontSize: 11 }}
+                >
+                  <option value="personal">Personal</option>
+                  {userStartups.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
               <button
                 type="submit"
                 disabled={creating || !newProjectName.trim()}
@@ -463,11 +484,61 @@ export default function ProjectsPage() {
               </div>
             )}
           </div>
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: 4, padding: '8px 12px', borderBottom: `1px solid ${t.border}`, flexWrap: 'wrap' }}>
+            {(['all', 'SYSTEM', 'STARTUP', 'USER'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setProjectFilter(f)}
+                style={{
+                  background: projectFilter === f ? t.accent : 'transparent',
+                  color: projectFilter === f ? '#fff' : t.textSecondary,
+                  border: `1px solid ${projectFilter === f ? t.accent : t.border}`,
+                  borderRadius: 12, padding: '2px 10px', fontSize: 11, cursor: 'pointer',
+                }}
+              >
+                {f === 'all' ? 'All' : f === 'SYSTEM' ? 'System' : f === 'STARTUP' ? 'Enterprise' : 'Personal'}
+              </button>
+            ))}
+          </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 16, color: t.textMuted, fontSize: 13 }}>Loading...</div>}
-            {projects.map((p) => (
-              <ProjectTreeItem key={p.id} project={p} depth={0} />
-            ))}
+            {(() => {
+              const filtered = projectFilter === 'all'
+                ? projects
+                : projects.filter(p => p.projectType === projectFilter);
+              if (projectFilter === 'all') {
+                // Group by type
+                const system = filtered.filter(p => p.projectType === 'SYSTEM');
+                const enterprise = filtered.filter(p => p.projectType === 'STARTUP');
+                const personal = filtered.filter(p => p.projectType === 'USER');
+                return (
+                  <>
+                    {system.length > 0 && (
+                      <>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary }}>System</div>
+                        {system.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />)}
+                      </>
+                    )}
+                    {enterprise.length > 0 && (
+                      <>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>&#128274;</span> Enterprise <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 9 }}>(Restricted)</span>
+                        </div>
+                        {enterprise.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />)}
+                      </>
+                    )}
+                    {personal.length > 0 && (
+                      <>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary }}>Personal</div>
+                        {personal.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />)}
+                      </>
+                    )}
+                  </>
+                );
+              }
+              return filtered.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />);
+            })()}
           </div>
         </div>
 
@@ -487,8 +558,13 @@ export default function ProjectsPage() {
                   )}
                   <span style={{ color: t.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {selectedProject.name}
-                  {selectedProject.isSystem && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
-                  {selectedProject.isSystem && isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(System)</span>}
+                  {selectedProject.projectType === 'SYSTEM' && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
+                  {selectedProject.projectType === 'SYSTEM' && isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(System)</span>}
+                  {selectedProject.projectType === 'STARTUP' && (
+                    <span style={{ color: t.warning, fontSize: 11, marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      &#128274; Enterprise &middot; Members only
+                    </span>
+                  )}
                 </span>
                 </div>
                 {(!selectedProject.isSystem || isAdmin) && (

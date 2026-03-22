@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import type { SNode, SEdge } from '@systemodel/shared-types';
+import type { SNode, SEdge, ElementLock, ViewType } from '@systemodel/shared-types';
 import { useTheme } from '../../store/theme.js';
 
 // ─── Saved Views types & helpers ──────────────────────────────────────────────
@@ -9,6 +9,10 @@ interface SavedView {
   hiddenNodeIds: string[];
   hiddenEdgeIds: string[];
   createdAt: number;
+  viewType?: ViewType;
+  viewMode?: 'nested' | 'tree';
+  showInherited?: boolean;
+  showLegend?: boolean;
 }
 
 function loadSavedViews(storageKey: string): SavedView[] {
@@ -54,6 +58,25 @@ interface ElementPanelProps {
   showLegend?: boolean;
   /** Called when user toggles legend visibility */
   onToggleLegend?: () => void;
+  /** Element locks for this file */
+  locks?: ElementLock[];
+  /** Current user ID for lock ownership */
+  currentUserId?: string;
+  /** Called to check out an element */
+  onCheckOut?: (elementName: string) => void;
+  /** Called to check in an element */
+  onCheckIn?: (elementName: string) => void;
+  /** Called to request a locked element */
+  onRequestLock?: (elementName: string) => void;
+  /** Current diagram view settings (for saving with views) */
+  currentViewType?: ViewType;
+  currentViewMode?: 'nested' | 'tree';
+  currentShowInherited?: boolean;
+  currentShowLegend?: boolean;
+  /** Called to restore view settings when loading a saved view */
+  onRestoreSettings?: (settings: { viewType?: ViewType; viewMode?: 'nested' | 'tree'; showInherited?: boolean; showLegend?: boolean }) => void;
+  /** Called to navigate to an element's code by name */
+  onGoToCode?: (elementName: string) => void;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -184,7 +207,7 @@ function getEdgeLabel(edge: SEdge, nodeIndex: Map<string, string>): string {
   return `${src} → ${tgt}`;
 }
 
-type Tab = 'elements' | 'relationships' | 'views';
+type Tab = 'elements' | 'relationships' | 'views' | 'locks';
 type ViewMode = 'nested' | 'tree';
 
 export default function ElementPanel({
@@ -193,14 +216,35 @@ export default function ElementPanel({
   fillWidth, onNodeClick, onEdgeClick, viewStorageKey, onRestoreView,
   diagramSelectedNodeId, diagramSelectedEdgeId,
   showLegend = true, onToggleLegend,
+  locks, currentUserId, onCheckOut, onCheckIn, onRequestLock,
+  currentViewType, currentViewMode, currentShowInherited, currentShowLegend, onRestoreSettings,
+  onGoToCode,
 }: ElementPanelProps) {
   const t = useTheme();
+
+  // Theme-aware button styles
+  const btnStyleT: React.CSSProperties = {
+    background: 'none', border: `1px solid ${t.btnBorder}`, color: t.textSecondary,
+    cursor: 'pointer', borderRadius: 3, padding: '1px 5px', fontSize: 10, lineHeight: '14px',
+  };
+  const viewBtnStyleT: React.CSSProperties = {
+    background: 'none', border: `1px solid ${t.btnBorder}`, color: t.textMuted,
+    cursor: 'pointer', borderRadius: 3, padding: '2px 6px', fontSize: 9,
+  };
+
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [collapsedEdgeGroups, setCollapsedEdgeGroups] = useState<Set<string>>(new Set());
   const [collapsedTreeGroups, setCollapsedTreeGroups] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('elements');
   const [viewMode, setViewMode] = useState<ViewMode>('nested');
+
+  // Lock lookup by element name
+  const lockMap = useMemo(() => {
+    const map = new Map<string, ElementLock>();
+    if (locks) locks.forEach(l => map.set(l.elementName, l));
+    return map;
+  }, [locks]);
 
   // ── Saved views state ───────────────────────────────────────────────────────
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews(viewStorageKey ?? ''));
@@ -228,20 +272,32 @@ export default function ElementPanel({
       hiddenNodeIds: [...hiddenNodeIds],
       hiddenEdgeIds: [...hiddenEdgeIds],
       createdAt: Date.now(),
+      viewType: currentViewType,
+      viewMode: currentViewMode,
+      showInherited: currentShowInherited,
+      showLegend: currentShowLegend,
     };
     const updated = [...savedViews.filter(v => v.name !== name), view];
     setSavedViews(updated);
     persistSavedViews(viewStorageKey, updated);
     setActiveViewName(name);
     setNewViewName('');
-  }, [newViewName, viewStorageKey, hiddenNodeIds, hiddenEdgeIds, savedViews]);
+  }, [newViewName, viewStorageKey, hiddenNodeIds, hiddenEdgeIds, savedViews, currentViewType, currentViewMode, currentShowInherited, currentShowLegend]);
 
   const loadView = useCallback((view: SavedView) => {
     if (onRestoreView) {
       onRestoreView(new Set(view.hiddenNodeIds), new Set(view.hiddenEdgeIds));
       setActiveViewName(view.name);
     }
-  }, [onRestoreView]);
+    if (onRestoreSettings) {
+      onRestoreSettings({
+        viewType: view.viewType,
+        viewMode: view.viewMode,
+        showInherited: view.showInherited,
+        showLegend: view.showLegend,
+      });
+    }
+  }, [onRestoreView, onRestoreSettings]);
 
   const deleteView = useCallback((name: string) => {
     if (!viewStorageKey) return;
@@ -263,7 +319,8 @@ export default function ElementPanel({
   const updateView = useCallback((name: string) => {
     if (!viewStorageKey) return;
     const updated = savedViews.map(v => v.name === name
-      ? { ...v, hiddenNodeIds: [...hiddenNodeIds], hiddenEdgeIds: [...hiddenEdgeIds], createdAt: Date.now() }
+      ? { ...v, hiddenNodeIds: [...hiddenNodeIds], hiddenEdgeIds: [...hiddenEdgeIds], createdAt: Date.now(),
+          viewType: currentViewType, viewMode: currentViewMode, showInherited: currentShowInherited, showLegend: currentShowLegend }
       : v,
     );
     setSavedViews(updated);
@@ -271,7 +328,7 @@ export default function ElementPanel({
     setUpdatedViewName(name);
     clearTimeout(updatedTimerRef.current);
     updatedTimerRef.current = setTimeout(() => setUpdatedViewName(null), 1500);
-  }, [viewStorageKey, savedViews, hiddenNodeIds, hiddenEdgeIds]);
+  }, [viewStorageKey, savedViews, hiddenNodeIds, hiddenEdgeIds, currentViewType, currentViewMode, currentShowInherited, currentShowLegend]);
 
   const nodeIndex = useMemo(() => new Map<string, string>(nodes.map((n) => [n.id, getNodeName(n)])), [nodes]);
 
@@ -509,7 +566,7 @@ export default function ElementPanel({
           {hasChildren ? (
             <span
               onClick={(e) => { e.stopPropagation(); toggleGroupCollapse(node.id); }}
-              style={{ color: isPkg ? '#9a9ac0' : '#888', fontSize: 10, width: 10, display: 'inline-block', flexShrink: 0 }}
+              style={{ color: t.textMuted, fontSize: 10, width: 10, display: 'inline-block', flexShrink: 0 }}
             >{isCollapsed ? '▶' : '▼'}</span>
           ) : (
             <span style={{ width: 10, flexShrink: 0 }} />
@@ -607,7 +664,7 @@ export default function ElementPanel({
           }}>
             <span
               onClick={() => toggleTreeGroupCollapse(kind)}
-              style={{ color: '#888', fontSize: 10, width: 10, display: 'inline-block', flexShrink: 0 }}
+              style={{ color: t.textMuted, fontSize: 10, width: 10, display: 'inline-block', flexShrink: 0 }}
             >{isGroupCollapsed ? '▶' : '▼'}</span>
             <span style={{
               width: 8, height: 8, flexShrink: 0,
@@ -649,7 +706,7 @@ export default function ElementPanel({
                   background: treeBg,
                   opacity: visible ? 1 : 0.45,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#2a3a4a')}
+                onMouseEnter={e => (e.currentTarget.style.background = t.bgHover)}
                 onMouseLeave={e => (e.currentTarget.style.background = treeBg)}
               >
                 <input
@@ -672,6 +729,37 @@ export default function ElementPanel({
                     }}>{path}</div>
                   )}
                 </div>
+                {/* Lock indicator + action */}
+                {(() => {
+                  const lock = lockMap.get(name);
+                  if (!lock && onCheckOut) {
+                    return (
+                      <button
+                        onClick={e => { e.stopPropagation(); onCheckOut(name); }}
+                        title="Check out this element"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: t.textDim, padding: '0 2px', flexShrink: 0 }}
+                      >&#128275;</button>
+                    );
+                  }
+                  if (lock) {
+                    const isMine = lock.lockedBy === currentUserId;
+                    return (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (isMine && onCheckIn) onCheckIn(name);
+                          else if (!isMine && onRequestLock) onRequestLock(name);
+                        }}
+                        title={isMine ? 'Check in (you hold this lock)' : `Locked by ${lock.user?.name ?? 'another user'} — click to request`}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', fontSize: 10,
+                          color: isMine ? t.info : t.warning, padding: '0 2px', flexShrink: 0,
+                        }}
+                      >&#128274;</button>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             );
           })}
@@ -689,7 +777,7 @@ export default function ElementPanel({
         <button
           onClick={() => setCollapsed(false)}
           title="Show elements panel"
-          style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16, padding: 4, lineHeight: 1 }}
+          style={{ background: 'none', border: 'none', color: t.textSecondary, cursor: 'pointer', fontSize: 16, padding: 4, lineHeight: 1 }}
         >&#9776;</button>
       </div>
     );
@@ -709,31 +797,31 @@ export default function ElementPanel({
         padding: '6px 8px', borderBottom: `1px solid ${t.border}`, background: t.bgSecondary, flexShrink: 0,
       }}>
         <span style={{ color: t.text, fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          {tab === 'elements' ? 'Elements' : tab === 'relationships' ? 'Relations' : 'Views'}
+          {tab === 'elements' ? 'Elements' : tab === 'relationships' ? 'Relations' : tab === 'locks' ? 'Checked Out' : 'Views'}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
           {tab === 'elements' && (
             <>
-              <button onClick={() => onToggleAll(true)} title="Show all" style={btnStyle}>All</button>
-              <button onClick={() => onToggleAll(false)} title="Hide all" style={btnStyle}>None</button>
+              <button onClick={() => onToggleAll(true)} title="Show all" style={btnStyleT}>All</button>
+              <button onClick={() => onToggleAll(false)} title="Hide all" style={btnStyleT}>None</button>
               <button
                 onClick={stepExpand}
                 disabled={allGroupsExpanded}
                 title="Expand one level"
-                style={{ ...btnStyle, opacity: allGroupsExpanded ? 0.3 : 1 }}
+                style={{ ...btnStyleT, opacity: allGroupsExpanded ? 0.3 : 1 }}
               >&#9660;</button>
               <button
                 onClick={stepCollapse}
                 disabled={allGroupsCollapsed}
                 title="Collapse one level"
-                style={{ ...btnStyle, opacity: allGroupsCollapsed ? 0.3 : 1 }}
+                style={{ ...btnStyleT, opacity: allGroupsCollapsed ? 0.3 : 1 }}
               >&#9650;</button>
             </>
           )}
           {tab === 'relationships' && (
             <>
-              <button onClick={() => toggleAllEdges(true)} title="Show all" style={btnStyle}>All</button>
-              <button onClick={() => toggleAllEdges(false)} title="Hide all" style={btnStyle}>None</button>
+              <button onClick={() => toggleAllEdges(true)} title="Show all" style={btnStyleT}>All</button>
+              <button onClick={() => toggleAllEdges(false)} title="Hide all" style={btnStyleT}>None</button>
               <button
                 onClick={() => {
                   const allKinds = Object.keys(edgeGroups);
@@ -741,11 +829,11 @@ export default function ElementPanel({
                   setCollapsedEdgeGroups(allCol ? new Set() : new Set(allKinds));
                 }}
                 title="Collapse / expand all"
-                style={btnStyle}
+                style={btnStyleT}
               >{Object.keys(edgeGroups).every(k => collapsedEdgeGroups.has(k)) ? '▶▶' : '▼▼'}</button>
             </>
           )}
-          <button onClick={() => setCollapsed(true)} title="Collapse panel" style={{ ...btnStyle, fontSize: 14 }}>&#8249;</button>
+          <button onClick={() => setCollapsed(true)} title="Collapse panel" style={{ ...btnStyleT, fontSize: 14 }}>&#8249;</button>
         </div>
       </div>
 
@@ -756,6 +844,7 @@ export default function ElementPanel({
           { key: 'elements' as Tab, label: `Elements (${nodes.length})` },
           { key: 'relationships' as Tab, label: `Relations (${edges.length})` },
           ...(viewStorageKey ? [{ key: 'views' as Tab, label: `Views (${savedViews.length})` }] : []),
+          ...(locks && locks.some(l => l.lockedBy === currentUserId) ? [{ key: 'locks' as Tab, label: `Locks (${locks.filter(l => l.lockedBy === currentUserId).length})` }] : []),
         ]).map(({ key, label }) => (
           <button
             key={key}
@@ -786,7 +875,7 @@ export default function ElementPanel({
                 flex: 1, border: `1px solid ${t.btnBorder}`, cursor: 'pointer',
                 borderRadius: 3, padding: '2px 6px', fontSize: 10,
                 background: viewMode === mode ? t.statusBar : 'transparent',
-                color: viewMode === mode ? '#fff' : t.textSecondary,
+                color: viewMode === mode ? (t.mode === 'dark' ? '#fff' : '#fff') : t.textSecondary,
                 fontWeight: viewMode === mode ? 600 : 400,
               }}
             >{mode === 'nested' ? 'Nested' : 'By Kind'}</button>
@@ -812,13 +901,13 @@ export default function ElementPanel({
 
       {/* Relationships tab */}
       {tab === 'relationships' && onToggleLegend && (
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid #3c3c3c', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: '#aaa' }}>
+        <div style={{ padding: '6px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: t.textSecondary }}>
             <input
               type="checkbox"
               checked={showLegend}
               onChange={onToggleLegend}
-              style={{ accentColor: '#569cd6', cursor: 'pointer' }}
+              style={{ accentColor: t.info, cursor: 'pointer' }}
             />
             Show Legend
           </label>
@@ -849,7 +938,7 @@ export default function ElementPanel({
                     }}>
                       <span
                         onClick={() => toggleEdgeGroupCollapse(kind)}
-                        style={{ color: '#888', fontSize: 10, width: 10, display: 'inline-block' }}
+                        style={{ color: t.textMuted, fontSize: 10, width: 10, display: 'inline-block' }}
                       >{isGroupCollapsed ? '▶' : '▼'}</span>
                       <svg width={18} height={10} style={{ flexShrink: 0 }}>
                         <line x1={0} y1={5} x2={18} y2={5} stroke={color} strokeWidth={1.5}
@@ -884,7 +973,7 @@ export default function ElementPanel({
                             background: edgeBg,
                             opacity: visible ? 1 : 0.45,
                           }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#2a3a4a')}
+                          onMouseEnter={e => (e.currentTarget.style.background = t.bgHover)}
                           onMouseLeave={e => (e.currentTarget.style.background = edgeBg)}
                         >
                           <input
@@ -916,7 +1005,7 @@ export default function ElementPanel({
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {/* Save new view */}
           <div style={{
-            padding: '8px', borderBottom: '1px solid #3c3c3c',
+            padding: '8px', borderBottom: `1px solid ${t.border}`,
             display: 'flex', gap: 4, flexShrink: 0,
           }}>
             <input
@@ -936,7 +1025,7 @@ export default function ElementPanel({
               disabled={!newViewName.trim()}
               title="Save current visibility as a named view"
               style={{
-                ...btnStyle,
+                ...btnStyleT,
                 opacity: newViewName.trim() ? 1 : 0.4,
                 padding: '3px 8px',
               }}
@@ -965,7 +1054,7 @@ export default function ElementPanel({
                       style={{
                         padding: '6px 8px',
                         borderBottom: `1px solid ${t.borderLight}`,
-                        background: isActive ? '#1a3050' : 'transparent',
+                        background: isActive ? (t.mode === 'dark' ? '#1a3050' : '#e0f0ff') : 'transparent',
                         cursor: 'pointer',
                       }}
                       onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = t.bgHover; }}
@@ -999,32 +1088,37 @@ export default function ElementPanel({
                             {/* Active indicator */}
                             <span style={{
                               width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                              background: isActive ? '#007acc' : '#444',
+                              background: isActive ? t.accent : t.btnBg,
                             }} />
                             <span style={{
-                              flex: 1, color: isActive ? '#4dc9f6' : '#ccc',
+                              flex: 1, color: isActive ? t.info : t.text,
                               fontSize: 12, fontWeight: isActive ? 600 : 400,
                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             }}>
                               {view.name}
                             </span>
-                            <span style={{ fontSize: 9, color: '#666', flexShrink: 0 }}>
+                            <span style={{ fontSize: 9, color: t.textDim, flexShrink: 0 }}>
                               {hiddenCount > 0 ? `${hiddenCount} hidden` : 'all visible'}
+                              {view.viewType ? ` · ${
+                                { general: 'GV', interconnection: 'IV', 'action-flow': 'AFV', 'state-transition': 'STV' }[view.viewType]
+                              }` : ''}
+                              {view.viewMode === 'tree' ? ' · Tree' : ''}
+                              {view.showInherited ? ' · Inh' : ''}
                             </span>
                           </div>
                           {/* Action buttons */}
                           <div style={{ display: 'flex', gap: 2, marginTop: 4, paddingLeft: 12 }}>
                             <button
                               onClick={(e) => { e.stopPropagation(); loadView(view); }}
-                              style={{ ...viewBtnStyle, color: '#4dc9f6' }}
+                              style={{ ...viewBtnStyleT, color: t.info, borderColor: t.btnBorder }}
                               title="Load this view"
                             >Load</button>
                             <button
                               onClick={(e) => { e.stopPropagation(); updateView(view.name); }}
                               style={{
-                                ...viewBtnStyle,
+                                ...viewBtnStyleT,
                                 ...(updatedViewName === view.name
-                                  ? { color: '#4ec9b0', borderColor: '#4ec9b0' }
+                                  ? { color: t.success, borderColor: t.success }
                                   : {}),
                               }}
                               title="Update with current visibility"
@@ -1035,12 +1129,12 @@ export default function ElementPanel({
                                 setRenamingIdx(idx);
                                 setRenameText(view.name);
                               }}
-                              style={viewBtnStyle}
+                              style={viewBtnStyleT}
                               title="Rename view"
                             >Rename</button>
                             <button
                               onClick={(e) => { e.stopPropagation(); deleteView(view.name); }}
-                              style={{ ...viewBtnStyle, color: '#f08070' }}
+                              style={{ ...viewBtnStyleT, color: t.error, borderColor: t.btnBorder }}
                               title="Delete view"
                             >Delete</button>
                           </div>
@@ -1070,10 +1164,58 @@ export default function ElementPanel({
           </div>
         </div>
       )}
+
+      {/* Locks tab content */}
+      {tab === 'locks' && locks && (
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {(() => {
+            const myLocks = locks.filter(l => l.lockedBy === currentUserId);
+            if (myLocks.length === 0) {
+              return (
+                <div style={{ padding: 16, color: t.textMuted, fontSize: 12, textAlign: 'center' }}>
+                  No elements checked out.
+                </div>
+              );
+            }
+            return myLocks.map(lock => (
+              <div key={lock.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 8px', borderBottom: `1px solid ${t.borderLight}`,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = t.bgHover; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div
+                  style={{ flex: 1, minWidth: 0, cursor: onGoToCode ? 'pointer' : 'default' }}
+                  onClick={() => onGoToCode?.(lock.elementName)}
+                  title="Go to code"
+                >
+                  <div style={{ color: t.info, fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    &#128274; {lock.elementName}
+                  </div>
+                  <div style={{ color: t.textDim, fontSize: 9 }}>
+                    {new Date(lock.lockedAt).toLocaleTimeString()} — click to go to code
+                  </div>
+                </div>
+                <button
+                  onClick={() => onCheckIn?.(lock.elementName)}
+                  style={{
+                    background: t.info, color: '#fff', border: 'none', borderRadius: 3,
+                    padding: '3px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 600, flexShrink: 0,
+                  }}
+                >
+                  Check In
+                </button>
+              </div>
+            ));
+          })()}
+        </div>
+      )}
     </div>
   );
 }
 
+// These are overridden at runtime with theme values via btnStyleT / viewBtnStyleT
 const btnStyle: React.CSSProperties = {
   background: 'none',
   border: '1px solid #444',

@@ -67,7 +67,7 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
       background: t.bg, gap: 20,
     }}>
       <div style={{ fontSize: 52 }}>🎉</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: '#4ec9b0' }}>
+      <div style={{ fontSize: 26, fontWeight: 700, color: t.success }}>
         Training Complete!
       </div>
       <div style={{
@@ -401,8 +401,8 @@ export default function TrainingPage() {
                 height: state === 'active' ? 11 : 7,
                 borderRadius: '50%',
                 background:
-                  state === 'done' ? '#4ec9b0'
-                  : state === 'active' ? '#569cd6'
+                  state === 'done' ? t.success
+                  : state === 'active' ? t.info
                   : t.btnBg,
                 border: state === 'active' ? `2px solid ${t.accent}` : `1px solid ${t.border}`,
                 transition: 'all 0.2s',
@@ -414,7 +414,7 @@ export default function TrainingPage() {
           {currentLevel} / {TOTAL_LEVELS}
         </span>
 
-        <span style={{ fontSize: 11, color: '#4ec9b0' }}>
+        <span style={{ fontSize: 11, color: t.success }}>
           {completedTasks.size} / {TRAINING_TASKS.length} done
         </span>
 
@@ -628,14 +628,14 @@ export default function TrainingPage() {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8,
         borderTop: '1px solid',
         background: lastResult
-          ? lastResult.severity === 'success' ? (t.bg === '#1e1e1e' ? '#0a2e18' : '#e8f8f0')
-          : lastResult.severity === 'hint'    ? (t.bg === '#1e1e1e' ? '#252200' : '#f8f5e0')
-          : (t.bg === '#1e1e1e' ? '#2a0e0e' : '#f8e8e8')
+          ? lastResult.severity === 'success' ? (t.mode === 'dark' ? '#0a2e18' : '#e8f8f0')
+          : lastResult.severity === 'hint'    ? (t.mode === 'dark' ? '#252200' : '#f8f5e0')
+          : (t.mode === 'dark' ? '#2a0e0e' : '#f8e8e8')
           : t.bgSecondary,
         borderColor: lastResult
-          ? lastResult.severity === 'success' ? '#0a6e37'
-          : lastResult.severity === 'hint'    ? '#8a8a00'
-          : '#a02020'
+          ? lastResult.severity === 'success' ? (t.mode === 'dark' ? '#0a6e37' : '#60b060')
+          : lastResult.severity === 'hint'    ? (t.mode === 'dark' ? '#8a8a00' : '#b0a040')
+          : (t.mode === 'dark' ? '#a02020' : '#e07070')
           : t.border,
         transition: 'background 0.25s, border-color 0.25s',
       }}>
@@ -648,9 +648,9 @@ export default function TrainingPage() {
             </span>
             <span style={{
               fontSize: 12,
-              color: lastResult.severity === 'success' ? '#4ec9b0'
-                   : lastResult.severity === 'hint'    ? '#c8b800'
-                   : '#f08070',
+              color: lastResult.severity === 'success' ? t.success
+                   : lastResult.severity === 'hint'    ? t.warning
+                   : t.error,
             }}>
               {lastResult.message}
             </span>

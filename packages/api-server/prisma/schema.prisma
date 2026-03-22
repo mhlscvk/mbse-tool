@@ -43,6 +43,7 @@ model Startup {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   members     StartupMember[]
+  invitations StartupInvitation[]
   projects    Project[]
 
   @@map("startups")
@@ -62,6 +63,20 @@ model StartupMember {
   @@index([startupId])
   @@index([userId])
   @@map("startup_members")
+}
+
+model StartupInvitation {
+  id          String      @id @default(cuid())
+  startup     Startup     @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  startupId   String
+  email       String      // invited email (lowercased)
+  role        StartupRole @default(STARTUP_USER)
+  invitedBy   String      // userId of the inviter
+  createdAt   DateTime    @default(now())
+
+  @@unique([startupId, email])
+  @@index([email])
+  @@map("startup_invitations")
 }
 
 model Project {

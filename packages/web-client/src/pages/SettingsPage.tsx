@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Layout/Header.js';
-import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo } from '../services/api-client.js';
+import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo, type StartupInvitation } from '../services/api-client.js';
 import type { AiKeyInfo } from '../services/api-client.js';
 import { useTheme, type ThemeColors } from '../store/theme.js';
 import { useAuthStore } from '../store/auth.js';
 import { useIsMobile } from '../hooks/useIsMobile.js';
+import type { Startup, StartupMember, StartupRole } from '@systemodel/shared-types';
 
 // ─── MCP client config templates ─────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ const clients: { id: ClientId; label: string; file: string; generator: (url: str
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'ai-provider' | 'mcp' | 'admin' | 'bug-reports';
+type SettingsTab = 'account' | 'ai-provider' | 'mcp' | 'admin' | 'bug-reports' | 'startups';
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export default function SettingsPage() {
     { id: 'ai-provider', label: 'AI Provider' },
     { id: 'mcp', label: 'MCP' },
     ...(isAdmin ? [
+      { id: 'startups' as SettingsTab, label: 'Enterprises' },
       { id: 'admin' as SettingsTab, label: 'Admin' },
       { id: 'bug-reports' as SettingsTab, label: 'Bug Reports' },
     ] : []),
@@ -118,6 +120,7 @@ export default function SettingsPage() {
         {activeTab === 'account' && <AccountSection />}
         {activeTab === 'ai-provider' && <AiProviderSection />}
         {activeTab === 'mcp' && <McpSection />}
+        {activeTab === 'startups' && isAdmin && <StartupsSection />}
         {activeTab === 'admin' && isAdmin && <AdminSection />}
         {activeTab === 'bug-reports' && isAdmin && <BugReportsSection />}
       </div>
@@ -718,6 +721,262 @@ const btnSecondary = (t: ThemeColors): React.CSSProperties => ({
   padding: '6px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
 });
 
+// ─── Startups (Enterprise) Section ──────────────────────────────────────────
+
+function StartupsSection() {
+  const t = useTheme();
+  const [startups, setStartups] = useState<Startup[]>([]);
+  const [selected, setSelected] = useState<Startup | null>(null);
+  const [members, setMembers] = useState<StartupMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [addEmail, setAddEmail] = useState('');
+  const [addRole, setAddRole] = useState<StartupRole>('STARTUP_USER');
+  const [addingMember, setAddingMember] = useState(false);
+  const [invitations, setInvitations] = useState<StartupInvitation[]>([]);
+
+  const fetchStartups = useCallback(async () => {
+    try {
+      const list = await api.startups.list();
+      setStartups(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load enterprises');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchStartups(); }, [fetchStartups]);
+
+  const fetchMembers = useCallback(async (startupId: string) => {
+    try {
+      const [memberList, invList] = await Promise.all([
+        api.startups.members.list(startupId),
+        api.startups.invitations.list(startupId),
+      ]);
+      setMembers(memberList);
+      setInvitations(invList);
+    } catch { setMembers([]); setInvitations([]); }
+  }, []);
+
+  const selectStartup = (s: Startup) => {
+    setSelected(s);
+    fetchMembers(s.id);
+  };
+
+  const createStartup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+    setError('');
+    try {
+      const slug = newName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      await api.startups.create(newName.trim(), slug);
+      await fetchStartups();
+      setNewName('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create enterprise');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteStartup = async (s: Startup) => {
+    if (!confirm(`Delete enterprise "${s.name}" and all its projects?`)) return;
+    try {
+      await api.startups.delete(s.id);
+      if (selected?.id === s.id) { setSelected(null); setMembers([]); }
+      await fetchStartups();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete');
+    }
+  };
+
+  const renameStartup = async (s: Startup) => {
+    const name = prompt('Rename enterprise:', s.name);
+    if (!name || name === s.name) return;
+    try {
+      const updated = await api.startups.update(s.id, { name: name.trim() });
+      if (selected?.id === s.id) setSelected(updated);
+      await fetchStartups();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename');
+    }
+  };
+
+  const addMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected || !addEmail.trim() || addingMember) return;
+    setAddingMember(true);
+    setError('');
+    try {
+      await api.startups.members.add(selected.id, addEmail.trim(), addRole);
+      await fetchMembers(selected.id);
+      setAddEmail('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add member');
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const changeRole = async (userId: string, role: StartupRole) => {
+    if (!selected) return;
+    try {
+      await api.startups.members.updateRole(selected.id, userId, role);
+      await fetchMembers(selected.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update role');
+    }
+  };
+
+  const removeMember = async (userId: string, name: string) => {
+    if (!selected || !confirm(`Remove ${name} from this enterprise?`)) return;
+    try {
+      await api.startups.members.remove(selected.id, userId);
+      await fetchMembers(selected.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove member');
+    }
+  };
+
+  const revokeInvitation = async (invId: string, email: string) => {
+    if (!selected || !confirm(`Revoke invitation for ${email}?`)) return;
+    try {
+      await api.startups.invitations.revoke(selected.id, invId);
+      setInvitations(prev => prev.filter(i => i.id !== invId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to revoke invitation');
+    }
+  };
+
+  const iStyle = inputStyle(t);
+  const bStyle = btnSecondary(t);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 12px' }}>Enterprises</h3>
+        {error && <div style={{ color: t.error, fontSize: 12, marginBottom: 8 }}>{error}</div>}
+
+        {/* Create form */}
+        <form onSubmit={createStartup} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Enterprise name" style={{ ...iStyle, width: 'auto', flex: 1, minWidth: 140 }} />
+          <button type="submit" disabled={creating || !newName.trim()} style={{ background: t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, cursor: creating ? 'default' : 'pointer', opacity: creating ? 0.6 : 1 }}>
+            {creating ? 'Creating...' : '+ Create'}
+          </button>
+        </form>
+
+        {/* Startup list */}
+        {loading ? (
+          <div style={{ color: t.textMuted, fontSize: 13 }}>Loading...</div>
+        ) : startups.length === 0 ? (
+          <div style={{ color: t.textMuted, fontSize: 13 }}>No enterprises yet. Create one above.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {startups.map(s => (
+              <div
+                key={s.id}
+                onClick={() => selectStartup(s)}
+                style={{
+                  padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
+                  background: selected?.id === s.id ? t.accentBg : t.bg,
+                  border: `1px solid ${selected?.id === s.id ? t.accent : t.border}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}
+                onMouseEnter={e => { if (selected?.id !== s.id) e.currentTarget.style.borderColor = t.info; }}
+                onMouseLeave={e => { if (selected?.id !== s.id) e.currentTarget.style.borderColor = t.border; }}
+              >
+                <div>
+                  <div style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>{s.name}</div>
+                  <div style={{ color: t.textMuted, fontSize: 11 }}>
+                    /{s.slug} &middot; {s._count?.members ?? 0} members &middot; {s._count?.projects ?? 0} projects
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => renameStartup(s)} style={{ ...bStyle, fontSize: 11, padding: '4px 8px' }}>Rename</button>
+                  <button onClick={() => deleteStartup(s)} style={{ ...bStyle, fontSize: 11, padding: '4px 8px', color: t.error }}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Member management */}
+      {selected && (
+        <div>
+          <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 12px' }}>
+            Members of {selected.name}
+          </h3>
+
+          {/* Add member form */}
+          <form onSubmit={addMember} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <input value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="Email address" type="email" style={{ ...iStyle, width: 'auto', flex: 1, minWidth: 160 }} />
+            <select value={addRole} onChange={e => setAddRole(e.target.value as StartupRole)} style={{ ...iStyle, width: 'auto', minWidth: 120 }}>
+              <option value="STARTUP_USER">User</option>
+              <option value="STARTUP_ADMIN">Admin</option>
+            </select>
+            <button type="submit" disabled={addingMember || !addEmail.trim()} style={{ background: t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '8px 14px', fontSize: 12, cursor: addingMember ? 'default' : 'pointer', opacity: addingMember ? 0.6 : 1 }}>
+              {addingMember ? 'Adding...' : '+ Add'}
+            </button>
+          </form>
+
+          {members.length === 0 ? (
+            <div style={{ color: t.textMuted, fontSize: 13 }}>No members yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {members.map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: t.bg, border: `1px solid ${t.border}`, borderRadius: 4 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: t.text, fontSize: 12 }}>{m.user?.name ?? m.userId}</div>
+                    <div style={{ color: t.textMuted, fontSize: 10 }}>{m.user?.email ?? ''}</div>
+                  </div>
+                  <select
+                    value={m.role}
+                    onChange={e => changeRole(m.userId, e.target.value as StartupRole)}
+                    style={{ background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3, padding: '3px 6px', color: t.text, fontSize: 11 }}
+                  >
+                    <option value="STARTUP_USER">User</option>
+                    <option value="STARTUP_ADMIN">Admin</option>
+                  </select>
+                  <button onClick={() => removeMember(m.userId, m.user?.name ?? 'this user')} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '3px 8px', fontSize: 11, color: t.error, cursor: 'pointer' }}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pending invitations */}
+          {invitations.length > 0 && (
+            <>
+              <h4 style={{ color: t.textSecondary, fontSize: 12, margin: '16px 0 8px', fontWeight: 600 }}>
+                Pending Invitations ({invitations.length})
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {invitations.map(inv => (
+                  <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: t.bg, border: `1px dashed ${t.warning}`, borderRadius: 4 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: t.text, fontSize: 12 }}>{inv.email}</div>
+                      <div style={{ color: t.warning, fontSize: 10 }}>Pending — will join as {inv.role === 'STARTUP_ADMIN' ? 'Admin' : 'User'} when they register</div>
+                    </div>
+                    <button onClick={() => revokeInvitation(inv.id, inv.email)} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '3px 8px', fontSize: 11, color: t.error, cursor: 'pointer' }}>
+                      Revoke
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Admin Section ──────────────────────────────────────────────────────────
 
 function AdminSection() {
@@ -759,7 +1018,7 @@ function AdminSection() {
           {syncing ? 'Syncing...' : 'Sync Examples from Disk'}
         </button>
         {syncResult && (
-          <div style={{ marginTop: 8, fontSize: 12, color: syncResult.error ? '#e55' : t.accent }}>
+          <div style={{ marginTop: 8, fontSize: 12, color: syncResult.error ? t.error : t.accent }}>
             {syncResult.message}
           </div>
         )}

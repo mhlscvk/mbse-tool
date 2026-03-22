@@ -74,9 +74,9 @@ export const api = {
   },
   projects: {
     list: () => request<import('@systemodel/shared-types').Project[]>('/projects'),
-    create: (name: string, description?: string, parentId?: string) =>
+    create: (name: string, description?: string, parentId?: string, projectType?: import('@systemodel/shared-types').ProjectType, startupId?: string) =>
       request<import('@systemodel/shared-types').Project>('/projects', {
-        method: 'POST', body: JSON.stringify({ name, description, parentId }),
+        method: 'POST', body: JSON.stringify({ name, description, parentId, projectType, startupId }),
       }),
     get: (id: string) => request<import('@systemodel/shared-types').Project>(`/projects/${id}`),
     rename: (id: string, name: string, description?: string) =>
@@ -155,6 +155,85 @@ export const api = {
     revoke: (id: string) =>
       request<{ success: boolean }>(`/mcp-tokens/${id}`, { method: 'DELETE' }),
   },
+  startups: {
+    list: () => request<import('@systemodel/shared-types').Startup[]>('/startups'),
+    create: (name: string, slug: string) =>
+      request<import('@systemodel/shared-types').Startup>('/startups', {
+        method: 'POST', body: JSON.stringify({ name, slug }),
+      }),
+    get: (id: string) => request<import('@systemodel/shared-types').Startup>(`/startups/${id}`),
+    update: (id: string, data: { name?: string; slug?: string }) =>
+      request<import('@systemodel/shared-types').Startup>(`/startups/${id}`, {
+        method: 'PATCH', body: JSON.stringify(data),
+      }),
+    delete: (id: string) => request<void>(`/startups/${id}`, { method: 'DELETE' }),
+    members: {
+      list: (startupId: string) =>
+        request<import('@systemodel/shared-types').StartupMember[]>(`/startups/${startupId}/members`),
+      add: (startupId: string, email: string, role: import('@systemodel/shared-types').StartupRole) =>
+        request<import('@systemodel/shared-types').StartupMember>(`/startups/${startupId}/members`, {
+          method: 'POST', body: JSON.stringify({ email, role }),
+        }),
+      updateRole: (startupId: string, userId: string, role: import('@systemodel/shared-types').StartupRole) =>
+        request<import('@systemodel/shared-types').StartupMember>(`/startups/${startupId}/members/${userId}`, {
+          method: 'PATCH', body: JSON.stringify({ role }),
+        }),
+      remove: (startupId: string, userId: string) =>
+        request<void>(`/startups/${startupId}/members/${userId}`, { method: 'DELETE' }),
+    },
+    invitations: {
+      list: (startupId: string) =>
+        request<StartupInvitation[]>(`/startups/${startupId}/invitations`),
+      revoke: (startupId: string, invitationId: string) =>
+        request<void>(`/startups/${startupId}/invitations/${invitationId}`, { method: 'DELETE' }),
+    },
+  },
+  elementLocks: {
+    list: (projectId: string, fileId: string) =>
+      request<import('@systemodel/shared-types').ElementLock[]>(
+        `/projects/${projectId}/element-locks/files/${fileId}/locks`,
+      ),
+    checkOut: (projectId: string, fileId: string, elementName: string) =>
+      request<import('@systemodel/shared-types').ElementLock>(
+        `/projects/${projectId}/element-locks/files/${fileId}/locks`,
+        { method: 'POST', body: JSON.stringify({ elementName }) },
+      ),
+    checkIn: (projectId: string, fileId: string, elementName: string) =>
+      request<void>(
+        `/projects/${projectId}/element-locks/files/${fileId}/locks/${encodeURIComponent(elementName)}`,
+        { method: 'DELETE' },
+      ),
+    forceCheckIn: (projectId: string, fileId: string, elementName: string) =>
+      request<void>(
+        `/projects/${projectId}/element-locks/files/${fileId}/locks/${encodeURIComponent(elementName)}/force`,
+        { method: 'DELETE' },
+      ),
+    auditLog: (projectId: string, opts?: { fileId?: string; limit?: number; offset?: number }) =>
+      request<import('@systemodel/shared-types').AuditLogEntry[]>(
+        `/projects/${projectId}/element-locks/audit-log?${new URLSearchParams({
+          ...(opts?.fileId ? { fileId: opts.fileId } : {}),
+          ...(opts?.limit ? { limit: String(opts.limit) } : {}),
+          ...(opts?.offset ? { offset: String(opts.offset) } : {}),
+        })}`,
+      ),
+  },
+  notifications: {
+    list: (unread?: boolean) =>
+      request<import('@systemodel/shared-types').LockNotification[]>(
+        `/notifications${unread ? '?unread=true' : ''}`,
+      ),
+    unreadCount: () => request<{ count: number }>('/notifications/unread-count'),
+    create: (elementName: string, fileId: string) =>
+      request<import('@systemodel/shared-types').LockNotification>('/notifications', {
+        method: 'POST', body: JSON.stringify({ elementName, fileId }),
+      }),
+    markRead: (id: string) =>
+      request<import('@systemodel/shared-types').LockNotification>(`/notifications/${id}/read`, {
+        method: 'PATCH',
+      }),
+    markAllRead: () =>
+      request<{ success: boolean }>('/notifications/mark-all-read', { method: 'POST' }),
+  },
 };
 
 export interface AiKeyInfo {
@@ -187,6 +266,15 @@ export interface McpTokenCreated {
   name: string;
   token: string;
   expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface StartupInvitation {
+  id: string;
+  startupId: string;
+  email: string;
+  role: string;
+  invitedBy: string;
   createdAt: string;
 }
 

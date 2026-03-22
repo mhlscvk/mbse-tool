@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { findNodeByName, getNodeSourceRange } from '../utils/sysml-helpers.js';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
 import { diagramClient } from '../services/diagram-client.js';
@@ -13,7 +14,7 @@ import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
 import { useRecentFilesStore } from '../store/recent-files.js';
 import { useIsMobile } from '../hooks/useIsMobile.js';
-import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType } from '@systemodel/shared-types';
+import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType, ElementLock } from '@systemodel/shared-types';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const MIN_PANE_PCT = 15; // minimum pane width as % of container
@@ -50,6 +51,21 @@ export default function EditorPage() {
   const diagramNodes = (diagram?.children.filter((c): c is SNode => c.type === 'node') ?? []);
   const diagramEdges = (diagram?.children.filter((c): c is SEdge => c.type === 'edge') ?? []);
 
+  // Prune stale hidden IDs when diagram model changes
+  useEffect(() => {
+    if (!diagram) return;
+    const validNodeIds = new Set(diagramNodes.map(n => n.id));
+    const validEdgeIds = new Set(diagramEdges.map(e => e.id));
+    setHiddenNodeIds(prev => {
+      const pruned = new Set([...prev].filter(id => validNodeIds.has(id)));
+      return pruned.size === prev.size ? prev : pruned;
+    });
+    setHiddenEdgeIds(prev => {
+      const pruned = new Set([...prev].filter(id => validEdgeIds.has(id)));
+      return pruned.size === prev.size ? prev : pruned;
+    });
+  }, [diagram]);
+
   const toggleNode = useCallback((id: string) => {
     setHiddenNodeIds((prev) => {
       const next = new Set(prev);
@@ -77,6 +93,143 @@ export default function EditorPage() {
       setHiddenNodeIds(new Set(nodes.map((n) => n.id)));
     }
   }, []);
+
+  // Reset view: show all elements and edges, restore default layout
+  const handleResetView = useCallback(() => {
+    setHiddenNodeIds(new Set());
+    setHiddenEdgeIds(new Set());
+    setEditorOpen(true);
+    setSplitPct(25);
+    setViewMode('nested');
+    setViewType('general');
+    setShowInherited(false);
+    setShowLegend(true);
+    if (fileId) diagramClient.sendText(`file://${fileId}`, content, 'general', false);
+  }, [fileId, content]);
+
+  // Show only a specific node and its descendants (hide everything else)
+  const handleShowOnly = useCallback((nodeId: string) => {
+    const model = diagramRef.current;
+    if (!model) return;
+    const allNodes = model.children.filter((c): c is SNode => c.type === 'node');
+    const allEdges = model.children.filter((c): c is SEdge => c.type === 'edge');
+    // Build parent→children map from composition edges
+    const childrenOf = new Map<string, string[]>();
+    for (const e of allEdges) {
+      if (e.cssClasses?.[0] === 'composition' || e.cssClasses?.[0] === 'noncomposite') {
+        const siblings = childrenOf.get(e.sourceId) ?? [];
+        siblings.push(e.targetId);
+        childrenOf.set(e.sourceId, siblings);
+      }
+    }
+    // Collect target + all descendants
+    const keep = new Set<string>();
+    const stack = [nodeId];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      keep.add(id);
+      for (const child of childrenOf.get(id) ?? []) stack.push(child);
+    }
+    // Hide everything not in keep set
+    setHiddenNodeIds(new Set(allNodes.filter(n => !keep.has(n.id)).map(n => n.id)));
+  }, []);
+
+  // Show only by element name (for editor context menu)
+  const handleShowOnlyByName = useCallback((elementName: string) => {
+    const allNodes = diagramRef.current?.children.filter((c): c is SNode => c.type === 'node') ?? [];
+    const target = findNodeByName(allNodes, elementName);
+    if (target) handleShowOnly(target.id);
+  }, [handleShowOnly]);
+
+  // Navigate to an element's code by name
+  const handleGoToCode = useCallback((elementName: string) => {
+    const allNodes = diagramRef.current?.children.filter((c): c is SNode => c.type === 'node') ?? [];
+    const target = findNodeByName(allNodes, elementName);
+    if (target) {
+      const range = getNodeSourceRange(target);
+      if (range) {
+        monacoRef.current?.revealRange(
+          range.start.line + 1, range.start.character + 1,
+          range.end.line + 1, range.end.character + 1,
+        );
+        return;
+      }
+    }
+    // Fallback: search the editor content for the element name
+    const lines = content.split('\n');
+    const defPattern = new RegExp(`\\b(?:part|attribute|port|action|state|item|connection|interface|package)\\s+(?:def\\s+)?${elementName}\\b`);
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(defPattern);
+      if (match) {
+        const col = (match.index ?? 0) + 1;
+        monacoRef.current?.revealRange(i + 1, col, i + 1, col + match[0].length);
+        return;
+      }
+    }
+  }, [content]);
+
+  // Navigate to a relation's code by searching for the relationship keyword
+  const handleEdgeGoToCode = useCallback((edgeKind: string, sourceName?: string, targetName?: string) => {
+    const lines = content.split('\n');
+    // Map diagram edge kinds to SysML v2 keywords
+    const kindToKeyword: Record<string, string[]> = {
+      specialization: ['specializes'],
+      subsetting: ['subsets'],
+      redefinition: ['redefines'],
+      typereference: [':'],
+      dependency: ['dependency'],
+      flow: ['flow'],
+      succession: ['then', 'first'],
+      transition: ['transition'],
+      connection: ['connect'],
+      satisfy: ['satisfy'],
+      verify: ['verify'],
+      allocate: ['allocate'],
+      bind: ['bind'],
+      annotate: ['annotate', 'comment', 'doc'],
+    };
+    const keywords = kindToKeyword[edgeKind] ?? [edgeKind];
+
+    // Strategy 1: Find the keyword near the target name within the source element's block
+    if (targetName) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(targetName) && keywords.some(kw => line.includes(kw))) {
+          const col = line.indexOf(targetName) + 1;
+          monacoRef.current?.revealRange(i + 1, col, i + 1, col + targetName.length);
+          return;
+        }
+      }
+    }
+
+    // Strategy 2: Find the keyword near the source name
+    if (sourceName) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(sourceName) && keywords.some(kw => line.includes(kw))) {
+          const idx = keywords.reduce((best, kw) => {
+            const pos = line.indexOf(kw);
+            return pos >= 0 && (best < 0 || pos < best) ? pos : best;
+          }, -1);
+          if (idx >= 0) {
+            monacoRef.current?.revealRange(i + 1, idx + 1, i + 1, idx + 1 + (keywords.find(kw => line.indexOf(kw) === idx)?.length ?? 0));
+            return;
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Just find any line with the keyword
+    for (const kw of keywords) {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(kw)) {
+          const col = lines[i].indexOf(kw) + 1;
+          monacoRef.current?.revealRange(i + 1, col, i + 1, col + kw.length);
+          return;
+        }
+      }
+    }
+  }, [content]);
 
   const toggleEdge = useCallback((id: string) => {
     setHiddenEdgeIds((prev) => {
@@ -109,6 +262,21 @@ export default function EditorPage() {
   const [projectName, setProjectName] = useState('');
   const [siblingFiles, setSiblingFiles] = useState<SysMLFile[]>([]);
   const [fileSwitcherOpen, setFileSwitcherOpen] = useState(false);
+
+  // Element locks
+  const [locks, setLocks] = useState<ElementLock[]>([]);
+  const [lockBarOpen, setLockBarOpen] = useState(false);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [isStartupProject, setIsStartupProject] = useState(false);
+  const [checkoutWarning, setCheckoutWarning] = useState(false);
+  const checkoutWarningTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const showCheckoutWarning = useCallback(() => {
+    if (!isStartupProject || !readOnly) return;
+    setCheckoutWarning(true);
+    clearTimeout(checkoutWarningTimer.current);
+    checkoutWarningTimer.current = setTimeout(() => setCheckoutWarning(false), 3000);
+  }, [isStartupProject, readOnly]);
   const fileSwitcherRef = useRef<HTMLDivElement>(null);
   const addRecentEntry = useRecentFilesStore((s) => s.addEntry);
 
@@ -190,6 +358,10 @@ export default function EditorPage() {
       .then((p) => {
         setProjectName(p.name);
         if (p.isSystem && !isAdmin) setReadOnly(true);
+        if (p.projectType === 'STARTUP') {
+          setIsStartupProject(true);
+          setReadOnly(true); // read-only until user checks out elements
+        }
       })
       .catch(() => {});
     api.files.get(projectId, fileId)
@@ -204,6 +376,100 @@ export default function EditorPage() {
       .then((list) => setSiblingFiles(list.sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => {});
   }, [projectId, fileId]);
+
+  // Set of element names locked by the current user
+  const myLockedElements = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of locks) {
+      if (l.lockedBy === currentUserId) set.add(l.elementName);
+    }
+    return set;
+  }, [locks, currentUserId]);
+
+  // For startup projects: editable only when user has checked-out elements
+  useEffect(() => {
+    if (!isStartupProject) return;
+    const hasMyLocks = locks.some(l => l.lockedBy === currentUserId);
+    setReadOnly(!hasMyLocks);
+  }, [locks, isStartupProject, currentUserId]);
+
+  // Fetch and poll element locks
+  const fetchLocks = useCallback(async () => {
+    if (!projectId || !fileId) return;
+    try {
+      const list = await api.elementLocks.list(projectId, fileId);
+      setLocks(list);
+    } catch { /* ignore */ }
+  }, [projectId, fileId]);
+
+  useEffect(() => {
+    fetchLocks();
+    const interval = setInterval(fetchLocks, 15_000);
+    return () => clearInterval(interval);
+  }, [fetchLocks]);
+
+  const handleCheckOut = async (elementName: string) => {
+    if (!projectId || !fileId) return;
+    try {
+      const lock = await api.elementLocks.checkOut(projectId, fileId, elementName);
+      setLocks(prev => [...prev, lock]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to check out element');
+    }
+  };
+
+  const handleCheckIn = async (elementName: string) => {
+    if (!projectId || !fileId) return;
+    const save = confirm(`Save changes and check in "${elementName}"?\n\nClick OK to save & check in, or Cancel to keep editing.`);
+    if (!save) return;
+    try {
+      clearTimeout(saveTimer.current);
+      setSaving(true);
+      await api.files.update(projectId, fileId, content);
+      setSaving(false);
+      await api.elementLocks.checkIn(projectId, fileId, elementName);
+      setLocks(prev => prev.filter(l => l.elementName !== elementName));
+    } catch (e) {
+      setSaving(false);
+      setError(e instanceof Error ? e.message : 'Failed to check in element');
+    }
+  };
+
+  const handleRequestLock = async (elementName: string) => {
+    if (!fileId) return;
+    try {
+      await api.notifications.create(elementName, fileId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send lock request');
+    }
+  };
+
+  // Poll for file changes by other users (check updatedAt timestamp)
+  const lastUpdatedAt = useRef<string | null>(null);
+  useEffect(() => {
+    if (!projectId || !fileId || !isStartupProject) return;
+    // Set initial timestamp
+    if (file) lastUpdatedAt.current = file.updatedAt;
+
+    const poll = setInterval(async () => {
+      // Don't reload while user is actively editing (has locks)
+      const hasMyLocks = locks.some(l => l.lockedBy === currentUserId);
+      if (hasMyLocks) return;
+
+      try {
+        const latest = await api.files.get(projectId, fileId);
+        if (lastUpdatedAt.current && latest.updatedAt !== lastUpdatedAt.current) {
+          // File was updated by another user — reload content
+          lastUpdatedAt.current = latest.updatedAt;
+          setFile(latest);
+          setContent(latest.content);
+          diagramClient.sendText(`file://${fileId}`, latest.content, viewType, showInherited);
+        }
+      } catch { /* ignore */ }
+    }, 10_000); // poll every 10 seconds
+
+    return () => clearInterval(poll);
+  }, [projectId, fileId, isStartupProject, locks, currentUserId, viewType, showInherited]);
 
   // Record recent file visit once both file and project name are loaded
   useEffect(() => {
@@ -223,7 +489,9 @@ export default function EditorPage() {
   }, [fileSwitcherOpen]);
 
   const handleChange = useCallback((value: string) => {
-    if (readOnly) return;
+    // Allow edits when user has checked-out elements (MonacoEditor handles per-element restriction)
+    const hasLocks = myLockedElements.size > 0;
+    if (readOnly && !hasLocks) return;
     setContent(value);
     // Send text to diagram-service for server-side parsing → BDD generation
     diagramClient.sendText(`file://${fileId}`, value, viewType, showInherited);
@@ -241,10 +509,11 @@ export default function EditorPage() {
         setSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [projectId, fileId, readOnly, viewType]);
+  }, [projectId, fileId, readOnly, viewType, myLockedElements]);
 
   const handleSave = async () => {
-    if (!projectId || !fileId || readOnly) return;
+    const hasLocks = myLockedElements.size > 0;
+    if (!projectId || !fileId || (readOnly && !hasLocks)) return;
     clearTimeout(saveTimer.current);
     setSaving(true);
     try {
@@ -262,7 +531,7 @@ export default function EditorPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header
-        title={`${file.name}${readOnly ? ' (Read Only)' : ''}`}
+        title={`${file.name}${readOnly ? (isStartupProject ? ' (Check out to edit)' : ' (Read Only)') : ''}`}
         titleExtra={siblingFiles.length > 1 ? (
           <div ref={fileSwitcherRef} style={{ position: 'relative', display: 'inline-flex' }}>
             <button
@@ -317,6 +586,57 @@ export default function EditorPage() {
         onSave={handleSave}
         saving={saving}
       />
+      {/* ── Checkout warning toast ───────────────────────────────── */}
+      {checkoutWarning && (
+        <div style={{
+          position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10000, background: t.warning, color: '#fff',
+          padding: '10px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          display: 'flex', alignItems: 'center', gap: 8,
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          &#128274; Cannot edit without check-out. Right-click an element in the diagram to check out.
+        </div>
+      )}
+      {/* ── Other users' locks bar (minimal) ─────────────────────── */}
+      {(() => {
+        const otherLocks = locks.filter(l => l.lockedBy !== currentUserId);
+        if (otherLocks.length === 0) return null;
+        return (
+          <div style={{ background: t.bgTertiary, borderBottom: `1px solid ${t.border}`, padding: '0 12px', flexShrink: 0 }}>
+            <div
+              onClick={() => setLockBarOpen(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 10, color: t.textMuted }}
+            >
+              <span style={{ color: t.warning }}>&#128274;</span>
+              <span>{otherLocks.length} locked by others</span>
+              <span style={{ fontSize: 8 }}>{lockBarOpen ? '\u25B2' : '\u25BC'}</span>
+            </div>
+            {lockBarOpen && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 4 }}>
+                {otherLocks.map(lock => (
+                  <span key={lock.id} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(245,158,11,0.12)', border: `1px solid ${t.warning}`,
+                    borderRadius: 4, padding: '2px 8px', fontSize: 11, color: t.warning,
+                  }}>
+                    <strong>{lock.elementName}</strong>
+                    <span style={{ color: t.textMuted, fontSize: 10 }}>{lock.user?.name ?? 'other'}</span>
+                    <button
+                      onClick={() => handleRequestLock(lock.elementName)}
+                      style={{ background: 'none', border: 'none', color: t.warning, cursor: 'pointer', fontSize: 10, padding: '0 2px', textDecoration: 'underline' }}
+                      title="Request this element from the holder"
+                    >
+                      Request
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {/* ── Mobile tab bar ────────────────────────────────────────── */}
       {isMobile && (
         <div style={{
@@ -352,6 +672,11 @@ export default function EditorPage() {
                 value={content}
                 onChange={handleChange}
                 readOnly={readOnly}
+                onReadOnlyEdit={isStartupProject ? showCheckoutWarning : undefined}
+                onCheckOut={handleCheckOut}
+                onCheckIn={handleCheckIn}
+                myLockedElements={myLockedElements}
+                onShowOnly={handleShowOnlyByName}
                 markers={diagnostics.map((d): EditorMarker => ({
                   severity: d.severity, message: d.message,
                   line: d.line, column: d.column,
@@ -371,6 +696,8 @@ export default function EditorPage() {
                 storageKey={lsPrefix}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
+                onShowOnly={handleShowOnly}
+                onResetView={handleResetView}
                 onNodeSelect={(range) => {
                   monacoRef.current?.revealRange(
                     range.start.line + 1, range.start.character + 1,
@@ -385,6 +712,7 @@ export default function EditorPage() {
                   );
                   setMobileTab('editor');
                 }}
+                onEdgeGoToCode={handleEdgeGoToCode}
                 onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
                 onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
                 onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
@@ -404,6 +732,11 @@ export default function EditorPage() {
                   setShowInherited(v);
                   if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
                 }}
+                locks={locks}
+                currentUserId={currentUserId}
+                onCheckOut={handleCheckOut}
+                onCheckIn={handleCheckIn}
+                onRequestLock={handleRequestLock}
               />
             </div>
           )}
@@ -438,6 +771,11 @@ export default function EditorPage() {
                 value={content}
                 onChange={handleChange}
                 readOnly={readOnly}
+                onReadOnlyEdit={isStartupProject ? showCheckoutWarning : undefined}
+                onCheckOut={handleCheckOut}
+                onCheckIn={handleCheckIn}
+                myLockedElements={myLockedElements}
+                onShowOnly={handleShowOnlyByName}
                 markers={diagnostics.map((d): EditorMarker => ({
                   severity: d.severity,
                   message: d.message,
@@ -610,6 +948,22 @@ export default function EditorPage() {
                 diagramSelectedEdgeId={diagramSelectedEdgeId}
                 showLegend={showLegend}
                 onToggleLegend={() => setShowLegend(!showLegend)}
+                locks={locks}
+                currentUserId={currentUserId}
+                onCheckOut={handleCheckOut}
+                onCheckIn={handleCheckIn}
+                onRequestLock={handleRequestLock}
+                currentViewType={viewType}
+                currentViewMode={viewMode}
+                currentShowInherited={showInherited}
+                currentShowLegend={showLegend}
+                onRestoreSettings={(s) => {
+                  if (s.viewType !== undefined) { setViewType(s.viewType); if (fileId) diagramClient.sendText(`file://${fileId}`, content, s.viewType, s.showInherited ?? showInherited); }
+                  if (s.viewMode !== undefined) setViewMode(s.viewMode);
+                  if (s.showInherited !== undefined) { setShowInherited(s.showInherited); if (!s.viewType && fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, s.showInherited); }
+                  if (s.showLegend !== undefined) setShowLegend(s.showLegend);
+                }}
+                onGoToCode={handleGoToCode}
               />
               <DiagramViewer
                 model={diagram}
@@ -618,6 +972,8 @@ export default function EditorPage() {
                 storageKey={lsPrefix}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
+                onShowOnly={handleShowOnly}
+                onResetView={handleResetView}
                 onNodeSelect={(range) => {
                   monacoRef.current?.revealRange(
                     range.start.line + 1, range.start.character + 1,
@@ -638,6 +994,7 @@ export default function EditorPage() {
                     setEditorOpen(true);
                   }
                 }}
+                onEdgeGoToCode={handleEdgeGoToCode}
                 onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
                 onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
                 onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
@@ -657,6 +1014,11 @@ export default function EditorPage() {
                   setShowInherited(v);
                   if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
                 }}
+                locks={locks}
+                currentUserId={currentUserId}
+                onCheckOut={handleCheckOut}
+                onCheckIn={handleCheckIn}
+                onRequestLock={handleRequestLock}
               />
               {aiOpen && (
                 <AiAssistant

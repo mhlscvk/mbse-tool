@@ -1,10 +1,12 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import ELKModule from 'elkjs/lib/elk.bundled.js';
-import type { SModelRoot, SNode, SEdge, ViewType } from '@systemodel/shared-types';
+import type { SModelRoot, SNode, SEdge, ViewType, ElementLock } from '@systemodel/shared-types';
 import { getViewConfig } from '../../config/view-config.js';
 import { useLocalStorage } from '../../hooks/useLocalStorage.js';
 import { useTheme } from '../../store/theme.js';
+import DiagramContextMenu from './DiagramContextMenu.js';
+import type { ContextMenuData } from './DiagramContextMenu.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const elk = new (ELKModule as any)();
@@ -18,6 +20,8 @@ interface DiagramViewerProps {
   onViewModeChange?: (mode: 'nested' | 'tree') => void;
   onNodeSelect?: (range: { start: { line: number; character: number }; end: { line: number; character: number } }) => void;
   onEdgeSelect?: (range: { start: { line: number; character: number }; end: { line: number; character: number } }) => void;
+  /** Called to navigate to a relation's code by kind + source/target names */
+  onEdgeGoToCode?: (edgeKind: string, sourceName?: string, targetName?: string) => void;
   onHideNode?: (id: string) => void;
   onHideEdge?: (id: string) => void;
   onHideNodes?: (ids: string[]) => void;
@@ -40,17 +44,24 @@ interface DiagramViewerProps {
   showInherited?: boolean;
   /** Called when user toggles inherited features */
   onShowInheritedChange?: (show: boolean) => void;
+  /** Called to show only a specific node and its descendants (hides everything else) */
+  onShowOnly?: (id: string) => void;
+  /** Called to reset all visibility (show all elements and edges) */
+  onResetView?: () => void;
+  /** Element locks for this file */
+  locks?: ElementLock[];
+  /** Current user ID for lock ownership */
+  currentUserId?: string;
+  /** Called to check out an element */
+  onCheckOut?: (elementName: string) => void;
+  /** Called to check in an element */
+  onCheckIn?: (elementName: string) => void;
+  /** Called to request a locked element from holder */
+  onRequestLock?: (elementName: string) => void;
 }
 
-interface ContextMenu {
-  x: number;
-  y: number;
-  type: 'node' | 'edge' | 'multi';
-  id: string;
-  label: string;
-  nodeIds?: string[];
-  edgeIds?: string[];
-}
+// ContextMenu type imported from DiagramContextMenu
+type ContextMenu = ContextMenuData;
 
 interface SelectionRect {
   x1: number; y1: number;
@@ -281,7 +292,7 @@ const PARAM_CSS = new Set(['actionin', 'actionout', 'actioninout']);
 const PORT_BORDER_SIZE = 16;
 
 export default function DiagramViewer({
-  model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onEdgeSelect, onHideNode, onHideEdge,
+  model, hiddenNodeIds, hiddenEdgeIds, storageKey, viewMode = 'nested', onViewModeChange, onNodeSelect, onEdgeSelect, onEdgeGoToCode, onHideNode, onHideEdge,
   onHideNodes, onHideEdges,
   selectedNodeId: controlledNodeId, selectedEdgeId: controlledEdgeId,
   onSelectedNodeChange, onSelectedEdgeChange,
@@ -290,6 +301,8 @@ export default function DiagramViewer({
   onViewTypeChange,
   showInherited = false,
   onShowInheritedChange,
+  onShowOnly, onResetView,
+  locks, currentUserId, onCheckOut, onCheckIn, onRequestLock,
 }: DiagramViewerProps) {
   const t = useTheme();
   const isDark = t.mode === 'dark';
@@ -318,6 +331,13 @@ export default function DiagramViewer({
   // "Default compartment for a part" — nested features as nested nodes with boundary ports
   const effectiveViewMode: 'nested' | 'tree' = viewMode;
   const vcfg = useMemo(() => getViewConfig(viewType), [viewType]);
+
+  // Lock lookup by element name
+  const lockMap = useMemo(() => {
+    const map = new Map<string, ElementLock>();
+    if (locks) locks.forEach(l => map.set(l.elementName, l));
+    return map;
+  }, [locks]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -382,6 +402,19 @@ export default function DiagramViewer({
   }, [allNodes, hiddenNodeIds]);
 
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
+
+  // Clear all positions when the set of visible nodes changes (prevents stale edge rendering)
+  const nodeIdSetKey = useMemo(() => [...nodes].map(n => n.id).sort().join(','), [nodes]);
+  const prevNodeIdSetKey = useRef(nodeIdSetKey);
+  useEffect(() => {
+    if (prevNodeIdSetKey.current !== nodeIdSetKey) {
+      prevNodeIdSetKey.current = nodeIdSetKey;
+      setPositions(new Map());
+      setIbdSizes(new Map());
+      setElkEdgeRoutes(new Map());
+      setPositionOverrides(new Map());
+    }
+  }, [nodeIdSetKey]);
 
   const edges = useMemo(() => {
     const visibleIds = new Set(nodes.map((n) => n.id));
@@ -1061,9 +1094,13 @@ export default function DiagramViewer({
         candidates.push([srcPt, { x: cx, y: srcPt.y }, { x: cx, y: tgtPt.y }, tgtPt]);
       }
 
-      // U-shape: route above or below all obstacles
-      const allMinY = Math.min(srcPt.y, tgtPt.y, ...obstacles.map(o => o.y)) - m - GAP;
-      const allMaxY = Math.max(srcPt.y, tgtPt.y, ...obstacles.map(o => o.y + o.h)) + m + GAP;
+      // U-shape: route above or below nearby obstacles (limit extension to prevent orphaned arrows)
+      const nearbyObs = obstacles.filter(o => {
+        const oMidX = o.x + o.w / 2;
+        return oMidX >= Math.min(srcPt.x, tgtPt.x) - 200 && oMidX <= Math.max(srcPt.x, tgtPt.x) + 200;
+      });
+      const allMinY = Math.min(srcPt.y, tgtPt.y, ...nearbyObs.map(o => o.y)) - m - GAP;
+      const allMaxY = Math.max(srcPt.y, tgtPt.y, ...nearbyObs.map(o => o.y + o.h)) + m + GAP;
       // U-shape going above
       candidates.push([
         srcPt,
@@ -1102,9 +1139,13 @@ export default function DiagramViewer({
         candidates.push([srcPt, { x: srcPt.x, y: cy }, { x: tgtPt.x, y: cy }, tgtPt]);
       }
 
-      // U-shape: route left or right of all obstacles
-      const allMinX = Math.min(srcPt.x, tgtPt.x, ...obstacles.map(o => o.x)) - m - GAP;
-      const allMaxX = Math.max(srcPt.x, tgtPt.x, ...obstacles.map(o => o.x + o.w)) + m + GAP;
+      // U-shape: route left or right of nearby obstacles (limit extension to prevent orphaned arrows)
+      const nearbyObsV = obstacles.filter(o => {
+        const oMidY = o.y + o.h / 2;
+        return oMidY >= Math.min(srcPt.y, tgtPt.y) - 200 && oMidY <= Math.max(srcPt.y, tgtPt.y) + 200;
+      });
+      const allMinX = Math.min(srcPt.x, tgtPt.x, ...nearbyObsV.map(o => o.x)) - m - GAP;
+      const allMaxX = Math.max(srcPt.x, tgtPt.x, ...nearbyObsV.map(o => o.x + o.w)) + m + GAP;
       candidates.push([
         srcPt,
         { x: allMinX, y: srcPt.y },
@@ -1137,6 +1178,22 @@ export default function DiagramViewer({
         const midY = (srcPt.y + tgtPt.y) / 2;
         bestPath = [srcPt, { x: srcPt.x, y: midY }, { x: tgtPt.x, y: midY }, tgtPt];
       }
+    }
+
+    // Sanity check: if the path extends too far beyond both endpoints, use a direct line
+    const MAX_EXTENSION = 300;
+    const pathMinX = Math.min(...bestPath.map(p => p.x));
+    const pathMaxX = Math.max(...bestPath.map(p => p.x));
+    const pathMinY = Math.min(...bestPath.map(p => p.y));
+    const pathMaxY = Math.max(...bestPath.map(p => p.y));
+    const endpointMinX = Math.min(srcPt.x, tgtPt.x);
+    const endpointMaxX = Math.max(srcPt.x, tgtPt.x);
+    const endpointMinY = Math.min(srcPt.y, tgtPt.y);
+    const endpointMaxY = Math.max(srcPt.y, tgtPt.y);
+    if (pathMinX < endpointMinX - MAX_EXTENSION || pathMaxX > endpointMaxX + MAX_EXTENSION ||
+        pathMinY < endpointMinY - MAX_EXTENSION || pathMaxY > endpointMaxY + MAX_EXTENSION) {
+      // Path extends too far — fall back to direct line
+      return [srcPt, tgtPt];
     }
 
     // Remove redundant collinear waypoints
@@ -1290,13 +1347,7 @@ export default function DiagramViewer({
     setInternalSelectedEdgeId(null);
     if (onSelectedNodeChange) onSelectedNodeChange(node.id);
     if (onSelectedEdgeChange) onSelectedEdgeChange(null);
-    if (onNodeSelect) {
-      const range = node.data?.range as
-        | { start: { line: number; character: number }; end: { line: number; character: number } }
-        | undefined;
-      if (range) onNodeSelect(range);
-    }
-  }, [onNodeSelect, onSelectedNodeChange, onSelectedEdgeChange, multiSelectedNodeIds.size]);
+  }, [onSelectedNodeChange, onSelectedEdgeChange, multiSelectedNodeIds.size]);
 
   const onEdgeClick = useCallback((e: React.MouseEvent, edge: SEdge) => {
     e.stopPropagation();
@@ -1305,25 +1356,7 @@ export default function DiagramViewer({
     setInternalSelectedNodeId(null);
     if (onSelectedEdgeChange) onSelectedEdgeChange(edge.id);
     if (onSelectedNodeChange) onSelectedNodeChange(null);
-    if (onEdgeSelect) {
-      // Try edge's own data range first, then fall back to source node's range
-      const edgeRange = (edge as SEdge & { data?: Record<string, unknown> }).data?.range as
-        | { start: { line: number; character: number }; end: { line: number; character: number } }
-        | undefined;
-      if (edgeRange) {
-        onEdgeSelect(edgeRange);
-        return;
-      }
-      // Fall back: navigate to the source node's range (where the relationship is declared)
-      const sourceNode = allNodes.find(n => n.id === edge.sourceId);
-      if (sourceNode) {
-        const range = sourceNode.data?.range as
-          | { start: { line: number; character: number }; end: { line: number; character: number } }
-          | undefined;
-        if (range) onEdgeSelect(range);
-      }
-    }
-  }, [onEdgeSelect, allNodes, onSelectedEdgeChange, onSelectedNodeChange, multiSelectedNodeIds.size]);
+  }, [onSelectedEdgeChange, onSelectedNodeChange, multiSelectedNodeIds.size]);
 
   const screenToDiagram = useCallback((clientX: number, clientY: number) => {
     const t = transformRef.current;
@@ -1447,13 +1480,40 @@ export default function DiagramViewer({
     .sort((a, b) => (nodeDepth.get(a.id) ?? 0) - (nodeDepth.get(b.id) ?? 0));
 
   // In nested mode, hide composition edges (rendered as nesting); in tree mode, show all
-  const renderEdges = effectiveViewMode === 'tree'
+  // Also filter out edges whose endpoints don't have positions yet (prevents stale rendering)
+  const renderEdges = (effectiveViewMode === 'tree'
     ? edges.filter(e => visibleNodeIds.has(e.sourceId) && visibleNodeIds.has(e.targetId))
     : edges.filter(e =>
         e.cssClasses?.[0] !== 'composition' && e.cssClasses?.[0] !== 'noncomposite' &&
         visibleNodeIds.has(e.sourceId) &&
         visibleNodeIds.has(e.targetId),
-      );
+      )
+  ).filter(e => {
+    // Only render edges where both endpoints have real layout positions
+    const hasPos = (id: string) => positions.has(id) || positionOverrides.has(id);
+    if (!hasPos(e.sourceId) || !hasPos(e.targetId)) return false;
+    // Skip edges where source and target overlap at origin (fallback position)
+    const sp = nodePos(e.sourceId);
+    const tp = nodePos(e.targetId);
+    if (sp.x === 0 && sp.y === 0 && tp.x === 0 && tp.y === 0) return false;
+
+    // Skip edges whose routed path extends too far beyond both endpoint nodes
+    const routed = routedEdgePaths.get(e.id);
+    if (routed && routed.length >= 2) {
+      const ss = nodeSz(e.sourceId);
+      const ts = nodeSz(e.targetId);
+      // Bounding box of both endpoint nodes (with generous margin)
+      const margin = 150;
+      const minX = Math.min(sp.x, tp.x) - margin;
+      const maxX = Math.max(sp.x + ss.w, tp.x + ts.w) + margin;
+      const minY = Math.min(sp.y, tp.y) - margin;
+      const maxY = Math.max(sp.y + ss.h, tp.y + ts.h) + margin;
+      // Check if any route point is way outside this box
+      const outOfBounds = routed.some(pt => pt.x < minX - 200 || pt.x > maxX + 200 || pt.y < minY - 200 || pt.y > maxY + 200);
+      if (outOfBounds) return false;
+    }
+    return true;
+  });
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -1560,6 +1620,21 @@ export default function DiagramViewer({
         >
           ⊡ Fit
         </button>
+        {onResetView && (
+          <button
+            onClick={() => { onResetView(); setTimeout(fitToWindow, 100); }}
+            title="Reset view: show all elements and relations, then fit to window"
+            style={{
+              background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
+              fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.borderColor = t.statusBar; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.borderColor = t.btnBorder; e.currentTarget.style.color = t.text; }}
+          >
+            ↺ Default
+          </button>
+        )}
       </div>
       {isEmpty && (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim }}>
@@ -1668,7 +1743,8 @@ export default function DiagramViewer({
                 const eIds = [...multiSelectedEdgeIds];
                 setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
               } else {
-                setContextMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id, label: nodeName });
+                const nodeRange = node.data?.range as ContextMenu['range'] | undefined;
+                setContextMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id, label: nodeName, range: nodeRange });
               }
             };
 
@@ -2189,7 +2265,17 @@ export default function DiagramViewer({
                     const eIds = [...multiSelectedEdgeIds];
                     setContextMenu({ x: e.clientX, y: e.clientY, type: 'multi', id: '', label: '', nodeIds: nIds, edgeIds: eIds });
                   } else {
-                    setContextMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel });
+                    const edgeRange = edge.data?.range as ContextMenu['range'] | undefined;
+                    // Store edge kind + source/target names for code search fallback
+                    const edgeKind = edge.cssClasses?.[0] ?? '';
+                    const srcNode = allNodes.find(n => n.id === edge.sourceId);
+                    const tgtNode = allNodes.find(n => n.id === edge.targetId);
+                    const srcName = srcNode?.children.find(c => c.id.endsWith('__label'))?.text;
+                    const tgtName = tgtNode?.children.find(c => c.id.endsWith('__label'))?.text;
+                    setContextMenu({
+                      x: e.clientX, y: e.clientY, type: 'edge', id: edge.id, label: edgeLabel, range: edgeRange,
+                      edgeKind, edgeSourceName: srcName, edgeTargetName: tgtName,
+                    });
                   }
                 }}>
                 {/* Invisible wide hit area for click and right-click */}
@@ -2323,74 +2409,27 @@ export default function DiagramViewer({
         </g>}
       </svg>
 
-      {/* Right-click context menu (with backdrop for click-outside dismiss) */}
+      {/* Right-click context menu */}
       {contextMenu && (
-        <>
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-            onClick={() => setContextMenu(null)}
-            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
-          />
-          <div
-            style={{
-              position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 100,
-              background: t.bgTertiary, border: `1px solid ${t.btnBorder}`, borderRadius: 4,
-              boxShadow: t.shadow, padding: '4px 0',
-              minWidth: 160, fontSize: 12, color: t.text,
-            }}
-          >
-            {contextMenu.type === 'multi' ? (
-              <>
-                <div style={{ padding: '4px 12px', color: t.textSecondary, fontSize: 10, borderBottom: `1px solid ${t.border}`, marginBottom: 2 }}>
-                  {(contextMenu.nodeIds?.length ?? 0) + (contextMenu.edgeIds?.length ?? 0)} selected items
-                </div>
-                <button
-                  onClick={() => {
-                    const nIds = contextMenu.nodeIds ?? [];
-                    const eIds = contextMenu.edgeIds ?? [];
-                    setContextMenu(null);
-                    if (nIds.length > 0 && onHideNodes) onHideNodes(nIds);
-                    if (eIds.length > 0 && onHideEdges) onHideEdges(eIds);
-                    setMultiSelectedNodeIds(new Set());
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                    padding: '6px 12px', background: 'none', border: 'none',
-                    color: t.text, cursor: 'pointer', textAlign: 'left', fontSize: 12,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = t.accentBg)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {(contextMenu.nodeIds?.length ?? 0) + (contextMenu.edgeIds?.length ?? 0)} selected items
-                </button>
-              </>
-            ) : (
-              <>
-                <div style={{ padding: '4px 12px', color: t.textSecondary, fontSize: 10, borderBottom: `1px solid ${t.border}`, marginBottom: 2 }}>
-                  {contextMenu.type === 'node' ? 'Element' : 'Relationship'}: {contextMenu.label}
-                </div>
-                <button
-                  onClick={() => {
-                    const id = contextMenu.id;
-                    const type = contextMenu.type;
-                    setContextMenu(null);
-                    if (type === 'node' && onHideNode) onHideNode(id);
-                    if (type === 'edge' && onHideEdge) onHideEdge(id);
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                    padding: '6px 12px', background: 'none', border: 'none',
-                    color: t.text, cursor: 'pointer', textAlign: 'left', fontSize: 12,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = t.accentBg)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={{ opacity: 0.7 }}>&#x2716;</span> Hide {contextMenu.type === 'node' ? 'element' : 'relationship'}
-                </button>
-              </>
-            )}
-          </div>
-        </>
+        <DiagramContextMenu
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onHideNode={onHideNode}
+          onHideEdge={onHideEdge}
+          onHideNodes={onHideNodes}
+          onHideEdges={onHideEdges}
+          onShowOnly={onShowOnly}
+          onNodeSelect={onNodeSelect}
+          onEdgeSelect={onEdgeSelect}
+          onEdgeGoToCode={onEdgeGoToCode}
+          lockMap={lockMap}
+          currentUserId={currentUserId}
+          onCheckOut={onCheckOut}
+          onCheckIn={onCheckIn}
+          onRequestLock={onRequestLock}
+          getDescendants={descendantCache}
+          clearMultiSelection={() => setMultiSelectedNodeIds(new Set())}
+        />
       )}
     </div>
   );

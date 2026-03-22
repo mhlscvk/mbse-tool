@@ -80,8 +80,8 @@ ALTER TABLE "projects" ADD COLUMN "projectType" "ProjectType" NOT NULL DEFAULT '
 ALTER TABLE "projects" ADD COLUMN "startupId" TEXT;
 
 -- Backfill displayId for existing projects
-UPDATE "projects" SET "displayId" = 'PRJ-USR-LEGACY-' || SUBSTRING(id, 1, 5) WHERE "displayId" IS NULL AND "isSystem" = false;
-UPDATE "projects" SET "displayId" = 'PRJ-SYS-0001-' || SUBSTRING(id, 1, 5) WHERE "displayId" IS NULL AND "isSystem" = true;
+UPDATE "projects" SET "displayId" = 'PRJ-USR-LEGACY-' || id WHERE "displayId" IS NULL AND "isSystem" = false;
+UPDATE "projects" SET "displayId" = 'PRJ-SYS-0001-' || id WHERE "displayId" IS NULL AND "isSystem" = true;
 
 -- Set projectType for existing system projects
 UPDATE "projects" SET "projectType" = 'SYSTEM' WHERE "isSystem" = true;
@@ -93,7 +93,7 @@ ALTER TABLE "projects" ALTER COLUMN "displayId" SET NOT NULL;
 ALTER TABLE "sysml_files" ADD COLUMN "displayId" TEXT;
 
 -- Backfill displayId for existing files
-UPDATE "sysml_files" SET "displayId" = 'FIL-' || SUBSTRING(id, 1, 5) WHERE "displayId" IS NULL;
+UPDATE "sysml_files" SET "displayId" = 'FIL-' || id WHERE "displayId" IS NULL;
 
 -- Now make displayId NOT NULL
 ALTER TABLE "sysml_files" ALTER COLUMN "displayId" SET NOT NULL;

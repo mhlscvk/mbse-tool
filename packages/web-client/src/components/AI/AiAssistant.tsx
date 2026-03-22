@@ -173,7 +173,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
   };
 
   const tierLabel = hasOwnKey ? PROVIDER_LABELS[provider] : 'Free';
-  const tierColor = hasOwnKey ? PROVIDER_COLORS[provider] : '#888';
+  const tierColor = hasOwnKey ? PROVIDER_COLORS[provider] : t.textMuted;
 
   return (
     <div style={{
@@ -190,13 +190,13 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14 }}>&#10022;</span>
-          <span style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>AI Chat</span>
+          <span style={{ color: t.text, fontWeight: 600, fontSize: 12 }}>AI Chat</span>
           <span style={{
             fontSize: 9, background: tierColor + '30', color: tierColor,
             borderRadius: 3, padding: '1px 5px', fontWeight: 600,
           }}>{tierLabel}</span>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, color: t.textMuted }}>
           <button onClick={() => navigate('/settings?tab=ai-provider')} title="AI Settings" style={iconBtn}>&#9881;</button>
           {messages.length > 0 && (
             <button onClick={() => { if (fileId) clearChatHistory(fileId); setMessages([]); }} title="Clear chat" style={iconBtn}>&#10227;</button>
@@ -207,22 +207,22 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
 
       {/* Free tier quota bar */}
       {isFreeTier && freeStatus && freeStatus.freeTierAvailable && (
-        <div style={{ padding: '4px 10px', background: '#1a1a1a', borderBottom: '1px solid #3c3c3c', flexShrink: 0 }}>
+        <div style={{ padding: '4px 10px', background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-            <span style={{ fontSize: 10, color: '#888' }}>
+            <span style={{ fontSize: 10, color: t.textMuted }}>
               {freeStatus.used} / {freeStatus.limit} free messages
             </span>
-            <span style={{ fontSize: 10, color: quotaExhausted ? '#f48771' : '#569cd6', cursor: 'pointer' }}
+            <span style={{ fontSize: 10, color: quotaExhausted ? t.error : t.info, cursor: 'pointer' }}
               onClick={() => navigate('/settings?tab=ai-provider')}
             >
               {quotaExhausted ? 'Upgrade' : 'Add your key for unlimited'}
             </span>
           </div>
-          <div style={{ width: '100%', height: 3, background: '#333', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: 3, background: t.bgTertiary, borderRadius: 2, overflow: 'hidden' }}>
             <div style={{
               width: `${Math.min(100, (freeStatus.used / freeStatus.limit) * 100)}%`,
               height: '100%', borderRadius: 2,
-              background: quotaExhausted ? '#a03030' : '#007acc',
+              background: quotaExhausted ? t.error : t.accent,
             }} />
           </div>
         </div>
@@ -233,19 +233,19 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
         {!canChat ? (
           <div style={{ padding: '24px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>&#10022;</div>
-            <div style={{ color: '#d4d4d4', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect AI Provider</div>
-            <div style={{ color: '#888', fontSize: 12, lineHeight: 1.6, marginBottom: 16 }}>
+            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect AI Provider</div>
+            <div style={{ color: t.textMuted, fontSize: 12, lineHeight: 1.6, marginBottom: 16 }}>
               Add your AI provider API key in Settings to start chatting.
             </div>
             <button onClick={() => navigate('/settings?tab=ai-provider')} style={{
-              background: '#0e639c', color: '#fff', border: 'none',
+              background: t.accent, color: '#fff', border: 'none',
               borderRadius: 4, padding: '8px 20px', fontSize: 13, cursor: 'pointer',
             }}>Configure AI Provider</button>
           </div>
         ) : messages.length === 0 ? (
-          <div style={{ padding: '16px 12px', color: '#888', fontSize: 12, lineHeight: 1.6 }}>
+          <div style={{ padding: '16px 12px', color: t.textMuted, fontSize: 12, lineHeight: 1.6 }}>
             Ask the AI to edit your SysML model, fix errors, explain code, or generate new elements.
-            {isFreeTier && <span style={{ color: '#569cd6' }}> You&apos;re on the free tier ({freeStatus?.remaining ?? '...'} messages left).</span>}
+            {isFreeTier && <span style={{ color: t.info }}> You&apos;re on the free tier ({freeStatus?.remaining ?? '...'} messages left).</span>}
           </div>
         ) : (
           messages.map((msg, mi) => (
@@ -253,19 +253,19 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
               {msg.role === 'user' ? (
                 <div style={{
                   margin: '4px 10px', padding: '8px 10px',
-                  background: '#094771', borderRadius: 6,
-                  color: '#e0e8f0', fontSize: 12, lineHeight: 1.5,
+                  background: t.mode === 'dark' ? '#094771' : '#e1ecf4', borderRadius: 6,
+                  color: t.mode === 'dark' ? '#e0e8f0' : '#1a3050', fontSize: 12, lineHeight: 1.5,
                 }}>{msg.content}</div>
               ) : (
                 <div style={{ padding: '4px 0' }}>
                   {msg.content && (
                     <div style={{
-                      padding: '0 12px', color: '#d4d4d4', fontSize: 12,
+                      padding: '0 12px', color: t.text, fontSize: 12,
                       lineHeight: 1.6, whiteSpace: 'pre-wrap',
                     }}><SimpleMarkdown text={msg.content} /></div>
                   )}
                   {streaming && mi === messages.length - 1 && !msg.content && !msg.toolCalls?.length && (
-                    <div style={{ padding: '4px 12px', color: '#555', fontSize: 12 }}>
+                    <div style={{ padding: '4px 12px', color: t.textDim, fontSize: 12 }}>
                       <span style={{ animation: 'pulse 1s infinite' }}>&#9613;</span>
                     </div>
                   )}
@@ -298,14 +298,14 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
               rows={3}
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: quotaExhausted ? '#2a2a2a' : '#3c3c3c',
-                border: '1px solid #555', borderRadius: 4,
-                color: quotaExhausted ? '#666' : '#d4d4d4', fontSize: 12,
+                background: quotaExhausted ? t.bgTertiary : t.bgInput,
+                border: `1px solid ${t.border}`, borderRadius: 4,
+                color: quotaExhausted ? t.textDim : t.text, fontSize: 12,
                 padding: '7px 36px 7px 10px', resize: 'none',
                 fontFamily: 'inherit', lineHeight: 1.4, outline: 'none',
               }}
-              onFocus={e => { if (!quotaExhausted) e.target.style.borderColor = '#007acc'; }}
-              onBlur={e => (e.target.style.borderColor = '#555')}
+              onFocus={e => { if (!quotaExhausted) e.target.style.borderColor = t.accent; }}
+              onBlur={e => (e.target.style.borderColor = t.border)}
             />
             <button
               onClick={() => streaming ? abortControllerRef.current?.abort() : send(input)}
@@ -313,7 +313,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
               title={quotaExhausted ? 'Limit reached' : streaming ? 'Stop' : 'Send (Enter)'}
               style={{
                 position: 'absolute', right: 6, bottom: 6,
-                background: streaming ? '#5a1a1a' : quotaExhausted ? '#333' : (input.trim() ? '#007acc' : '#3c3c3c'),
+                background: streaming ? t.error : quotaExhausted ? t.btnDisabled : (input.trim() ? t.accent : t.bgTertiary),
                 border: 'none', borderRadius: 4, color: '#fff',
                 width: 26, height: 26,
                 cursor: quotaExhausted && !streaming ? 'not-allowed' : 'pointer',
@@ -330,38 +330,42 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
 // ─── Tool Call Card ──────────────────────────────────────────────────────────
 
 function ToolCallCard({ call }: { call: ToolCallDisplay }) {
+  const t = useTheme();
   const [expanded, setExpanded] = useState(false);
   const isDone = call.result !== undefined;
   const isError = call.isError;
 
+  const borderColor = isError ? (t.mode === 'dark' ? '#5a2a2a' : '#e8c0c0') : isDone ? (t.mode === 'dark' ? '#2a4a2a' : '#c0e0c0') : (t.mode === 'dark' ? '#2a3a4a' : '#c0d0e0');
+  const bgColor = isError ? (t.mode === 'dark' ? '#1a0a0a' : '#fff0f0') : isDone ? (t.mode === 'dark' ? '#0a1a0a' : '#f0fff0') : (t.mode === 'dark' ? '#0a0a1a' : '#f0f0ff');
+
   return (
     <div style={{
-      border: `1px solid ${isError ? '#5a2a2a' : isDone ? '#2a4a2a' : '#2a3a4a'}`,
+      border: `1px solid ${borderColor}`,
       borderRadius: 4, overflow: 'hidden', fontSize: 11,
-      background: isError ? '#1a0a0a' : isDone ? '#0a1a0a' : '#0a0a1a',
+      background: bgColor,
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '4px 8px', cursor: 'pointer',
       }} onClick={() => setExpanded(v => !v)}>
-        <span style={{ color: isError ? '#f48771' : isDone ? '#4ec9b0' : '#569cd6', fontSize: 12 }}>
+        <span style={{ color: isError ? t.error : isDone ? t.success : t.info, fontSize: 12 }}>
           {isError ? '\u2717' : isDone ? '\u2713' : '\u25CB'}
         </span>
-        <code style={{ color: '#9cdcfe', fontFamily: 'monospace' }}>{call.name}</code>
+        <code style={{ color: t.info, fontFamily: 'monospace' }}>{call.name}</code>
         <span style={{ flex: 1 }} />
-        <span style={{ color: '#555', fontSize: 9 }}>{expanded ? '\u25B2' : '\u25BC'}</span>
+        <span style={{ color: t.textDim, fontSize: 9 }}>{expanded ? '\u25B2' : '\u25BC'}</span>
       </div>
       {expanded && (
-        <div style={{ borderTop: '1px solid #2a2a2a', padding: '4px 8px', background: '#111' }}>
-          <div style={{ color: '#888', fontSize: 10, marginBottom: 2 }}>Args:</div>
-          <pre style={{ color: '#888', margin: 0, fontSize: 10, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+        <div style={{ borderTop: `1px solid ${t.border}`, padding: '4px 8px', background: t.bgSecondary }}>
+          <div style={{ color: t.textMuted, fontSize: 10, marginBottom: 2 }}>Args:</div>
+          <pre style={{ color: t.textMuted, margin: 0, fontSize: 10, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
             {JSON.stringify(call.args, null, 2)}
           </pre>
           {call.result && (
             <>
-              <div style={{ color: '#888', fontSize: 10, marginTop: 4, marginBottom: 2 }}>Result:</div>
+              <div style={{ color: t.textMuted, fontSize: 10, marginTop: 4, marginBottom: 2 }}>Result:</div>
               <pre style={{
-                color: isError ? '#f48771' : '#4ec9b0', margin: 0, fontSize: 10,
+                color: isError ? t.error : t.success, margin: 0, fontSize: 10,
                 whiteSpace: 'pre-wrap', fontFamily: 'monospace', maxHeight: 120, overflow: 'auto',
               }}>{call.result}</pre>
             </>
@@ -375,34 +379,36 @@ function ToolCallCard({ call }: { call: ToolCallDisplay }) {
 // ─── Markdown ────────────────────────────────────────────────────────────────
 
 function SimpleMarkdown({ text }: { text: string }) {
+  const t = useTheme();
   const lines = text.split('\n');
+  const headingColor = t.info;
   return (
     <>
       {lines.map((line, i) => {
-        if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, color: '#9cdcfe', marginTop: 6 }}>{line.slice(4)}</div>;
-        if (line.startsWith('## '))  return <div key={i} style={{ fontWeight: 700, color: '#9cdcfe', marginTop: 6 }}>{line.slice(3)}</div>;
-        if (line.startsWith('# '))   return <div key={i} style={{ fontWeight: 700, color: '#9cdcfe', marginTop: 6 }}>{line.slice(2)}</div>;
+        if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, color: headingColor, marginTop: 6 }}>{line.slice(4)}</div>;
+        if (line.startsWith('## '))  return <div key={i} style={{ fontWeight: 700, color: headingColor, marginTop: 6 }}>{line.slice(3)}</div>;
+        if (line.startsWith('# '))   return <div key={i} style={{ fontWeight: 700, color: headingColor, marginTop: 6 }}>{line.slice(2)}</div>;
         if (line.startsWith('- ') || line.startsWith('* '))
-          return <div key={i} style={{ paddingLeft: 12, color: '#d4d4d4' }}>&bull; {renderInline(line.slice(2))}</div>;
-        return <div key={i}>{renderInline(line) || <br />}</div>;
+          return <div key={i} style={{ paddingLeft: 12, color: t.text }}>&bull; {renderInline(line.slice(2), t)}</div>;
+        return <div key={i}>{renderInline(line, t) || <br />}</div>;
       })}
     </>
   );
 }
 
-function renderInline(text: string): React.ReactNode {
+function renderInline(text: string, t: ReturnType<typeof useTheme>): React.ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))
-      return <strong key={i} style={{ color: '#e8eef6' }}>{part.slice(2, -2)}</strong>;
+      return <strong key={i} style={{ color: t.text }}>{part.slice(2, -2)}</strong>;
     if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={i} style={{ background: '#2d2d2d', color: '#ce9178', borderRadius: 2, padding: '0 3px', fontFamily: 'monospace' }}>{part.slice(1, -1)}</code>;
+      return <code key={i} style={{ background: t.bgTertiary, color: t.mode === 'dark' ? '#ce9178' : '#a31515', borderRadius: 2, padding: '0 3px', fontFamily: 'monospace' }}>{part.slice(1, -1)}</code>;
     return part;
   });
 }
 
 const iconBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#888',
+  background: 'none', border: 'none', color: 'inherit',
   cursor: 'pointer', fontSize: 13, padding: '2px 4px',
   borderRadius: 3, lineHeight: 1,
 };

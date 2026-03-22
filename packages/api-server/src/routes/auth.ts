@@ -13,6 +13,31 @@ import { BCRYPT_ROUNDS, VERIFY_TOKEN_TTL_MS, RESET_TOKEN_TTL_MS } from '../confi
 
 const router: IRouter = Router();
 
+// Auto-join startups for pending invitations when a new user registers
+async function fulfillPendingInvitations(userId: string, email: string) {
+  try {
+    const invitations = await prisma.startupInvitation.findMany({
+      where: { email: email.toLowerCase() },
+    });
+    if (invitations.length === 0) return;
+
+    for (const inv of invitations) {
+      await prisma.startupMember.create({
+        data: { startupId: inv.startupId, userId, role: inv.role },
+      }).catch(() => {}); // ignore if already a member
+    }
+
+    // Clean up fulfilled invitations
+    await prisma.startupInvitation.deleteMany({
+      where: { email: email.toLowerCase() },
+    });
+
+    console.log(`[AUTH] Auto-joined ${invitations.length} startup(s) for ${email}`);
+  } catch (err) {
+    console.error('[AUTH] Failed to fulfill pending invitations:', err);
+  }
+}
+
 // Dummy hash for timing-safe comparisons when user not found
 const DUMMY_HASH = '$2a$12$R9h7cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUm';
 
@@ -111,6 +136,9 @@ router.post('/register', asyncHandler(async (req, res) => {
     },
     select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true },
   });
+
+  // Auto-join any startups this email was invited to
+  await fulfillPendingInvitations(user.id, body.email);
 
   if (isDev) {
     console.log(`[AUTH] Dev mode: auto-verified user ${body.email}`);
@@ -232,6 +260,8 @@ router.post('/google', asyncHandler(async (req, res) => {
     user = await prisma.user.create({
       data: { email: email!, name: name ?? email!, googleId, emailVerified: true },
     });
+    // Auto-join any startups this email was invited to
+    await fulfillPendingInvitations(user.id, email!);
   }
 
   const accessToken = signToken(user.id, user.role);

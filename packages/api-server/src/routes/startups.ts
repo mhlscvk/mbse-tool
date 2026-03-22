@@ -1,8 +1,9 @@
 import { Router, type IRouter } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
-import { asyncHandler, NotFound, Forbidden } from '../lib/errors.js';
+import { asyncHandler, NotFound, Forbidden, BadRequest } from '../lib/errors.js';
 import * as startupOps from '../services/startup-ops.js';
+import { prisma } from '../db.js';
 
 const router: IRouter = Router();
 
@@ -17,9 +18,10 @@ const updateSchema = z.object({
 });
 
 const addMemberSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
+  email: z.string().email().optional(),
   role: z.enum(['STARTUP_ADMIN', 'STARTUP_USER']),
-});
+}).refine(d => d.userId || d.email, { message: 'Either userId or email is required' });
 
 const updateRoleSchema = z.object({
   role: z.enum(['STARTUP_ADMIN', 'STARTUP_USER']),
@@ -78,12 +80,31 @@ router.get('/:startupId/members', asyncHandler(async (req: AuthRequest, res) => 
   res.json({ data: members });
 }));
 
-// Add member (startup admin or site admin)
+// Add member (startup admin or site admin) — accepts userId or email
+// If the email doesn't belong to an existing user, creates a pending invitation
 router.post('/:startupId/members', asyncHandler(async (req: AuthRequest, res) => {
   const access = await startupOps.assertStartupAccess(req.params.startupId, req.userId!, req.userRole);
   startupOps.assertStartupWriteAccess(access);
   const body = addMemberSchema.parse(req.body);
-  const member = await startupOps.addMember(req.params.startupId, body.userId, body.role);
+
+  let userId = body.userId;
+  if (!userId && body.email) {
+    const email = body.email.toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Create a pending invitation instead
+      const invitation = await prisma.startupInvitation.upsert({
+        where: { startupId_email: { startupId: req.params.startupId, email } },
+        update: { role: body.role },
+        create: { startupId: req.params.startupId, email, role: body.role, invitedBy: req.userId! },
+      });
+      res.status(201).json({ data: { invitation, pending: true, message: `Invitation created for ${email}. They will be added automatically when they register.` } });
+      return;
+    }
+    userId = user.id;
+  }
+
+  const member = await startupOps.addMember(req.params.startupId, userId!, body.role);
   res.status(201).json({ data: member });
 }));
 
@@ -101,6 +122,27 @@ router.delete('/:startupId/members/:userId', asyncHandler(async (req: AuthReques
   const access = await startupOps.assertStartupAccess(req.params.startupId, req.userId!, req.userRole);
   startupOps.assertStartupWriteAccess(access);
   await startupOps.removeMember(req.params.startupId, req.params.userId);
+  res.status(204).send();
+}));
+
+// ── Pending Invitations ─────────────────────────────────────────────────────
+
+// List pending invitations for a startup
+router.get('/:startupId/invitations', asyncHandler(async (req: AuthRequest, res) => {
+  const access = await startupOps.assertStartupAccess(req.params.startupId, req.userId!, req.userRole);
+  if (!access.allowed) throw NotFound('Startup');
+  const invitations = await prisma.startupInvitation.findMany({
+    where: { startupId: req.params.startupId },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ data: invitations });
+}));
+
+// Revoke a pending invitation
+router.delete('/:startupId/invitations/:invitationId', asyncHandler(async (req: AuthRequest, res) => {
+  const access = await startupOps.assertStartupAccess(req.params.startupId, req.userId!, req.userRole);
+  startupOps.assertStartupWriteAccess(access);
+  await prisma.startupInvitation.delete({ where: { id: req.params.invitationId } });
   res.status(204).send();
 }));
 
