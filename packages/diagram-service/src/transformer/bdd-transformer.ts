@@ -536,11 +536,11 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
     }
   }
 
-  // Entry/do/exit graphical nodes are only shown in STV — hide in other views
+  // Entry/do/exit graphical nodes: show in GV (nested) and STV, hide in IV and AFV
   const BEHAVIOR_ACTION_KINDS = new Set(['EntryActionUsage', 'DoActionUsage', 'ExitActionUsage']);
 
   const hiddenNodeIds = new Set<string>();
-  if (viewType !== 'state-transition') {
+  if (viewType === 'interconnection' || viewType === 'action-flow') {
     for (const node of filtered.nodes) {
       if (BEHAVIOR_ACTION_KINDS.has(node.kind)) hiddenNodeIds.add(node.id);
     }

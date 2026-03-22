@@ -93,13 +93,13 @@ describe('State def shape', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Entry/do/exit graphical nodes', () => {
-  it('hides entry/do/exit nodes in general view', () => {
+  it('shows entry/do/exit nodes in general view', () => {
     const code = `
       state def S { state on { entry action test; } }
     `;
     const { nodes } = pipeline(code, 'general');
     const entryNodes = nodes.filter(n => n.cssClasses?.[0] === 'entryactionusage');
-    expect(entryNodes.length).toBe(0);
+    expect(entryNodes.length).toBeGreaterThan(0);
   });
 
   it('shows entry/do/exit nodes in state transition view', () => {

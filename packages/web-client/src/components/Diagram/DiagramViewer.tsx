@@ -624,10 +624,7 @@ export default function DiagramViewer({
           // Collect internal flow edges for behavioural containers (successions)
           const internalEdges = isBehavioural ? (flowEdgesByParent.get(nodeId) ?? []) : [];
 
-          // Extra top padding for behavior labels (entry/do/exit) in state containers
-          const behaviorLabelCount = n ? n.children.filter(c => c.id.includes('__usage__')).length : 0;
-          const behaviorPad = behaviorLabelCount > 0 ? behaviorLabelCount * 14 + 4 : 0;
-          const padTop = (isPkgNode ? 48 : allChildrenArePins ? 30 : isBehavioural ? 50 : 52) + behaviorPad;
+          const padTop = isPkgNode ? 48 : allChildrenArePins ? 30 : isBehavioural ? 50 : 52;
           const padSide = isPkgNode ? 20 : allChildrenArePins ? 10 : isBehavioural ? 24 : 20;
           const padBottom = isPkgNode ? 20 : allChildrenArePins ? 10 : 20;
 
@@ -1835,25 +1832,6 @@ export default function DiagramViewer({
                       {nameLabel.text}
                     </text>
                   )}
-                  {/* Entry/do/exit behavior labels in container header */}
-                  {(() => {
-                    const behaviorLabels = node.children.filter(c => c.id.includes('__usage__'));
-                    if (behaviorLabels.length === 0) return null;
-                    const ROW_H = 14;
-                    return behaviorLabels.map((label, i) => (
-                      <text
-                        key={label.id}
-                        x={8}
-                        y={40 + 4 + (i + 1) * ROW_H - 3}
-                        fill={svgTextSub}
-                        fontSize={9}
-                        fontFamily="monospace"
-                        fontStyle="italic"
-                      >
-                        {label.text}
-                      </text>
-                    ));
-                  })()}
                   {isSelected && (
                     <rect width={w} height={h} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
                   )}

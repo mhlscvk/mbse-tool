@@ -12,7 +12,9 @@ function pipeline(code: string) {
 }
 
 function findNode(nodes: SNode[], name: string) {
-  return nodes.find(n => n.children.some(c => c.id.endsWith('__label') && c.text.includes(name)));
+  // Prefer exact match, fall back to includes
+  return nodes.find(n => n.children.some(c => c.id.endsWith('__label') && c.text === name))
+    ?? nodes.find(n => n.children.some(c => c.id.endsWith('__label') && c.text.includes(name)));
 }
 
 function kindText(node: SNode) {
