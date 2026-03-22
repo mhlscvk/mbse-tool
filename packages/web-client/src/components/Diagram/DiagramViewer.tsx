@@ -2335,9 +2335,8 @@ export default function DiagramViewer({
                   let lx = c.x;
                   let ly = c.y;
                   if (isNearSrc || isNearTgt) {
-                    // Offset to the right of the edge path
-                    const rightEdge = Math.max(srcPos.x + srcSz.w, tgtPos.x + tgtSz.w);
-                    lx = rightEdge + labelW / 2 + 8;
+                    // Offset label slightly to the right of the edge midpoint
+                    lx = c.x + labelW / 2 + 12;
                   }
                   return (
                     <>
