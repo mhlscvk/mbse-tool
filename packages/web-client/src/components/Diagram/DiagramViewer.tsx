@@ -1278,23 +1278,32 @@ export default function DiagramViewer({
     // Use routed path midpoint if available
     const routed = routedEdgePaths.get(edge.id);
     if (routed && routed.length >= 2) {
-      // Find the LONGEST segment and place the label at its center
-      // (longest segment is typically in open space between nodes)
-      const segLens: number[] = [];
-      let longestIdx = 0;
-      let longestLen = 0;
+      // Find the best segment for label placement: prefer segments NOT overlapping any node
+      const segments: Array<{ idx: number; len: number; mx: number; my: number }> = [];
       for (let i = 1; i < routed.length; i++) {
         const sl = Math.hypot(routed[i].x - routed[i - 1].x, routed[i].y - routed[i - 1].y);
-        segLens.push(sl);
-        if (sl > longestLen) { longestLen = sl; longestIdx = i - 1; }
+        segments.push({
+          idx: i - 1, len: sl,
+          mx: (routed[i - 1].x + routed[i].x) / 2,
+          my: (routed[i - 1].y + routed[i].y) / 2,
+        });
       }
-      return {
-        x: (routed[longestIdx].x + routed[longestIdx + 1].x) / 2,
-        y: (routed[longestIdx].y + routed[longestIdx + 1].y) / 2,
+      // Check which segments' midpoints are NOT inside any visible node
+      const isInsideNode = (px: number, py: number) => {
+        for (const n of nodes) {
+          if (n.id === edge.sourceId || n.id === edge.targetId) continue;
+          const np = nodePos(n.id);
+          const ns = nodeSz(n.id);
+          if (px >= np.x - 5 && px <= np.x + ns.w + 5 && py >= np.y - 5 && py <= np.y + ns.h + 5) return true;
+        }
+        return false;
       };
-      // Fallback
-      const mid = Math.floor(routed.length / 2);
-      return routed[mid];
+      // First: try longest non-overlapping segment
+      const free = segments.filter(s => !isInsideNode(s.mx, s.my)).sort((a, b) => b.len - a.len);
+      if (free.length > 0) return { x: free[0].mx, y: free[0].my };
+      // Fallback: use longest segment regardless
+      segments.sort((a, b) => b.len - a.len);
+      return { x: segments[0].mx, y: segments[0].my };
     }
 
     const src = nodeCenter(edge.sourceId);
