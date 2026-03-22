@@ -1556,7 +1556,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       name: paramName,
       qualifiedName: typeSimple,
       direction: direction as 'in' | 'out' | 'inout',
-      ownerIsPortOrActionUsage: ownerNode.kind === 'PortUsage' || ownerNode.kind === 'ActionUsage' || ownerNode.kind === 'PerformActionUsage',
+      ownerIsPortOrActionUsage: ownerNode.kind === 'PortUsage' || ownerNode.kind === 'ActionUsage' || ownerNode.kind === 'PerformActionUsage' || ownerNode.kind === 'StateUsage' || ownerNode.kind === 'ExhibitStateUsage',
       children: [],
       attributes: [],
       connections: [],
@@ -1620,7 +1620,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       kind: paramKind,
       name: paramName,
       direction: direction as 'in' | 'out' | 'inout',
-      ownerIsPortOrActionUsage: ownerNode.kind === 'PortUsage' || ownerNode.kind === 'ActionUsage' || ownerNode.kind === 'PerformActionUsage',
+      ownerIsPortOrActionUsage: ownerNode.kind === 'PortUsage' || ownerNode.kind === 'ActionUsage' || ownerNode.kind === 'PerformActionUsage' || ownerNode.kind === 'StateUsage' || ownerNode.kind === 'ExhibitStateUsage',
       children: [], attributes: [], connections: [],
       range: {
         start: { line: pLine - 1, character: pCol - 1 },

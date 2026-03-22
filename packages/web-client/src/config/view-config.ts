@@ -1,8 +1,8 @@
 import type { ViewType, ViewConfig } from '@systemodel/shared-types';
 
 const GENERAL: ViewConfig = {
-  pinCssClasses: new Set(),
-  pinParentKinds: new Set(),
+  pinCssClasses: new Set(['actionin', 'actionout', 'actioninout']),
+  pinParentKinds: new Set(['stateusage', 'exhibitstateusage', 'actionusage', 'performactionusage']),
   pinPlacement: { in: 'left', out: 'right', inout: 'nearest' },
   cloneDefParamsAsUsagePins: false,
   retargetFlowsToPins: false,
@@ -43,16 +43,16 @@ const ACTION_FLOW: ViewConfig = {
 };
 
 const STATE_TRANSITION: ViewConfig = {
-  pinCssClasses: new Set(),
-  pinParentKinds: new Set(),
+  pinCssClasses: new Set(['actionin', 'actionout', 'actioninout', 'portusage']),
+  pinParentKinds: new Set(['stateusage', 'exhibitstateusage']),
   pinPlacement: { in: 'left', out: 'right', inout: 'nearest' },
-  cloneDefParamsAsUsagePins: false,
+  cloneDefParamsAsUsagePins: true,
   retargetFlowsToPins: false,
-  hideDirectedFromDefCompartments: false,
-  defKindsForCompartmentHiding: new Set(),
+  hideDirectedFromDefCompartments: true,
+  defKindsForCompartmentHiding: new Set(['StateDefinition']),
   behavioralNodeSpacing: 24,
   behavioralLayerSpacing: 32,
-  compactPinContainers: false,
+  compactPinContainers: true,
   suppressPinToPinFlowLabels: false,
 };
 
