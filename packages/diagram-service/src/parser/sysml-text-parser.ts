@@ -1352,16 +1352,16 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const usagePkg = findOwnerPackage(usagePos);
     const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
 
-    // Skip if already registered under this owner (avoid duplicates with typed usages)
+    // Skip if already registered under this owner
     if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
-    // If this owner is a package but a def/usage already owns a node with this name,
-    // skip — the inner owner is more specific (prevents duplicate at package level)
-    if (usagePkg && ownerName === usagePkg.name && !ownerNode) {
-      const alreadyOwned = [...nodeIndex.entries()].some(([k, v]) =>
-        v.name === usageName && v.kind === usageKind && k.endsWith(`.${usageName}`) && k !== `${ownerName}.${usageName}`
-      );
-      if (alreadyOwned) continue;
-    }
+    // Skip if a node with same name+kind already exists under a different (more specific) owner
+    // AND that node's source range overlaps this match's position (same declaration, different owner resolution)
+    const dedupLine = lineCol(source, usagePos).line;
+    const alreadyOwnedElsewhere = [...nodeIndex.entries()].some(([k, v]) =>
+      v.name === usageName && v.kind === `${keyword.charAt(0).toUpperCase()}${keyword.slice(1)}Usage` && k.endsWith(`.${usageName}`) && k !== `${ownerName}.${usageName}`
+      && v.range && (v.range.start.line + 1) === dedupLine
+    );
+    if (alreadyOwnedElsewhere) continue;
 
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
       ownerNode.attributes.push({ name: usageName, type: undefined, value: isRef ? `ref ${keyword}` : keyword, ...(isDerived ? { isDerived: true } : {}) });
