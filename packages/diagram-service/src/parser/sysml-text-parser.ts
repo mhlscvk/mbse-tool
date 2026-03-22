@@ -1012,15 +1012,21 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   /** Find the innermost usage enclosing the given offset (excluding self). */
   function findOwnerUsage(offset: number, selfIndex: number): { node: SysMLNode; start: number } | undefined {
+    let best: { node: SysMLNode; start: number } | undefined;
     for (const up of usagePositions) {
       if (up.start === selfIndex) continue;
       if (offset > up.start && offset < up.end) {
+        // Find the most specific (innermost) enclosing usage
+        if (best && up.start <= best.start) continue;
         const parentUsage = nodeIndex.get(up.name) ??
           nodeIndex.get(`${findOwnerDef(up.start)?.name ?? ''}.${up.name}`);
-        if (parentUsage) return { node: parentUsage, start: up.start };
+        // Also try package-qualified lookup
+        const pkg = findOwnerPackage(up.start);
+        const parentUsage2 = parentUsage ?? (pkg ? nodeIndex.get(`${pkg.name}.${up.name}`) : undefined);
+        if (parentUsage2) best = { node: parentUsage2, start: up.start };
       }
     }
-    return undefined;
+    return best;
   }
 
   // ── 1c. Extract entry/exit/do behaviors inside state defs and state usages ──
