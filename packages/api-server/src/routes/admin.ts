@@ -63,7 +63,7 @@ router.post('/sync-examples', asyncHandler(async (_req: AuthRequest, res) => {
       if (!filePath.startsWith(EXAMPLES_DIR)) return null;
       const content = readFileSync(filePath, 'utf-8');
       return { name: basename(fileName, '.sysml'), content, size: Buffer.byteLength(content, 'utf-8'), projectId: sub!.id, displayId: generateFileDisplayId() };
-    }).filter(Boolean) as { name: string; content: string; size: number; projectId: string }[];
+    }).filter(Boolean) as { name: string; content: string; size: number; projectId: string; displayId: string }[];
 
     if (fileData.length > 0) await prisma.sysMLFile.createMany({ data: fileData });
     totalFiles += fileData.length;
