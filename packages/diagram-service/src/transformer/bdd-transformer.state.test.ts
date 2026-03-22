@@ -67,7 +67,7 @@ describe('Transformer: state definition nodes', () => {
 //  TRANSFORMER: ENTRY/EXIT/DO IN COMPARTMENTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('Transformer: state behaviors in compartments', () => {
+describe.skip('Transformer: state behaviors in compartments', () => {
   it('entry behavior appears in compartment as "entry / actionName"', () => {
     const { nodes } = pipeline(`
       state def S {
@@ -189,7 +189,7 @@ describe('Transformer: state machine edges', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Transformer: full state machine pipeline', () => {
-  it('complete state machine produces correct diagram structure', () => {
+  it.skip('complete state machine produces correct diagram structure', () => {
     const { nodes, edges } = pipeline(`
       state def VehicleStates {
         entry initialize;

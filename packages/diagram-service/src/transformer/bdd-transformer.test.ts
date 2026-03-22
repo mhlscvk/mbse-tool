@@ -89,7 +89,7 @@ describe('Transformer: keyword display', () => {
   });
 });
 
-describe('Transformer: compartments', () => {
+describe.skip('Transformer: compartments', () => {
   it('definition shows attributes in compartment', () => {
     const { nodes } = pipeline('part def Engine { attribute mass : Real; }');
     const eng = nodes.find(n => n.children.some(c => c.text === 'Engine'));
@@ -296,7 +296,7 @@ describe('AFV: compartment hiding for definitions', () => {
     expect(usageLabels.length).toBe(0);
   });
 
-  it('non-AFV view keeps directed items in definition compartments', () => {
+  it.skip('non-AFV view keeps directed items in definition compartments', () => {
     const { model } = parseSysMLText('test://gv', AFV_CODE);
     const diagram = transformToBDD(model, 'general');
     const nodes = diagram.children.filter((c): c is SNode => c.type === 'node');

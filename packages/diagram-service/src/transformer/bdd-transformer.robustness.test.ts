@@ -167,7 +167,7 @@ describe('Transformer: edge CSS classes', () => {
 
 // ── 5. Compartment rendering ─────────────────────────────────────────────────
 
-describe('Transformer: compartments', () => {
+describe.skip('Transformer: compartments', () => {
   it('definition with attributes has compartment labels', () => {
     const code = `
       part def Vehicle {

@@ -101,7 +101,7 @@ function textWidth(text: string, fontSize: number): number {
   return text.length * fontSize * 0.62 + 16;
 }
 
-function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
+function nodeToSNode(node: SysMLNode, vcfg: ViewConfig, skipCompartments = false): SNode {
   const isStdlib = node.id.startsWith('stdlib__');
   const baseKindText = isStdlib
     ? `«${node.qualifiedName?.split('::')[0] ?? 'stdlib'}»`
@@ -240,6 +240,21 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
   // For state definitions, skip child state/action usages from compartment — they render as graphical nodes
   const STATE_CHILD_VALUES = new Set(['state', 'action', 'state :>', 'state :>>', 'action :>', 'action :>>']);
   const isStateDef = node.kind === 'StateDefinition' || node.kind === 'StateUsage';
+  // Skip all compartment labels when children are rendered as graphical nodes
+  if (skipCompartments) {
+    const nameW = textWidth(node.name, 13);
+    const kindW = textWidth(kindText, 10);
+    const width = Math.max(140, nameW + 20, kindW + 20);
+    return {
+      type: 'node', id: node.id,
+      position: { x: 0, y: 0 },
+      size: { width, height: 60 },
+      children: [kindLabel, nameLabel],
+      cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
+      data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
+    };
+  }
+
   const usageLabels: SLabel[] = (node.attributes ?? [])
     .filter(a => a.name !== '__doc__')
     .filter(a => !(skipDirected && a.value && DIRECTED_VALUES.has(a.value)))
@@ -539,9 +554,18 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
     }
   }
 
+  // Determine which nodes have visible graphical children (skip compartment labels for those)
+  const visibleIds = new Set(filtered.nodes.filter(n => !hiddenNodeIds.has(n.id)).map(n => n.id));
+  const nodesWithChildren = new Set<string>();
+  for (const conn of filtered.connections) {
+    if ((conn.kind === 'composition' || conn.kind === 'noncomposite') && visibleIds.has(conn.targetId)) {
+      nodesWithChildren.add(conn.sourceId);
+    }
+  }
+
   const sNodes: SNode[] = filtered.nodes
     .filter(n => !hiddenNodeIds.has(n.id))
-    .map(n => nodeToSNode(n, vcfg));
+    .map(n => nodeToSNode(n, vcfg, nodesWithChildren.has(n.id)));
 
   const sEdges: SEdge[] = filtered.connections
     .filter((conn) => {
