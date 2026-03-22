@@ -258,9 +258,13 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
   // When configured, skip directed items from def compartments (they appear as pins on usages)
   const skipDirected = vcfg.hideDirectedFromDefCompartments && vcfg.defKindsForCompartmentHiding.has(node.kind);
   const DIRECTED_VALUES = new Set(['in', 'out', 'inout', 'in item', 'out item', 'in attribute', 'out attribute']);
+  // For state definitions, skip child state/action usages from compartment — they render as graphical nodes
+  const STATE_CHILD_VALUES = new Set(['state', 'action', 'state :>', 'state :>>', 'action :>', 'action :>>']);
+  const isStateDef = node.kind === 'StateDefinition' || node.kind === 'StateUsage';
   const usageLabels: SLabel[] = (node.attributes ?? [])
     .filter(a => a.name !== '__doc__')
     .filter(a => !(skipDirected && a.value && DIRECTED_VALUES.has(a.value)))
+    .filter(a => !(isStateDef && a.value && STATE_CHILD_VALUES.has(a.value)))
     .map((attr, i) => {
       let text: string;
       const val = attr.value ?? '';

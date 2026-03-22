@@ -1096,6 +1096,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       };
       nodes.push(behaviorNode);
       nodeIndex.set(behaviorId, behaviorNode);
+      // Also register under scoped name so then-resolution can find it
+      nodeIndex.set(`${ownerState.name}__${behaviorKind}`, behaviorNode);
       connections.push({
         id: makeId('owns', `${ownerState.name}_${behaviorKind}_${behaviorNodeName}`),
         sourceId: ownerState.id,
@@ -1861,6 +1863,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   // Resolve a node name at a given offset — tries container-scoped lookup first,
   // then falls back to global lookup.
   const SPECIAL_NAMES = new Set(['start', 'done', 'terminate']);
+  const BEHAVIOR_LABEL_TO_KIND: Record<string, string> = { 'entry action': 'entry', 'do action': 'do', 'exit action': 'exit' };
   function findOwnerNameAtOffset(offset: number): string {
     let owner = findOwnerDef(offset);
     const ownerDefPos = owner ? defPositions.find(d => d.name === owner!.name)?.start ?? -1 : -1;
@@ -1874,6 +1877,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Special nodes (start/done/terminate) are stored with __ separator
     if (SPECIAL_NAMES.has(name)) {
       return nodeIndex.get(`${ownerName}__${name}`);
+    }
+    // Behavior action labels (entry action, do action, exit action) → resolve to behavior node
+    if (BEHAVIOR_LABEL_TO_KIND[name]) {
+      return nodeIndex.get(`${ownerName}__${BEHAVIOR_LABEL_TO_KIND[name]}`);
     }
     // Regular nodes: try scoped name first (owner.name), then global fallback
     return nodeIndex.get(`${ownerName}.${name}`) ?? nodeIndex.get(name);
@@ -2011,26 +2018,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       // Only entry actions should serve as sources for "then" successions
       if (behaviorKind === 'entry') {
         // For "entry;" (no name) or "entry action name;", treat as a declaration
-        // that can be resolved to a start node in state context
-        const resolvedName = actionName ?? 'start';
-        // If it's "entry;" (no name), ensure a start node exists in this scope
-        if (!actionName) {
-          // Only create a start node if there's a "then" following this entry declaration
-          // Otherwise, the entry behavior label in the state compartment is sufficient
-          const afterEntry = clean.slice(endPos).trimStart();
-          const hasThen = /^then\b/.test(afterEntry);
-          if (hasThen) {
-            for (const dp of defPositions) {
-              if (dm.index > dp.start && dm.index < dp.end) {
-                const node = nodeIndex.get(dp.name);
-                if (node && (node.kind === 'StateDefinition' || node.kind === 'StateUsage')) {
-                  ensureSpecialNode('start', dm.index);
-                  break;
-                }
-              }
-            }
-          }
-        }
+        // Resolve entry declaration to its behavior node (not a start node)
+        // The behavior node is registered under ownerName__entry in section 1c
+        const resolvedName = actionName ?? 'entry action';
         declPositions.push({ name: resolvedName, end: endPos });
       }
     }

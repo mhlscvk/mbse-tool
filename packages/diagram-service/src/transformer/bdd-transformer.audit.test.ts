@@ -233,9 +233,9 @@ describe('Audit: full spec example end-to-end', () => {
     expect(off!.cssClasses?.[0]).toBe('stateusage');
     expect(on!.cssClasses?.[0]).toBe('stateusage');
 
-    // Start node
-    const startNode = nodes.find(n => n.cssClasses?.[0] === 'startnode');
-    expect(startNode).toBeDefined();
+    // Entry action node (replaces start node for entry; then pattern)
+    const entryNode = nodes.find(n => n.cssClasses?.[0] === 'entryactionusage');
+    expect(entryNode).toBeDefined();
 
     // Edges: 1 succession (start→off) + 2 transitions (off→on, on→off)
     const successions = edges.filter(e => e.cssClasses?.[0] === 'succession');

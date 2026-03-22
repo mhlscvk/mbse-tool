@@ -239,10 +239,10 @@ describe('Initial state (first X; in state def)', () => {
       }
     `;
     const { model } = parse(code);
-    // Should create a start node
-    expect(model.nodes.some(n => n.name === 'start')).toBe(true);
+    // Should create a start node (first X; uses StartNode, not entry action)
+    expect(model.nodes.some(n => n.kind === 'StartNode')).toBe(true);
     // Should create start → parked succession
-    const startNode = model.nodes.find(n => n.name === 'start');
+    const startNode = model.nodes.find(n => n.kind === 'StartNode');
     const parked = model.nodes.find(n => n.name === 'parked');
     expect(startNode).toBeDefined();
     expect(parked).toBeDefined();
@@ -278,7 +278,7 @@ describe('Initial state (first X; in state def)', () => {
       }
     `;
     const { model } = parse(code);
-    const startNode = model.nodes.find(n => n.name === 'start');
+    const startNode = model.nodes.find(n => n.kind === 'StartNode');
     expect(startNode).toBeDefined();
   });
 });
@@ -585,7 +585,7 @@ describe('Complete state machine', () => {
     expect(model.nodes.some(n => n.name === 'idle')).toBe(true);
 
     // Initial state: start → parked
-    const startNode = model.nodes.find(n => n.name === 'start');
+    const startNode = model.nodes.find(n => n.kind === 'StartNode');
     const parked = model.nodes.find(n => n.name === 'parked');
     expect(startNode).toBeDefined();
     expect(model.connections.some(
@@ -810,7 +810,7 @@ describe('Shorthand transitions (accept...then without transition keyword)', () 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Entry-then succession', () => {
-  it('entry; then off; creates start → off succession', () => {
+  it('entry; then off; creates entry action → off succession', () => {
     const code = `
       state def OnOff {
         entry; then off;
@@ -819,7 +819,7 @@ describe('Entry-then succession', () => {
       }
     `;
     const { model } = parse(code);
-    const startNode = model.nodes.find(n => n.name === 'start');
+    const startNode = model.nodes.find(n => n.kind === 'EntryActionUsage');
     const off = model.nodes.find(n => n.name === 'off');
     expect(startNode).toBeDefined();
     expect(off).toBeDefined();
@@ -906,7 +906,7 @@ describe('Spec examples', () => {
     const off = model.nodes.find(n => n.name === 'off');
     const on = model.nodes.find(n => n.name === 'on');
     // entry → off (via start node)
-    const startNode = model.nodes.find(n => n.name === 'start');
+    const startNode = model.nodes.find(n => n.kind === 'EntryActionUsage');
     expect(startNode).toBeDefined();
     expect(model.connections.some(
       conn => conn.kind === 'succession' && conn.sourceId === startNode!.id && conn.targetId === off!.id
@@ -984,9 +984,9 @@ describe('Spec examples', () => {
     expect(transitions.some(t =>
       t.sourceId === on!.id && t.targetId === off!.id && t.name?.includes('VehicleOffSignal')
     )).toBe(true);
-    // 1 succession: start → off (from entry; then off;)
+    // 1 succession: entry action → off (from entry; then off;)
     expect(successions.length).toBe(1);
-    const startNode = model.nodes.find(n => n.name === 'start');
+    const startNode = model.nodes.find(n => n.kind === 'EntryActionUsage');
     expect(successions[0].sourceId).toBe(startNode!.id);
     expect(successions[0].targetId).toBe(off!.id);
   });
