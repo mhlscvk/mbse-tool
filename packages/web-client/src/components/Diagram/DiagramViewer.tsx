@@ -2323,33 +2323,22 @@ export default function DiagramViewer({
                   {...(style.markerStart ? { markerStart: style.markerStart } : {})}
                 />
                 {label && label.text && c && (() => {
-                  // Offset label to the right of the edge to avoid overlapping nodes
                   const labelW = label.text.length * 6.4 + 8;
-                  const srcPos = nodePos(edge.sourceId);
-                  const tgtPos = nodePos(edge.targetId);
-                  const srcSz = nodeSz(edge.sourceId);
-                  const tgtSz = nodeSz(edge.targetId);
-                  // Check if the midpoint is inside or near source/target node bounds
-                  const isNearSrc = c.x >= srcPos.x - 5 && c.x <= srcPos.x + srcSz.w + 5 && c.y >= srcPos.y - 5 && c.y <= srcPos.y + srcSz.h + 5;
-                  const isNearTgt = c.x >= tgtPos.x - 5 && c.x <= tgtPos.x + tgtSz.w + 5 && c.y >= tgtPos.y - 5 && c.y <= tgtPos.y + tgtSz.h + 5;
-                  let lx = c.x;
-                  let ly = c.y;
-                  if (isNearSrc || isNearTgt) {
-                    // Offset label slightly to the right of the edge midpoint
-                    lx = c.x + labelW / 2 + 12;
-                  }
+                  // Place label at the edge midpoint, offset upward to sit above the line
+                  const lx = c.x;
+                  const ly = c.y - 8;
                   return (
                     <>
                       <rect
-                        x={lx - (label.text.length * 3.2 + 4)}
-                        y={ly - 15}
+                        x={lx - labelW / 2}
+                        y={ly - 11}
                         width={labelW}
                         height={14}
                         rx={2}
                         fill={t.bg}
-                        fillOpacity={0.85}
+                        fillOpacity={0.9}
                       />
-                      <text x={lx} y={ly - 4} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
+                      <text x={lx} y={ly} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
                         {label.text}
                       </text>
                     </>
