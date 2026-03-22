@@ -2678,5 +2678,43 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // ── Post-processing: fix misplaced children ────────────────────────────────
+  // If a node's source range is inside another usage's source range, but the
+  // composition edge points to a less specific owner (package), re-parent it.
+  {
+    const compositionEdges = uniqueConnections.filter(c => c.kind === 'composition');
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
+    for (const edge of compositionEdges) {
+      const child = nodeById.get(edge.targetId);
+      const parent = nodeById.get(edge.sourceId);
+      if (!child?.range || !parent) continue;
+      // Only fix if parent is a Package (child might belong to a more specific owner)
+      if (parent.kind !== 'Package') continue;
+
+      // Find a better parent: a usage whose source range contains this child
+      let bestParent: SysMLNode | undefined;
+      let bestStart = -1;
+      for (const candidate of nodes) {
+        if (candidate.id === child.id) continue;
+        if (!candidate.range) continue;
+        if (candidate.kind === 'Package') continue;
+        // Check if child's range is inside candidate's range
+        const childStart = child.range.start.line * 10000 + child.range.start.character;
+        const childEnd = child.range.end.line * 10000 + child.range.end.character;
+        const candStart = candidate.range.start.line * 10000 + candidate.range.start.character;
+        const candEnd = candidate.range.end.line * 10000 + candidate.range.end.character;
+        if (childStart > candStart && childEnd <= candEnd) {
+          if (candStart > bestStart) {
+            bestStart = candStart;
+            bestParent = candidate;
+          }
+        }
+      }
+      if (bestParent) {
+        edge.sourceId = bestParent.id;
+      }
+    }
+  }
+
   return { model: { uri, nodes, connections: uniqueConnections }, diagnostics };
 }
