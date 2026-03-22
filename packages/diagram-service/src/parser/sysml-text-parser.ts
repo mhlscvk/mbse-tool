@@ -1348,9 +1348,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
     let ownerPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)!.start : -1;
 
-    // Also check enclosing usages
+    // Also check enclosing usages — always prefer usage over def
     const enclosingUsage2 = findOwnerUsage(usagePos, match.index);
-    if (enclosingUsage2 && enclosingUsage2.start > ownerPos) {
+    if (enclosingUsage2) {
       ownerPos = enclosingUsage2.start;
       ownerNode = enclosingUsage2.node;
     }
@@ -1398,14 +1398,36 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
     if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
 
-    // Determine the actual owner — re-check usagePositions directly if findOwnerUsage missed
+    // Determine the actual owner — re-check by scanning the source text for enclosing braces
     let actualOwnerId = ownerNode ? ownerNode.id : usagePkg?.id;
     if (!enclosingUsage2) {
+      // Direct brace-depth scan: find the nearest enclosing { } that belongs to a known usage
       let bestUp: { name: string; start: number } | undefined;
+      // First try usagePositions
       for (const up of usagePositions) {
         if (up.start === match.index) continue;
         if (usagePos > up.start && usagePos < up.end) {
           if (!bestUp || up.start > bestUp.start) bestUp = up;
+        }
+      }
+      // Fallback: scan backward in the clean text to find the nearest unclosed '{' that
+      // belongs to a usage keyword, then find the node for that usage
+      if (!bestUp) {
+        let depth = 0;
+        for (let i = usagePos - 1; i >= 0; i--) {
+          if (clean[i] === '}') depth++;
+          if (clean[i] === '{') {
+            if (depth > 0) { depth--; continue; }
+            // Found an unclosed '{' — check if it's preceded by a usage keyword + name
+            const before = clean.slice(Math.max(0, i - 200), i);
+            const usageMatch = before.match(/\b(?:state|part|action|port|item)\s+(\w+)\s*(?::\s*[\w:]+\s*)?(?:parallel\s*)?$/);
+            if (usageMatch) {
+              const parentName = usageMatch[1];
+              // Find this in usagePositions
+              const parentUp = usagePositions.find(up => up.name === parentName && up.start < i);
+              if (parentUp) { bestUp = parentUp; break; }
+            }
+          }
         }
       }
       if (bestUp) {
