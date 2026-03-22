@@ -117,7 +117,7 @@ describe('Entry/do/exit graphical nodes', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('State usage behavior compartment', () => {
-  it('state usage with entry/do/exit gets compartment labels', () => {
+  it('state usage with entry/do/exit renders behaviors as graphical child nodes (not compartment labels)', () => {
     const code = `
       state def S {
         state on {
@@ -136,9 +136,12 @@ describe('State usage behavior compartment', () => {
       return label?.text === 'on';
     });
     expect(onNode).toBeDefined();
-    // Should have usage labels for entry/do/exit
+    // Should NOT have usage labels (behaviors are rendered as separate child nodes)
     const usageLabels = onNode!.children.filter(c => c.id.includes('__usage__'));
-    expect(usageLabels.length).toBe(3);
+    expect(usageLabels.length).toBe(0);
+    // Behavior nodes should exist as separate nodes
+    const entryNodes = nodes.filter(n => n.cssClasses?.[0] === 'entryactionusage');
+    expect(entryNodes.length).toBeGreaterThan(0);
   });
 });
 

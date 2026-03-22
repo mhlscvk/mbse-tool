@@ -216,29 +216,8 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
         data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef, isParallel: node.isParallel },
       };
     }
-    // Usage nodes with state behaviors (entry/do/exit) get compartment labels
-    const behaviorAttrs = (node.attributes ?? []).filter(a =>
-      a.value === '__entry__' || a.value === '__do__' || a.value === '__exit__',
-    );
-    if (behaviorAttrs.length > 0) {
-      const behaviorLabels = behaviorAttrs.map((attr, i) =>
-        makeLabel(`${node.id}__usage__${i}`, attr.name),
-      );
-      const nameW = textWidth(nameText, 13);
-      const kindW = textWidth(kindText, 10);
-      const compartmentW = Math.max(...behaviorLabels.map(l => textWidth(l.text, 10))) + 8;
-      const ROW_H = 18;
-      const height = 60 + behaviorLabels.length * ROW_H + 4;
-      const width = Math.max(120, nameW + 20, kindW + 20, compartmentW + 16);
-      return {
-        type: 'node', id: node.id,
-        position: { x: 0, y: 0 },
-        size: { width, height },
-        children: [kindLabel, nameLabel, ...behaviorLabels],
-        cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-        data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
-      };
-    }
+    // Entry/do/exit behaviors are now rendered as graphical child nodes (not compartment labels)
+    // Skip creating compartment labels for them — they'll appear as nested action nodes
 
     // Regular usage nodes: compact, no compartment
     const nameW = textWidth(nameText, 13);
