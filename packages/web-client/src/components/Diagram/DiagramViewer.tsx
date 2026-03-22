@@ -1278,25 +1278,20 @@ export default function DiagramViewer({
     // Use routed path midpoint if available
     const routed = routedEdgePaths.get(edge.id);
     if (routed && routed.length >= 2) {
-      // Find the midpoint along the polyline
-      let totalLen = 0;
+      // Find the LONGEST segment and place the label at its center
+      // (longest segment is typically in open space between nodes)
       const segLens: number[] = [];
+      let longestIdx = 0;
+      let longestLen = 0;
       for (let i = 1; i < routed.length; i++) {
         const sl = Math.hypot(routed[i].x - routed[i - 1].x, routed[i].y - routed[i - 1].y);
         segLens.push(sl);
-        totalLen += sl;
+        if (sl > longestLen) { longestLen = sl; longestIdx = i - 1; }
       }
-      let half = totalLen / 2;
-      for (let i = 0; i < segLens.length; i++) {
-        if (half <= segLens[i]) {
-          const t = segLens[i] > 0 ? half / segLens[i] : 0;
-          return {
-            x: routed[i].x + (routed[i + 1].x - routed[i].x) * t,
-            y: routed[i].y + (routed[i + 1].y - routed[i].y) * t,
-          };
-        }
-        half -= segLens[i];
-      }
+      return {
+        x: (routed[longestIdx].x + routed[longestIdx + 1].x) / 2,
+        y: (routed[longestIdx].y + routed[longestIdx + 1].y) / 2,
+      };
       // Fallback
       const mid = Math.floor(routed.length / 2);
       return routed[mid];

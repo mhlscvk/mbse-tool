@@ -240,16 +240,28 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig, skipCompartments = false
   // For state definitions, skip child state/action usages from compartment — they render as graphical nodes
   const STATE_CHILD_VALUES = new Set(['state', 'action', 'state :>', 'state :>>', 'action :>', 'action :>>']);
   const isStateDef = node.kind === 'StateDefinition' || node.kind === 'StateUsage';
-  // Skip all compartment labels when children are rendered as graphical nodes
+  // Skip own compartment labels when children are rendered as graphical nodes
+  // But still include inherited labels (they don't have separate graphical nodes)
   if (skipCompartments) {
+    const inheritedLabels: SLabel[] = (node.attributes ?? [])
+      .filter(a => a.inherited)
+      .map((attr, i) => {
+        const kw = attr.value ? `${USAGE_KEYWORD_DISPLAY[attr.value] ?? attr.value} ` : '';
+        const text = attr.type ? `^ ${kw}${attr.name} : ${attr.type}` : `^ ${kw}${attr.name}`;
+        return makeLabel(`${node.id}__inherited__${i}`, text);
+      });
     const nameW = textWidth(node.name, 13);
     const kindW = textWidth(kindText, 10);
-    const width = Math.max(140, nameW + 20, kindW + 20);
+    const inheritedW = inheritedLabels.length > 0 ? Math.max(...inheritedLabels.map(l => textWidth(l.text, 10))) + 8 : 0;
+    const width = Math.max(140, nameW + 20, kindW + 20, inheritedW + 16);
+    const HEADER_H = 60;
+    const ROW_H = 18;
+    const height = inheritedLabels.length > 0 ? HEADER_H + 6 + inheritedLabels.length * ROW_H + 4 : HEADER_H;
     return {
       type: 'node', id: node.id,
       position: { x: 0, y: 0 },
-      size: { width, height: 60 },
-      children: [kindLabel, nameLabel],
+      size: { width, height },
+      children: [kindLabel, nameLabel, ...inheritedLabels],
       cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
       data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
     };
