@@ -1352,8 +1352,16 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const usagePkg = findOwnerPackage(usagePos);
     const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
 
-    // Skip if already registered (avoid duplicates with typed usages)
+    // Skip if already registered under this owner (avoid duplicates with typed usages)
     if (nodeIndex.has(`${ownerName}.${usageName}`)) continue;
+    // If this owner is a package but a def/usage already owns a node with this name,
+    // skip — the inner owner is more specific (prevents duplicate at package level)
+    if (usagePkg && ownerName === usagePkg.name && !ownerNode) {
+      const alreadyOwned = [...nodeIndex.entries()].some(([k, v]) =>
+        v.name === usageName && v.kind === usageKind && k.endsWith(`.${usageName}`) && k !== `${ownerName}.${usageName}`
+      );
+      if (alreadyOwned) continue;
+    }
 
     if (ownerNode && ownerNode.kind.endsWith('Definition')) {
       ownerNode.attributes.push({ name: usageName, type: undefined, value: isRef ? `ref ${keyword}` : keyword, ...(isDerived ? { isDerived: true } : {}) });
