@@ -21,6 +21,7 @@ monaco.languages.setMonarchTokensProvider('sysml', {
     'doc', 'language', 'metadata', 'item', 'connection', 'interface',
     'allocation', 'satisfy', 'verify', 'concern', 'stakeholder', 'view',
     'viewpoint', 'render', 'subject', 'expose', 'accept', 'entry', 'exit',
+    'parallel', 'concurrent', 'exhibit', 'perform', 'require', 'subsets',
   ],
   typeKeywords: ['Boolean', 'Integer', 'Real', 'String', 'Anything', 'Natural', 'Float', 'Rational', 'Complex'],
   stdlib: ['ScalarValues', 'ISQ', 'ISQBase', 'SI', 'Quantities'],

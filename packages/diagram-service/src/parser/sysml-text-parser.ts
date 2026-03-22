@@ -262,7 +262,7 @@ const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|stat
 // group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional, before or after type), group[5]=type
 // Core + extended usage keywords (all single-word keywords that can appear as usages)
 const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence';
-const USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*[;{]`, 'g');
+const USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*(?:parallel\\s+)?[;{]`, 'g');
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
 const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
 // in/out parameters: e.g. `in item data : Data;` or `inout item data : Pkg::Type;`
@@ -1251,6 +1251,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const { line: usageLine, column: usageCol } = lineCol(source, usagePos);
     const usageBlockEndIdx = findBlockEnd(clean, match.index + match[0].length - 1);
     const { line: usageEndLine, column: usageEndCol } = lineCol(source, usageBlockEndIdx);
+    // Check if this usage has the 'parallel' keyword
+    const isParallel = /parallel\s*[{;]/.test(match[0]) || /parallel\s*$/.test(clean.slice(match.index, match.index + match[0].length + 20));
+
     const usageNode: SysMLNode = {
       id: usageId,
       kind: usageKind,
@@ -1259,6 +1262,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       ...(isRef ? { isRef: true } : {}),
       ...(isDerived ? { isDerived: true } : {}),
       ...(multiplicity ? { multiplicity } : {}),
+      ...(isParallel ? { isParallel: true } : {}),
       children: [],
       attributes: [],
       connections: [],
@@ -1361,12 +1365,14 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const { line: usageLine, column: usageCol } = lineCol(source, usagePos);
     const usageBlockEndIdx = findBlockEnd(clean, match.index + match[0].length - 1);
     const { line: usageEndLine, column: usageEndCol } = lineCol(source, usageBlockEndIdx);
+    const isParallel2 = /parallel\s*[{;]/.test(fullMatch);
     const usageNode: SysMLNode = {
       id: usageId,
       kind: usageKind,
       name: usageName,
       ...(isRef ? { isRef: true } : {}),
       ...(isDerived ? { isDerived: true } : {}),
+      ...(isParallel2 ? { isParallel: true } : {}),
       children: [], attributes: [], connections: [],
       range: {
         start: { line: usageLine - 1, character: usageCol - 1 },

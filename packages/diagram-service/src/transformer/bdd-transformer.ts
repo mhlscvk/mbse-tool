@@ -180,7 +180,7 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
         size: { width, height: 50 },
         children: [portKindLabel, nameLabel],
         cssClasses: ['portusage'],
-        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
+        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef, isParallel: node.isParallel },
       };
     }
 
@@ -201,7 +201,7 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
           size: { width: 16, height: 16 },
           children: [dirKindLabel, nameLabel],
           cssClasses: [cssClass],
-          data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
+          data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef, isParallel: node.isParallel },
         };
       }
 
@@ -213,7 +213,7 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
         size: { width, height: 50 },
         children: [dirKindLabel, nameLabel],
         cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef },
+        data: { qualifiedName: node.qualifiedName, range: node.range, direction: node.direction, isRef: node.isRef, isParallel: node.isParallel },
       };
     }
     // Usage nodes with state behaviors (entry/do/exit) get compartment labels
@@ -236,7 +236,7 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
         size: { width, height },
         children: [kindLabel, nameLabel, ...behaviorLabels],
         cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-        data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef },
+        data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
       };
     }
 
@@ -250,7 +250,7 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
       size: { width, height: 50 },
       children: [kindLabel, nameLabel],
       cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-      data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef },
+      data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
     };
   }
 
@@ -312,7 +312,7 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig): SNode {
     size: { width, height },
     children: [kindLabel, nameLabel, ...usageLabels],
     cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
-    data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef },
+    data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
   };
 }
 

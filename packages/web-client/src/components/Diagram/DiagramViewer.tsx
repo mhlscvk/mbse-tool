@@ -1828,8 +1828,14 @@ export default function DiagramViewer({
                   )}
                   {/* Name label */}
                   {nameLabel && (
-                    <text x={w / 2} y={30} fill={svgText} fontSize={13} textAnchor="middle" fontWeight="bold">
+                    <text x={w / 2} y={(node.data as Record<string, unknown>)?.isParallel ? 26 : 30} fill={svgText} fontSize={13} textAnchor="middle" fontWeight="bold">
                       {nameLabel.text}
+                    </text>
+                  )}
+                  {/* Parallel indicator */}
+                  {!!(node.data as Record<string, unknown>)?.isParallel && (
+                    <text x={w / 2} y={38} fill={svgTextSub} fontSize={9} textAnchor="middle" fontStyle="italic">
+                      «parallel»
                     </text>
                   )}
                   {isSelected && (
@@ -2199,7 +2205,9 @@ export default function DiagramViewer({
                     </text>
                   )}
                   {!isParam && kindLabel && (
-                    <text x={dynamicW / 2} y={17} fill={svgTextSub} fontSize={10} textAnchor="middle" fontStyle="italic">{kindLabel.text}</text>
+                    <text x={dynamicW / 2} y={17} fill={svgTextSub} fontSize={10} textAnchor="middle" fontStyle="italic">
+                      {kindLabel.text}{(node.data as Record<string, unknown>)?.isParallel ? ' «parallel»' : ''}
+                    </text>
                   )}
                   {nameLabel && (
                     <text x={dynamicW / 2} y={42} fill={svgText} fontSize={13} textAnchor="middle" fontWeight="bold">{nameLabel.text}</text>
