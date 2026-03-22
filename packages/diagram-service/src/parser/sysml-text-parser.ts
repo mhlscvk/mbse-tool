@@ -1069,9 +1069,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       if (!ownerState) continue;
 
       const typeSimple = typeName ? simpleName(typeName) : '';
+      const kindLabel = behaviorKind === 'do' ? 'do action' : `${behaviorKind} action`;
       const displayText = actionName
-        ? (typeSimple ? `${behaviorKind} / ${actionName} : ${typeSimple}` : `${behaviorKind} / ${actionName}`)
-        : `${behaviorKind}`;
+        ? (typeSimple ? `${kindLabel} / ${actionName} : ${typeSimple}` : `${kindLabel} / ${actionName}`)
+        : kindLabel;
       ownerState.attributes.push({
         name: displayText,
         type: undefined,
@@ -1088,7 +1089,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const behaviorNode: SysMLNode = {
         id: behaviorId,
         kind: behaviorKindMap[behaviorKind] as SysMLNodeKind,
-        name: actionName ? `${behaviorKind} / ${actionName}` : behaviorKind,
+        name: actionName ? `${kindLabel} / ${actionName}` : kindLabel,
         qualifiedName: typeSimple || undefined,
         children: [], attributes: [], connections: [],
         range: { start: { line: bL - 1, character: bC - 1 }, end: { line: bEL - 1, character: bEC - 1 } },
@@ -2014,13 +2015,18 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         const resolvedName = actionName ?? 'start';
         // If it's "entry;" (no name), ensure a start node exists in this scope
         if (!actionName) {
-          // Check if inside a state def
-          for (const dp of defPositions) {
-            if (dm.index > dp.start && dm.index < dp.end) {
-              const node = nodeIndex.get(dp.name);
-              if (node && (node.kind === 'StateDefinition' || node.kind === 'StateUsage')) {
-                ensureSpecialNode('start', dm.index);
-                break;
+          // Only create a start node if there's a "then" following this entry declaration
+          // Otherwise, the entry behavior label in the state compartment is sufficient
+          const afterEntry = clean.slice(endPos).trimStart();
+          const hasThen = /^then\b/.test(afterEntry);
+          if (hasThen) {
+            for (const dp of defPositions) {
+              if (dm.index > dp.start && dm.index < dp.end) {
+                const node = nodeIndex.get(dp.name);
+                if (node && (node.kind === 'StateDefinition' || node.kind === 'StateUsage')) {
+                  ensureSpecialNode('start', dm.index);
+                  break;
+                }
               }
             }
           }

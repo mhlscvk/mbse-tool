@@ -145,7 +145,7 @@ describe('Typed entry/do/exit in state usages', () => {
     // S should have its own "entry" but NOT "entry / test"
     const sEntries = sDef!.attributes.filter(a => a.value === '__entry__');
     expect(sEntries.length).toBe(1);
-    expect(sEntries[0].name).toBe('entry');
+    expect(sEntries[0].name).toBe('entry action');
   });
 
   it('creates graphical entry/do/exit nodes', () => {

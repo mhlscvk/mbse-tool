@@ -212,7 +212,7 @@ describe('Audit: entry/exit/do edge cases', () => {
     expect(actionNodes.length).toBe(0);
     // But entry behavior should be in compartment
     const s = model.nodes.find(n => n.name === 'S');
-    expect(s!.attributes.some(a => a.name === 'entry / initAction')).toBe(true);
+    expect(s!.attributes.some(a => a.name === 'entry action / initAction')).toBe(true);
   });
 });
 

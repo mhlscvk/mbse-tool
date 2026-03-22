@@ -624,7 +624,10 @@ export default function DiagramViewer({
           // Collect internal flow edges for behavioural containers (successions)
           const internalEdges = isBehavioural ? (flowEdgesByParent.get(nodeId) ?? []) : [];
 
-          const padTop = isPkgNode ? 48 : allChildrenArePins ? 30 : isBehavioural ? 50 : 52;
+          // Extra top padding for behavior labels (entry/do/exit) in state containers
+          const behaviorLabelCount = n ? n.children.filter(c => c.id.includes('__usage__')).length : 0;
+          const behaviorPad = behaviorLabelCount > 0 ? behaviorLabelCount * 14 + 4 : 0;
+          const padTop = (isPkgNode ? 48 : allChildrenArePins ? 30 : isBehavioural ? 50 : 52) + behaviorPad;
           const padSide = isPkgNode ? 20 : allChildrenArePins ? 10 : isBehavioural ? 24 : 20;
           const padBottom = isPkgNode ? 20 : allChildrenArePins ? 10 : 20;
 
@@ -1832,6 +1835,25 @@ export default function DiagramViewer({
                       {nameLabel.text}
                     </text>
                   )}
+                  {/* Entry/do/exit behavior labels in container header */}
+                  {(() => {
+                    const behaviorLabels = node.children.filter(c => c.id.includes('__usage__'));
+                    if (behaviorLabels.length === 0) return null;
+                    const ROW_H = 14;
+                    return behaviorLabels.map((label, i) => (
+                      <text
+                        key={label.id}
+                        x={8}
+                        y={40 + 4 + (i + 1) * ROW_H - 3}
+                        fill={svgTextSub}
+                        fontSize={9}
+                        fontFamily="monospace"
+                        fontStyle="italic"
+                      >
+                        {label.text}
+                      </text>
+                    ));
+                  })()}
                   {isSelected && (
                     <rect width={w} height={h} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.2} />
                   )}
@@ -2314,22 +2336,40 @@ export default function DiagramViewer({
                   {...(style.markerEnd ? { markerEnd: style.markerEnd } : {})}
                   {...(style.markerStart ? { markerStart: style.markerStart } : {})}
                 />
-                {label && label.text && c && (
-                  <>
-                    <rect
-                      x={c.x - (label.text.length * 3.2 + 4)}
-                      y={c.y - 15}
-                      width={label.text.length * 6.4 + 8}
-                      height={14}
-                      rx={2}
-                      fill={t.bg}
-                      fillOpacity={0.85}
-                    />
-                    <text x={c.x} y={c.y - 4} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
-                      {label.text}
-                    </text>
-                  </>
-                )}
+                {label && label.text && c && (() => {
+                  // Offset label to the right of the edge to avoid overlapping nodes
+                  const labelW = label.text.length * 6.4 + 8;
+                  const srcPos = nodePos(edge.sourceId);
+                  const tgtPos = nodePos(edge.targetId);
+                  const srcSz = nodeSz(edge.sourceId);
+                  const tgtSz = nodeSz(edge.targetId);
+                  // Check if the midpoint is inside or near source/target node bounds
+                  const isNearSrc = c.x >= srcPos.x - 5 && c.x <= srcPos.x + srcSz.w + 5 && c.y >= srcPos.y - 5 && c.y <= srcPos.y + srcSz.h + 5;
+                  const isNearTgt = c.x >= tgtPos.x - 5 && c.x <= tgtPos.x + tgtSz.w + 5 && c.y >= tgtPos.y - 5 && c.y <= tgtPos.y + tgtSz.h + 5;
+                  let lx = c.x;
+                  let ly = c.y;
+                  if (isNearSrc || isNearTgt) {
+                    // Offset to the right of the edge path
+                    const rightEdge = Math.max(srcPos.x + srcSz.w, tgtPos.x + tgtSz.w);
+                    lx = rightEdge + labelW / 2 + 8;
+                  }
+                  return (
+                    <>
+                      <rect
+                        x={lx - (label.text.length * 3.2 + 4)}
+                        y={ly - 15}
+                        width={labelW}
+                        height={14}
+                        rx={2}
+                        fill={t.bg}
+                        fillOpacity={0.85}
+                      />
+                      <text x={lx} y={ly - 4} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
+                        {label.text}
+                      </text>
+                    </>
+                  );
+                })()}
               </g>
             );
           })}

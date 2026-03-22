@@ -77,7 +77,7 @@ describe('Transformer: state behaviors in compartments', () => {
     const s = findNode(nodes, 'S');
     expect(s).toBeDefined();
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('entry / startEngine');
+    expect(labels).toContain('entry action / startEngine');
   });
 
   it('exit behavior appears in compartment as "exit / actionName"', () => {
@@ -88,7 +88,7 @@ describe('Transformer: state behaviors in compartments', () => {
     `);
     const s = findNode(nodes, 'S');
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('exit / stopEngine');
+    expect(labels).toContain('exit action / stopEngine');
   });
 
   it('do behavior appears in compartment as "do / actionName"', () => {
@@ -99,7 +99,7 @@ describe('Transformer: state behaviors in compartments', () => {
     `);
     const s = findNode(nodes, 'S');
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('do / monitor');
+    expect(labels).toContain('do action / monitor');
   });
 
   it('all three behaviors appear in correct order', () => {
@@ -113,9 +113,9 @@ describe('Transformer: state behaviors in compartments', () => {
     const s = findNode(nodes, 'S');
     const labels = compartmentLabels(s!);
     expect(labels.length).toBe(3);
-    expect(labels).toContain('entry / init');
-    expect(labels).toContain('do / work');
-    expect(labels).toContain('exit / cleanup');
+    expect(labels).toContain('entry action / init');
+    expect(labels).toContain('do action / work');
+    expect(labels).toContain('exit action / cleanup');
   });
 
   it('state def with behaviors has increased height for compartment', () => {
@@ -137,7 +137,7 @@ describe('Transformer: state behaviors in compartments', () => {
     // Should not show "+ entry / startEngine = __entry__"
     expect(labels[0]).not.toContain('+');
     expect(labels[0]).not.toContain('__entry__');
-    expect(labels[0]).toBe('entry / startEngine');
+    expect(labels[0]).toBe('entry action / startEngine');
   });
 });
 
@@ -214,7 +214,7 @@ describe('Transformer: full state machine pipeline', () => {
     // State def node with behavior compartment
     const stateDef = findNode(nodes, 'VehicleStates');
     expect(stateDef).toBeDefined();
-    expect(compartmentLabels(stateDef!)).toContain('entry / initialize');
+    expect(compartmentLabels(stateDef!)).toContain('entry action / initialize');
 
     // Sub-state nodes
     expect(findNode(nodes, 'parked')).toBeDefined();

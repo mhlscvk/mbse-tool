@@ -75,16 +75,16 @@ describe('Audit: behavior compartment rendering', () => {
       expect(label).not.toContain('+');
       expect(label).not.toContain('=');
     }
-    expect(labels).toContain('entry / startEngine');
-    expect(labels).toContain('do / monitor');
-    expect(labels).toContain('exit / stopEngine');
+    expect(labels).toContain('entry action / startEngine');
+    expect(labels).toContain('do action / monitor');
+    expect(labels).toContain('exit action / stopEngine');
   });
 
   it('entry; (no action name) renders as just "entry"', () => {
     const { nodes } = pipeline('state def S { entry; }');
     const s = findNode(nodes, 'S');
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('entry');
+    expect(labels).toContain('entry action');
   });
 });
 
@@ -271,9 +271,9 @@ describe('Audit: full spec example end-to-end', () => {
     const machine = findNode(nodes, 'Machine');
     expect(machine).toBeDefined();
     const labels = compartmentLabels(machine!);
-    expect(labels).toContain('entry / init');
-    expect(labels).toContain('do / monitor');
-    expect(labels).toContain('exit / cleanup');
+    expect(labels).toContain('entry action / init');
+    expect(labels).toContain('do action / monitor');
+    expect(labels).toContain('exit action / cleanup');
 
     // 2 transitions + 1 succession (start→idle)
     const transitions = edges.filter(e => e.cssClasses?.[0] === 'transition');

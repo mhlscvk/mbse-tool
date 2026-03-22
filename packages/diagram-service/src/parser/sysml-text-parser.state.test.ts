@@ -133,7 +133,7 @@ describe('State entry/exit/do behaviors', () => {
     const { model } = parse(code);
     const stateDef = model.nodes.find(n => n.name === 'VehicleStates');
     expect(stateDef).toBeDefined();
-    expect(stateDef!.attributes.some(a => a.name === 'entry / initialize')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'entry action / initialize')).toBe(true);
   });
 
   it('parses exit with action name', () => {
@@ -144,7 +144,7 @@ describe('State entry/exit/do behaviors', () => {
     `;
     const { model } = parse(code);
     const stateDef = model.nodes.find(n => n.name === 'VehicleStates');
-    expect(stateDef!.attributes.some(a => a.name === 'exit / cleanup')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'exit action / cleanup')).toBe(true);
   });
 
   it('parses do with action name', () => {
@@ -155,7 +155,7 @@ describe('State entry/exit/do behaviors', () => {
     `;
     const { model } = parse(code);
     const stateDef = model.nodes.find(n => n.name === 'VehicleStates');
-    expect(stateDef!.attributes.some(a => a.name === 'do / monitor')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'do action / monitor')).toBe(true);
   });
 
   it('parses entry with block body', () => {
@@ -167,7 +167,7 @@ describe('State entry/exit/do behaviors', () => {
     `;
     const { model } = parse(code);
     const stateDef = model.nodes.find(n => n.name === 'VehicleStates');
-    expect(stateDef!.attributes.some(a => a.name === 'entry')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'entry action')).toBe(true);
   });
 
   it('parses multiple behaviors in same state', () => {
@@ -181,9 +181,9 @@ describe('State entry/exit/do behaviors', () => {
     const { model } = parse(code);
     const stateDef = model.nodes.find(n => n.name === 'Active');
     expect(stateDef!.attributes.length).toBe(3);
-    expect(stateDef!.attributes.some(a => a.name === 'entry / startEngine')).toBe(true);
-    expect(stateDef!.attributes.some(a => a.name === 'do / monitor')).toBe(true);
-    expect(stateDef!.attributes.some(a => a.name === 'exit / stopEngine')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'entry action / startEngine')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'do action / monitor')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'exit action / stopEngine')).toBe(true);
   });
 
   it('stores behavior attributes with special value markers', () => {
@@ -196,9 +196,9 @@ describe('State entry/exit/do behaviors', () => {
     `;
     const { model } = parse(code);
     const s = model.nodes.find(n => n.name === 'S');
-    expect(s!.attributes.find(a => a.name === 'entry / init')!.value).toBe('__entry__');
-    expect(s!.attributes.find(a => a.name === 'exit / cleanup')!.value).toBe('__exit__');
-    expect(s!.attributes.find(a => a.name === 'do / work')!.value).toBe('__do__');
+    expect(s!.attributes.find(a => a.name === 'entry action / init')!.value).toBe('__entry__');
+    expect(s!.attributes.find(a => a.name === 'exit action / cleanup')!.value).toBe('__exit__');
+    expect(s!.attributes.find(a => a.name === 'do action / work')!.value).toBe('__do__');
   });
 
   it('does not add behaviors outside state defs', () => {
@@ -221,7 +221,7 @@ describe('State entry/exit/do behaviors', () => {
     `;
     const { model } = parse(code);
     const s = model.nodes.find(n => n.name === 'S');
-    expect(s!.attributes.some(a => a.name === 'entry / doInit')).toBe(true);
+    expect(s!.attributes.some(a => a.name === 'entry action / doInit')).toBe(true);
   });
 });
 
@@ -577,7 +577,7 @@ describe('Complete state machine', () => {
     expect(stateDef!.kind).toBe('StateDefinition');
 
     // Entry behavior
-    expect(stateDef!.attributes.some(a => a.name === 'entry / initialize')).toBe(true);
+    expect(stateDef!.attributes.some(a => a.name === 'entry action / initialize')).toBe(true);
 
     // Sub-states exist
     expect(model.nodes.some(n => n.name === 'parked')).toBe(true);
