@@ -60,7 +60,7 @@ describe('Audit: state definition graphical notation', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Audit: behavior compartment rendering', () => {
-  it.skip('entry/exit/do behaviors render as clean labels without __marker__ values', () => {
+  it('entry/exit/do behaviors render as separate child nodes, not compartment labels', () => {
     const { nodes } = pipeline(`
       state def S {
         entry startEngine;
@@ -69,17 +69,14 @@ describe('Audit: behavior compartment rendering', () => {
       }
     `);
     const s = findNode(nodes, 'S');
+    expect(s).toBeDefined();
+    // No compartment labels — behaviors are graphical child nodes
     const labels = compartmentLabels(s!);
-    expect(labels.length).toBe(3);
-    // Labels should be clean "entry / actionName" format
-    for (const label of labels) {
-      expect(label).not.toContain('__');
-      expect(label).not.toContain('+');
-      expect(label).not.toContain('=');
-    }
-    expect(labels).toContain('entry action / startEngine');
-    expect(labels).toContain('do action / monitor');
-    expect(labels).toContain('exit action / stopEngine');
+    expect(labels.length).toBe(0);
+    // Each behavior type exists as a separate SNode
+    expect(nodes.some(n => n.cssClasses?.[0] === 'entryactionusage')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'doactionusage')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'exitactionusage')).toBe(true);
   });
 
   it('entry; (no action name) renders as just "entry"', () => {
@@ -248,7 +245,7 @@ describe('Audit: full spec example end-to-end', () => {
     expect(transitions.some(t => t.children[0]?.text?.includes('TurnOff'))).toBe(true);
   });
 
-  it.skip('complex state machine with entry/do/exit and transitions', () => {
+  it('complex state machine: behaviors are child nodes, not compartment labels', () => {
     const { nodes, edges } = pipeline(`
       package Pkg {
         item def StartSig;
@@ -269,13 +266,16 @@ describe('Audit: full spec example end-to-end', () => {
       }
     `);
 
-    // State def has behaviors in compartment
+    // State def has NO compartment labels — behaviors are separate child nodes
     const machine = findNode(nodes, 'Machine');
     expect(machine).toBeDefined();
     const labels = compartmentLabels(machine!);
-    expect(labels).toContain('entry action / init');
-    expect(labels).toContain('do action / monitor');
-    expect(labels).toContain('exit action / cleanup');
+    expect(labels.length).toBe(0);
+
+    // Behaviors exist as separate graphical child nodes
+    expect(nodes.some(n => n.cssClasses?.[0] === 'entryactionusage')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'doactionusage')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'exitactionusage')).toBe(true);
 
     // 2 transitions + 1 succession (start→idle)
     const transitions = edges.filter(e => e.cssClasses?.[0] === 'transition');

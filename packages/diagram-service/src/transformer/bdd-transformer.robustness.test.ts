@@ -167,8 +167,8 @@ describe('Transformer: edge CSS classes', () => {
 
 // ── 5. Compartment rendering ─────────────────────────────────────────────────
 
-describe.skip('Transformer: compartments', () => {
-  it('definition with attributes has compartment labels', () => {
+describe('Transformer: nodes with visible children have no compartment labels', () => {
+  it('definition with child attribute usages has no compartment labels when children are graphical nodes', () => {
     const code = `
       part def Vehicle {
         attribute mass : Real;
@@ -178,18 +178,25 @@ describe.skip('Transformer: compartments', () => {
     const { nodes } = pipeline(code);
     const vehicle = findNode(nodes, 'Vehicle');
     expect(vehicle).toBeDefined();
-    const compartmentLabels = vehicle!.children.filter(c => c.id.includes('__usage__'));
-    expect(compartmentLabels.length).toBe(2);
+    // Children are rendered as separate graphical nodes, so no compartment labels
+    const usageLabels = vehicle!.children.filter(c => c.id.includes('__usage__'));
+    expect(usageLabels.length).toBe(0);
+    // The child attributes exist as separate SNode entries
+    const attrNodes = nodes.filter(n => n.cssClasses?.[0] === 'attributeusage');
+    expect(attrNodes.length).toBe(2);
   });
 
-  it('node height grows with attribute count', () => {
-    const code1 = 'part def Small { attribute a1 : Real; }';
-    const code2 = 'part def Big { attribute a1 : Real; attribute a2 : Real; attribute a3 : Real; attribute a4 : Real; attribute a5 : Real; }';
-    const { nodes: n1 } = pipeline(code1);
-    const { nodes: n2 } = pipeline(code2);
-    const small = findNode(n1, 'Small');
-    const big = findNode(n2, 'Big');
-    expect(big!.size.height).toBeGreaterThan(small!.size.height);
+  it('child attribute nodes exist as separate SNode entries with correct cssClasses', () => {
+    const code = 'part def Big { attribute a1 : Real; attribute a2 : Real; attribute a3 : Real; attribute a4 : Real; attribute a5 : Real; }';
+    const { nodes } = pipeline(code);
+    const big = findNode(nodes, 'Big');
+    expect(big).toBeDefined();
+    // No compartment labels
+    const usageLabels = big!.children.filter(c => c.id.includes('__usage__'));
+    expect(usageLabels.length).toBe(0);
+    // All 5 attributes exist as separate child nodes
+    const attrNodes = nodes.filter(n => n.cssClasses?.[0] === 'attributeusage');
+    expect(attrNodes.length).toBe(5);
   });
 });
 

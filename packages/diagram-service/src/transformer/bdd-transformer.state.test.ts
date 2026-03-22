@@ -67,8 +67,8 @@ describe('Transformer: state definition nodes', () => {
 //  TRANSFORMER: ENTRY/EXIT/DO IN COMPARTMENTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe.skip('Transformer: state behaviors in compartments', () => {
-  it('entry behavior appears in compartment as "entry / actionName"', () => {
+describe('Transformer: state behaviors rendered as child nodes (not compartment labels)', () => {
+  it('entry behavior renders as a separate child node, not a compartment label', () => {
     const { nodes } = pipeline(`
       state def S {
         entry startEngine;
@@ -76,33 +76,45 @@ describe.skip('Transformer: state behaviors in compartments', () => {
     `);
     const s = findNode(nodes, 'S');
     expect(s).toBeDefined();
+    // No compartment labels for behaviors
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('entry action / startEngine');
+    expect(labels.length).toBe(0);
+    // Entry behavior exists as a separate node
+    const entryNode = nodes.find(n => n.cssClasses?.[0] === 'entryactionusage');
+    expect(entryNode).toBeDefined();
   });
 
-  it('exit behavior appears in compartment as "exit / actionName"', () => {
+  it('exit behavior renders as a separate child node, not a compartment label', () => {
     const { nodes } = pipeline(`
       state def S {
         exit stopEngine;
       }
     `);
     const s = findNode(nodes, 'S');
+    // No compartment labels for behaviors
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('exit action / stopEngine');
+    expect(labels.length).toBe(0);
+    // Exit behavior exists as a separate node
+    const exitNode = nodes.find(n => n.cssClasses?.[0] === 'exitactionusage');
+    expect(exitNode).toBeDefined();
   });
 
-  it('do behavior appears in compartment as "do / actionName"', () => {
+  it('do behavior renders as a separate child node, not a compartment label', () => {
     const { nodes } = pipeline(`
       state def S {
         do monitor;
       }
     `);
     const s = findNode(nodes, 'S');
+    // No compartment labels for behaviors
     const labels = compartmentLabels(s!);
-    expect(labels).toContain('do action / monitor');
+    expect(labels.length).toBe(0);
+    // Do behavior exists as a separate node
+    const doNode = nodes.find(n => n.cssClasses?.[0] === 'doactionusage');
+    expect(doNode).toBeDefined();
   });
 
-  it('all three behaviors appear in correct order', () => {
+  it('all three behaviors render as separate child nodes, not compartment labels', () => {
     const { nodes } = pipeline(`
       state def S {
         entry init;
@@ -111,22 +123,25 @@ describe.skip('Transformer: state behaviors in compartments', () => {
       }
     `);
     const s = findNode(nodes, 'S');
+    // No compartment labels for behaviors
     const labels = compartmentLabels(s!);
-    expect(labels.length).toBe(3);
-    expect(labels).toContain('entry action / init');
-    expect(labels).toContain('do action / work');
-    expect(labels).toContain('exit action / cleanup');
+    expect(labels.length).toBe(0);
+    // Each behavior type exists as a separate node
+    expect(nodes.some(n => n.cssClasses?.[0] === 'entryactionusage')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'doactionusage')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'exitactionusage')).toBe(true);
   });
 
-  it('state def with behaviors has increased height for compartment', () => {
+  it('state def with child behaviors has no compartment height increase', () => {
     const noAttrs = pipeline('state def Empty { }');
-    const withAttrs = pipeline('state def S { entry init; exit cleanup; do work; }');
+    const withBehaviors = pipeline('state def S { entry init; exit cleanup; do work; }');
     const emptyNode = noAttrs.nodes[0];
-    const fullNode = withAttrs.nodes[0];
-    expect(fullNode.size.height).toBeGreaterThan(emptyNode.size.height);
+    const fullNode = findNode(withBehaviors.nodes, 'S')!;
+    // With graphical children, compartments are skipped so height stays base size
+    expect(fullNode.size.height).toBeLessThanOrEqual(emptyNode.size.height + 10);
   });
 
-  it('behavior labels do not include "+" prefix or "=" value', () => {
+  it('behavior child nodes do not contain "+" prefix or "__marker__" values', () => {
     const { nodes } = pipeline(`
       state def S {
         entry startEngine;
@@ -134,10 +149,11 @@ describe.skip('Transformer: state behaviors in compartments', () => {
     `);
     const s = findNode(nodes, 'S');
     const labels = compartmentLabels(s!);
-    // Should not show "+ entry / startEngine = __entry__"
-    expect(labels[0]).not.toContain('+');
-    expect(labels[0]).not.toContain('__entry__');
-    expect(labels[0]).toBe('entry action / startEngine');
+    // No compartment labels at all
+    expect(labels.length).toBe(0);
+    // The entry node exists as a separate graphical node
+    const entryNode = nodes.find(n => n.cssClasses?.[0] === 'entryactionusage');
+    expect(entryNode).toBeDefined();
   });
 });
 
@@ -189,7 +205,7 @@ describe('Transformer: state machine edges', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Transformer: full state machine pipeline', () => {
-  it.skip('complete state machine produces correct diagram structure', () => {
+  it('complete state machine produces correct diagram structure with child nodes instead of compartments', () => {
     const { nodes, edges } = pipeline(`
       state def VehicleStates {
         entry initialize;
@@ -211,10 +227,14 @@ describe('Transformer: full state machine pipeline', () => {
       }
     `);
 
-    // State def node with behavior compartment
+    // State def node has NO compartment labels (children are rendered as separate nodes)
     const stateDef = findNode(nodes, 'VehicleStates');
     expect(stateDef).toBeDefined();
-    expect(compartmentLabels(stateDef!)).toContain('entry action / initialize');
+    expect(compartmentLabels(stateDef!).length).toBe(0);
+
+    // Entry behavior exists as a separate graphical child node
+    const entryNode = nodes.find(n => n.cssClasses?.[0] === 'entryactionusage');
+    expect(entryNode).toBeDefined();
 
     // Sub-state nodes
     expect(findNode(nodes, 'parked')).toBeDefined();

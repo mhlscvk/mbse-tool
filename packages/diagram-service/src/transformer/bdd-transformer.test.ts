@@ -89,14 +89,17 @@ describe('Transformer: keyword display', () => {
   });
 });
 
-describe.skip('Transformer: compartments', () => {
-  it('definition shows attributes in compartment', () => {
+describe('Transformer: nodes with visible children have no compartment labels', () => {
+  it('definition with child attributes has no compartment labels; children are separate nodes', () => {
     const { nodes } = pipeline('part def Engine { attribute mass : Real; }');
     const eng = nodes.find(n => n.children.some(c => c.text === 'Engine'));
+    expect(eng).toBeDefined();
+    // No compartment labels — children are rendered as separate graphical nodes
     const usageLabels = eng!.children.filter(c => c.id.includes('__usage__'));
-    expect(usageLabels.length).toBe(1);
-    expect(usageLabels[0].text).toContain('mass');
-    expect(usageLabels[0].text).toContain('Real');
+    expect(usageLabels.length).toBe(0);
+    // The attribute exists as a separate SNode
+    const attrNodes = nodes.filter(n => n.cssClasses?.[0] === 'attributeusage');
+    expect(attrNodes.length).toBe(1);
   });
 
   it('filters out __doc__ from compartments', () => {
@@ -109,12 +112,16 @@ describe.skip('Transformer: compartments', () => {
     }
   });
 
-  it('definition height grows with attributes', () => {
-    const small = pipeline('part def A;');
+  it('definition with child attributes renders children as separate nodes, not compartment rows', () => {
     const big = pipeline('part def A { attribute x : Real; attribute y : Real; attribute z : Real; }');
-    const smallNode = small.nodes[0];
-    const bigNode = big.nodes[0];
-    expect(bigNode.size.height).toBeGreaterThan(smallNode.size.height);
+    const bigNode = big.nodes.find(n => n.children.some(c => c.text === 'A'));
+    expect(bigNode).toBeDefined();
+    // No compartment labels
+    const usageLabels = bigNode!.children.filter(c => c.id.includes('__usage__'));
+    expect(usageLabels.length).toBe(0);
+    // All 3 attributes exist as separate child nodes with correct cssClass
+    const attrNodes = big.nodes.filter(n => n.cssClasses?.[0] === 'attributeusage');
+    expect(attrNodes.length).toBe(3);
   });
 });
 
@@ -296,7 +303,7 @@ describe('AFV: compartment hiding for definitions', () => {
     expect(usageLabels.length).toBe(0);
   });
 
-  it.skip('non-AFV view keeps directed items in definition compartments', () => {
+  it('non-AFV view: definitions with visible children have no compartment labels', () => {
     const { model } = parseSysMLText('test://gv', AFV_CODE);
     const diagram = transformToBDD(model, 'general');
     const nodes = diagram.children.filter((c): c is SNode => c.type === 'node');
@@ -305,8 +312,15 @@ describe('AFV: compartment hiding for definitions', () => {
       n.children.some(c => c.text === 'GenerateTorque')
     );
     expect(genDef).toBeDefined();
+    // In non-AFV view, definitions with visible graphical children have no compartment labels
     const usageLabels = genDef!.children.filter(c => c.id.includes('__usage__'));
-    expect(usageLabels.length).toBeGreaterThan(0);
+    expect(usageLabels.length).toBe(0);
+    // The directed items exist as separate child nodes
+    const directedNodes = nodes.filter(n =>
+      n.cssClasses?.[0] === 'itemusage' &&
+      n.children.some(c => c.id.endsWith('__label') && (c.text.includes('engineTorque') || c.text.includes('fuelCmd')))
+    );
+    expect(directedNodes.length).toBeGreaterThan(0);
   });
 });
 
