@@ -1398,11 +1398,31 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
     if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, usageNode);
 
-    if (ownerNode || usagePkg) {
-      const ownerId = ownerNode ? ownerNode.id : usagePkg!.id;
+    // Determine the actual owner — re-check usagePositions directly if findOwnerUsage missed
+    let actualOwnerId = ownerNode ? ownerNode.id : usagePkg?.id;
+    if (!enclosingUsage2) {
+      let bestUp: { name: string; start: number } | undefined;
+      for (const up of usagePositions) {
+        if (up.start === match.index) continue;
+        if (usagePos > up.start && usagePos < up.end) {
+          if (!bestUp || up.start > bestUp.start) bestUp = up;
+        }
+      }
+      if (bestUp) {
+        const parentNode = nodeIndex.get(bestUp.name) ??
+          nodeIndex.get(`${findOwnerDef(bestUp.start)?.name ?? ''}.${bestUp.name}`) ??
+          nodeIndex.get(`${usagePkg?.name ?? ''}.${bestUp.name}`);
+        if (parentNode) {
+          actualOwnerId = parentNode.id;
+          nodeIndex.set(`${bestUp.name}.${usageName}`, usageNode);
+        }
+      }
+    }
+
+    if (actualOwnerId) {
       connections.push({
         id: makeId('owns', `${ownerName}_${usageName}`),
-        sourceId: ownerId,
+        sourceId: actualOwnerId,
         targetId: usageId,
         kind: isRef ? 'noncomposite' : 'composition',
         name: '',
