@@ -169,9 +169,9 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 
 ## Testing
 
-**Total: 609 tests** (all passing)
+**Total: 732 tests** (all passing)
 
-- `api-server`: 132 tests across 10 suites
+- `api-server`: 200 tests across 13 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
   - `ai/tools.test.ts` (12): tool execution, access control, size limits, name sanitization
   - `ai/providers.test.ts` (5): tool schema validation
@@ -182,6 +182,10 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
   - `services/startup-ops.test.ts` (23): startup CRUD, member management, role-based access, slug conflicts
   - `services/element-lock-ops.test.ts` (18): check-out/check-in, force check-in, TOCTOU (P2002), file-project validation, element name sanitization, audit logging
   - `services/notification-ops.test.ts` (15): create/list/read notifications, self-notification prevention, cooldown dedup, project access check, unread count
+  - `routes/startups-invitations.test.ts` (10): invitation CRUD, email-based invitations, role assignment, duplicate prevention, revocation
+  - `services/file-ops.test.ts` (42): file CRUD, sanitization, content size limits, applyEdit line/column validation, search, MCP events
+  - `lib/auth-helpers.test.ts` (16): isAdmin, assertProjectAccess (system/USER/STARTUP), assertWriteAccess
+- `web-client`: 55 tests across 3 suites (theme store, recent files, sysml helpers)
 - `diagram-service`: 477 tests across 13 suites (parser, transformer, view filters, WebSocket, etc.)
 
 Run tests:

@@ -380,7 +380,7 @@ export default function DiagramViewer({
   // IBD: container sizes computed by ELK compound layout
   const [layoutSizes, setIbdSizes] = useState(new Map<string, { w: number; h: number }>());
 
-  // ELK-computed edge routes (tree mode): edge id → SVG path string
+  // ELK-computed edge routes: edge id → SVG path string (all modes)
   const [elkEdgeRoutes, setElkEdgeRoutes] = useState(new Map<string, string>());
 
   const allNodes = useMemo(
@@ -783,24 +783,31 @@ export default function DiagramViewer({
         }
       }
 
-      // Collect ELK-computed edge routes (tree mode)
+      // Collect ELK-computed edge routes from all levels (top-level + internal container edges)
       const newEdgeRoutes = new Map<string, string>();
-      if (effectiveViewMode === 'tree' && result.edges) {
-        for (const elkEdge of result.edges) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function collectEdgeRoutes(elkNode: any, ox: number, oy: number) {
+        for (const elkEdge of elkNode.edges ?? []) {
           if (!elkEdge.sections || elkEdge.sections.length === 0) continue;
           const pathParts: string[] = [];
           for (const section of elkEdge.sections) {
             const start = section.startPoint;
-            pathParts.push(`M ${start.x} ${start.y}`);
+            pathParts.push(`M ${start.x + ox} ${start.y + oy}`);
             for (const bp of section.bendPoints ?? []) {
-              pathParts.push(`L ${bp.x} ${bp.y}`);
+              pathParts.push(`L ${bp.x + ox} ${bp.y + oy}`);
             }
             const end = section.endPoint;
-            pathParts.push(`L ${end.x} ${end.y}`);
+            pathParts.push(`L ${end.x + ox} ${end.y + oy}`);
           }
           newEdgeRoutes.set(elkEdge.id, pathParts.join(' '));
         }
+        for (const child of elkNode.children ?? []) {
+          const cx = (child.x ?? 0) + ox;
+          const cy = (child.y ?? 0) + oy;
+          collectEdgeRoutes(child, cx, cy);
+        }
       }
+      collectEdgeRoutes(result, 0, 0);
       setElkEdgeRoutes(newEdgeRoutes);
 
       setPositions(newPositions);
@@ -1275,17 +1282,15 @@ export default function DiagramViewer({
   };
 
   const edgeCenter = (edge: SEdge) => {
-    // Use routed path midpoint if available
-    const routed = routedEdgePaths.get(edge.id);
-    if (routed && routed.length >= 2) {
-      // Find the best segment for label placement: prefer segments NOT overlapping any node
+    // Helper: find best label position on a set of path points
+    const bestLabelOnPath = (points: { x: number; y: number }[]) => {
       const segments: Array<{ idx: number; len: number; mx: number; my: number }> = [];
-      for (let i = 1; i < routed.length; i++) {
-        const sl = Math.hypot(routed[i].x - routed[i - 1].x, routed[i].y - routed[i - 1].y);
+      for (let i = 1; i < points.length; i++) {
+        const sl = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
         segments.push({
           idx: i - 1, len: sl,
-          mx: (routed[i - 1].x + routed[i].x) / 2,
-          my: (routed[i - 1].y + routed[i].y) / 2,
+          mx: (points[i - 1].x + points[i].x) / 2,
+          my: (points[i - 1].y + points[i].y) / 2,
         });
       }
       // Check which segments' midpoints are NOT inside any visible node
@@ -1304,6 +1309,27 @@ export default function DiagramViewer({
       // Fallback: use longest segment regardless
       segments.sort((a, b) => b.len - a.len);
       return { x: segments[0].mx, y: segments[0].my };
+    };
+
+    // Use ELK-computed route if available (works for internal container edges)
+    const elkRoute = elkEdgeRoutes.get(edge.id);
+    if (elkRoute) {
+      // Parse SVG path "M x y L x y L x y ..." into points
+      const points: { x: number; y: number }[] = [];
+      const parts = elkRoute.split(/\s+/);
+      for (let i = 0; i < parts.length; i++) {
+        if ((parts[i] === 'M' || parts[i] === 'L') && i + 2 < parts.length) {
+          points.push({ x: parseFloat(parts[i + 1]), y: parseFloat(parts[i + 2]) });
+          i += 2;
+        }
+      }
+      if (points.length >= 2) return bestLabelOnPath(points);
+    }
+
+    // Use orthogonal-routed path if available (nested mode)
+    const routed = routedEdgePaths.get(edge.id);
+    if (routed && routed.length >= 2) {
+      return bestLabelOnPath(routed);
     }
 
     const src = nodeCenter(edge.sourceId);

@@ -1,11 +1,70 @@
 import { Router, type IRouter } from 'express';
 import { z } from 'zod';
+import nodemailer from 'nodemailer';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import { asyncHandler, NotFound, Forbidden, BadRequest } from '../lib/errors.js';
 import * as startupOps from '../services/startup-ops.js';
 import { prisma } from '../db.js';
 
 const router: IRouter = Router();
+
+// ── Email helper for invitations ────────────────────────────────────────────
+function getMailTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+    secure: false,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+}
+
+async function sendInvitationEmail(email: string, startupName: string, inviterName: string) {
+  const baseUrl = process.env.APP_URL ?? 'https://systemodel.com';
+  const registerUrl = `${baseUrl}/login?register=true`;
+  const transporter = getMailTransporter();
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? '"Systemodel" <noreply@systemodel.com>',
+    to: email,
+    subject: `You've been invited to ${startupName} on Systemodel`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="color: #569cd6;">You're Invited!</h2>
+        <p><strong>${inviterName}</strong> has invited you to join <strong>${startupName}</strong> on Systemodel — a SysML v2 web modeling platform.</p>
+        <p>Create your account to get started:</p>
+        <a href="${registerUrl}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
+          Join ${startupName}
+        </a>
+        <p style="color: #888; font-size: 13px; margin-top: 24px;">
+          Or copy this link: <br/>${registerUrl}
+        </p>
+        <p style="color: #888; font-size: 12px;">Once you register with this email address (${email}), you'll automatically be added to ${startupName}.</p>
+      </div>
+    `,
+  });
+}
+
+async function sendMemberAddedEmail(email: string, startupName: string, inviterName: string) {
+  const baseUrl = process.env.APP_URL ?? 'https://systemodel.com';
+  const transporter = getMailTransporter();
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? '"Systemodel" <noreply@systemodel.com>',
+    to: email,
+    subject: `You've been added to ${startupName} on Systemodel`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="color: #569cd6;">Welcome to ${startupName}!</h2>
+        <p><strong>${inviterName}</strong> has added you to <strong>${startupName}</strong> on Systemodel.</p>
+        <p>You can now access the team's projects and files:</p>
+        <a href="${baseUrl}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
+          Open Systemodel
+        </a>
+        <p style="color: #888; font-size: 12px; margin-top: 24px;">Log in with your existing account to see ${startupName}'s projects.</p>
+      </div>
+    `,
+  });
+}
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -98,13 +157,35 @@ router.post('/:startupId/members', asyncHandler(async (req: AuthRequest, res) =>
         update: { role: body.role },
         create: { startupId: req.params.startupId, email, role: body.role, invitedBy: req.userId! },
       });
-      res.status(201).json({ data: { invitation, pending: true, message: `Invitation created for ${email}. They will be added automatically when they register.` } });
+
+      // Send invitation email (non-blocking — don't fail the request if email fails)
+      const startup = await startupOps.getStartup(req.params.startupId);
+      const inviter = await prisma.user.findUnique({ where: { id: req.userId! }, select: { name: true, email: true } });
+      const startupName = startup?.name ?? 'an enterprise';
+      const inviterName = inviter?.name ?? inviter?.email ?? 'A team member';
+      sendInvitationEmail(email, startupName, inviterName).catch((err) => {
+        console.error(`[STARTUP] Failed to send invitation email to ${email}:`, err.message);
+      });
+
+      res.status(201).json({ data: { invitation, pending: true, message: `Invitation sent to ${email}. They will be added automatically when they register.` } });
       return;
     }
     userId = user.id;
   }
 
   const member = await startupOps.addMember(req.params.startupId, userId!, body.role);
+
+  // Notify existing user they've been added (non-blocking)
+  if (body.email) {
+    const startup = await startupOps.getStartup(req.params.startupId);
+    const inviter = await prisma.user.findUnique({ where: { id: req.userId! }, select: { name: true, email: true } });
+    const startupName = startup?.name ?? 'an enterprise';
+    const inviterName = inviter?.name ?? inviter?.email ?? 'A team member';
+    sendMemberAddedEmail(body.email.toLowerCase(), startupName, inviterName).catch((err) => {
+      console.error(`[STARTUP] Failed to send member-added email to ${body.email}:`, err.message);
+    });
+  }
+
   res.status(201).json({ data: member });
 }));
 

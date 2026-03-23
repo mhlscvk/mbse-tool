@@ -601,6 +601,8 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] State machine diagrams (state defs, sub-states, transitions, typed entry/exit/do with compartment display, parallel, shorthand transitions)
 - [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as nested child nodes with compartment display
 - [x] Entry/do/exit as compartment text in GV + graphical nodes (`<<entry action>>`, `<<do action>>`, `<<exit action>>`) in STV
+- [x] ELK-computed orthogonal edge routing for transitions inside state machine containers (all view modes)
+- [x] Edge label placement on non-overlapping segments (avoids node collision)
 - [x] STV start circle replaced by entry action node when entry action exists
 - [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
@@ -625,7 +627,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 598 vitest tests across 23 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications)
+- [x] Automated tests: 732 vitest tests across 29 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 30 files across 8 subprojects)
@@ -691,7 +693,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (598 unit tests across 23 suites) + 36 live penetration tests |
+| Testing | Vitest (674 unit tests across 27 suites) + 36 live penetration tests |
 
 ---
 
@@ -706,24 +708,29 @@ pnpm --filter @systemodel/diagram-service test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 598 tests across 23 test suites:
+**Coverage:** 674 tests across 27 test suites:
 
+**Diagram Service** (477 tests across 13 suites):
 - **Parser tests** (109): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers, derived features, noncomposite membership, crossing operator, feature chains, use case/analysis case/verification case usages
+- **Parser new features tests** (32): conjugated ports, binding connections, succession flow, message payloads, port boundary rendering, action parameter rendering, feature chains
 - **Parser state tests** (55): state definitions/usages, entry/exit/do behaviors, initial states, named/anonymous/block/shorthand transitions, accept via/timed triggers, parallel keyword, exhibit state, control nodes in state defs, complete state machine scenarios, spec examples (OnOff1, OnOff5, VehicleStates)
 - **Parser audit tests** (34): ReDoS resistance, isParallel false positive prevention, connection dedup correctness, shorthand transitions in state usages, entry/exit/do edge cases, transition components, entry-then succession, no-duplicate-edge verification, regression (action flow, parts, packages, imports, relationships), performance benchmarks
 - **Parser robustness tests** (53): empty/minimal inputs, malformed syntax, special characters, large inputs, comment edge cases, imports, diagnostic quality, source ranges, connection edge cases, rapid parsing, input size limits, control flow
 - **Parser security tests** (13): XSS vectors, DoS resistance, path traversal, input type safety, error message sanitization
-- **Transformer tests** (20): node shapes, keyword display, compartments, edges, empty inputs
-- **Transformer new features tests** (13+): inherited features (basic, multi-level, diamond, redefined exclusion, `^` prefix, `__inherited__` IDs), derived `/` prefix, port/action boundary rules
+- **Transformer tests** (32): node shapes, keyword display, graphical children behavior, edges, empty inputs, AFV pin cloning from defs into usages, flow retargeting to pins, compartment hiding
+- **Transformer new features tests** (29): abstract keyword, analysis/verification keywords, directed item full keywords, state def shape, entry/do/exit graphical nodes, state behavior compartments, succession flow/message edges, use case shape, ref dashed border, inherited features (basic, multi-level, diamond, redefined exclusion, `^` prefix, `__inherited__` IDs), derived `/` prefix, port/action boundary rules
 - **Transformer state tests** (17): state def/usage cssClasses, exhibit state, entry/exit/do compartment rendering, transition edge type, composition edges, full pipeline
 - **Transformer audit tests** (16): sharp/rounded corner compliance, parallel kind text, behavior compartment rendering, transition vs succession edge types, node/edge structure integrity, full spec example pipelines
 - **Transformer robustness tests** (23): empty/minimal models, node structure validation, labels, edge CSS classes, compartments, control nodes, performance, full pipeline integration
 - **View filter tests** (47): GV pass-through, IV structural filtering, AFV behavioral filtering, STV state filtering, cross-view consistency, graph ID tagging, empty model handling, edge kind validation, applyViewFilter direct API, orphan removal (AFV/STV), control node chain pruning, package preservation, use case types in AFV, use case exclusion from STV
 - **WebSocket server tests** (17): origin verification (accept/reject/empty/multi-origin/case-sensitive), viewType protocol (default/requested/invalid/filtering), empty content clear, rate limiting, security hardening (malformed JSON, error sanitization, invalid fields, oversized messages, concurrent connections)
+
+**Web Client** (55 tests across 3 suites):
 - **Theme store tests** (20): dark/light theme definitions, key completeness, toggle/setMode operations, invalid mode rejection, CSS color format validation, XSS vector scanning, security merge validation
 - **Recent files store tests** (13): add/remove/clear operations, 10-entry cap, deduplication, CUID ID acceptance, path traversal rejection, XSS ID rejection, special character rejection
+- **SysML helpers tests** (22): SysML text parsing utilities, element extraction, name resolution
 
-**API Server** (121 tests across 10 suites):
+**API Server** (200 tests across 13 suites):
 - **AI encryption tests** (14): AES-256-GCM encrypt/decrypt round-trip, ciphertext tampering detection, IV uniqueness, key masking format, empty/special character handling
 - **AI tools tests** (12): tool execution with mocked Prisma, access control enforcement, 10MB content size limits, file name sanitization, search query bounds, unknown tool handling
 - **AI providers tests** (5): tool schema validation, required parameter enforcement across all providers
@@ -732,8 +739,11 @@ cd packages/diagram-service && pnpm test:watch
 - **CSRF middleware tests** (13): Content-Type enforcement for POST/PUT/PATCH/DELETE, DELETE-without-body passthrough, MCP endpoint exemption, text/event-stream allowance
 - **ID generator tests** (16): display ID formats (PRJ/FIL/ELM/NTF), uniqueness verification, owner ref truncation, ambiguous character exclusion (I/O/0/1), startup ID sequencing
 - **Startup ops tests** (23): startup CRUD, member add/update/remove, slug conflict detection, role-based access (SITE_ADMIN/STARTUP_ADMIN/STARTUP_USER), write access enforcement
-- **Element lock ops tests** (12): check-out/check-in lifecycle, exclusive locking, same-user re-checkout rejection, cross-user lock blocking, force check-in, audit log creation, lock status queries
-- **Notification ops tests** (10): lock request creation, holder/requester validation, list/filter notifications, mark read, mark all read, unread count
+- **Element lock ops tests** (18): check-out/check-in lifecycle, exclusive locking, same-user re-checkout rejection, cross-user lock blocking, force check-in, TOCTOU (P2002), file-project validation, element name sanitization, audit log creation, lock status queries
+- **Notification ops tests** (15): lock request creation, holder/requester validation, self-notification prevention, cooldown dedup, project access check, list/filter notifications, mark read, mark all read, unread count
+- **Startup invitations tests** (10): invitation CRUD, email-based invitations, role assignment, duplicate prevention, revocation
+- **File ops tests** (42): sanitizeFileName (strip/truncate/empty), assertContentSize (limits, UTF-8), listFiles, getFile, readFileWithOwnerCheck (owner match/deny), createFile (sanitize, events, oversized), updateFileContent, renameFile, deleteFile, moveFile, applyEdit (mid-file edit, access denied, line/column range errors, empty file), searchFiles (case-insensitive, result cap, line truncation)
+- **Auth helpers tests** (16): isAdmin (case-insensitive, undefined), assertProjectAccess (system/USER/STARTUP projects, owner/admin/member/non-member access, fallback), assertWriteAccess (NotFound/Forbidden/allowed)
 
 ---
 
