@@ -1473,6 +1473,66 @@ export default function DiagramViewer({
     setTransform((t) => ({ ...t, scale: Math.max(0.1, Math.min(5, t.scale * delta)) }));
   };
 
+  // ── Touch support (mobile: single-finger pan, two-finger pinch zoom) ──────
+  const touchRef = useRef<{ startTouches: { x: number; y: number }[]; startTransform: typeof transform } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      // Single finger — pan
+      dragging.current = true;
+      dragStart.current = { x: e.touches[0].clientX - transform.x, y: e.touches[0].clientY - transform.y };
+      touchRef.current = null;
+    } else if (e.touches.length === 2) {
+      // Two fingers — pinch zoom
+      e.preventDefault();
+      dragging.current = false;
+      touchRef.current = {
+        startTouches: [
+          { x: e.touches[0].clientX, y: e.touches[0].clientY },
+          { x: e.touches[1].clientX, y: e.touches[1].clientY },
+        ],
+        startTransform: { ...transform },
+      };
+    }
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && dragging.current) {
+      // Single finger pan
+      const t = e.touches[0];
+      setTransform((prev) => ({ ...prev, x: t.clientX - dragStart.current.x, y: t.clientY - dragStart.current.y }));
+    } else if (e.touches.length === 2 && touchRef.current) {
+      // Pinch zoom
+      e.preventDefault();
+      const { startTouches, startTransform } = touchRef.current;
+      const curDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      );
+      const startDist = Math.hypot(
+        startTouches[0].x - startTouches[1].x,
+        startTouches[0].y - startTouches[1].y,
+      );
+      if (startDist < 1) return;
+      const ratio = curDist / startDist;
+      const newScale = Math.max(0.1, Math.min(5, startTransform.scale * ratio));
+      // Zoom toward the midpoint between the two fingers
+      const svg = svgRef.current;
+      if (!svg) return;
+      const bounds = svg.getBoundingClientRect();
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - bounds.left;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - bounds.top;
+      const scaleChange = newScale / startTransform.scale;
+      setTransform({
+        x: midX - (midX - startTransform.x) * scaleChange,
+        y: midY - (midY - startTransform.y) * scaleChange,
+        scale: newScale,
+      });
+    }
+  };
+  const onTouchEnd = () => {
+    dragging.current = false;
+    touchRef.current = null;
+  };
+
   // Depth of each node in the composition tree (for render ordering)
   const nodeDepth = useMemo(() => {
     const depth = new Map<string, number>();
@@ -1650,6 +1710,26 @@ export default function DiagramViewer({
         >
           ⊡ Fit
         </button>
+        <button
+          onClick={() => setTransform((t) => ({ ...t, scale: Math.min(5, t.scale * 1.3) }))}
+          title="Zoom in"
+          style={{
+            background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
+            fontSize: 14, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', lineHeight: 1,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.color = t.text; }}
+        >+</button>
+        <button
+          onClick={() => setTransform((t) => ({ ...t, scale: Math.max(0.1, t.scale * 0.7) }))}
+          title="Zoom out"
+          style={{
+            background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
+            fontSize: 14, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', lineHeight: 1,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.color = t.text; }}
+        >−</button>
         {onResetView && (
           <button
             onClick={() => { onResetView(); setTimeout(fitToWindow, 100); }}
@@ -1679,6 +1759,9 @@ export default function DiagramViewer({
         onMouseUp={onSvgMouseUp}
         onMouseLeave={(e) => onSvgMouseUp(e)}
         onWheel={onWheel}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         onContextMenu={(e) => {
           e.preventDefault();
           // Right-click on background with multi-selection: show batch hide menu
