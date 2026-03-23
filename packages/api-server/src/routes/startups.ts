@@ -9,6 +9,9 @@ import { prisma } from '../db.js';
 const router: IRouter = Router();
 
 // ── Email helper for invitations ────────────────────────────────────────────
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function getMailTransporter() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
@@ -30,15 +33,15 @@ async function sendInvitationEmail(email: string, startupName: string, inviterNa
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
         <h2 style="color: #569cd6;">You're Invited!</h2>
-        <p><strong>${inviterName}</strong> has invited you to join <strong>${startupName}</strong> on Systemodel — a SysML v2 web modeling platform.</p>
+        <p><strong>${escHtml(inviterName)}</strong> has invited you to join <strong>${escHtml(startupName)}</strong> on Systemodel — a SysML v2 web modeling platform.</p>
         <p>Create your account to get started:</p>
-        <a href="${registerUrl}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
-          Join ${startupName}
+        <a href="${encodeURI(registerUrl)}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
+          Join ${escHtml(startupName)}
         </a>
         <p style="color: #888; font-size: 13px; margin-top: 24px;">
-          Or copy this link: <br/>${registerUrl}
+          Or copy this link: <br/>${encodeURI(registerUrl)}
         </p>
-        <p style="color: #888; font-size: 12px;">Once you register with this email address (${email}), you'll automatically be added to ${startupName}.</p>
+        <p style="color: #888; font-size: 12px;">Once you register with this email address (${escHtml(email)}), you'll automatically be added to ${escHtml(startupName)}.</p>
       </div>
     `,
   });
@@ -54,13 +57,13 @@ async function sendMemberAddedEmail(email: string, startupName: string, inviterN
     subject: `You've been added to ${startupName} on Systemodel`,
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-        <h2 style="color: #569cd6;">Welcome to ${startupName}!</h2>
-        <p><strong>${inviterName}</strong> has added you to <strong>${startupName}</strong> on Systemodel.</p>
+        <h2 style="color: #569cd6;">Welcome to ${escHtml(startupName)}!</h2>
+        <p><strong>${escHtml(inviterName)}</strong> has added you to <strong>${escHtml(startupName)}</strong> on Systemodel.</p>
         <p>You can now access the team's projects and files:</p>
-        <a href="${baseUrl}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
+        <a href="${encodeURI(baseUrl)}" style="display: inline-block; background: #0e639c; color: #fff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: bold;">
           Open Systemodel
         </a>
-        <p style="color: #888; font-size: 12px; margin-top: 24px;">Log in with your existing account to see ${startupName}'s projects.</p>
+        <p style="color: #888; font-size: 12px; margin-top: 24px;">Log in with your existing account to see ${escHtml(startupName)}'s projects.</p>
       </div>
     `,
   });

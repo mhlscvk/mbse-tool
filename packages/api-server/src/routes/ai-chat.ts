@@ -7,6 +7,7 @@ import { SYSTEM_PROMPT } from '../ai/system-prompt.js';
 import { decryptApiKey } from '../ai/encryption.js';
 import { prisma } from '../db.js';
 import { asyncHandler, NotFound } from '../lib/errors.js';
+import { assertProjectAccess } from '../lib/auth-helpers.js';
 import { MAX_TOOL_ROUNDS, MAX_FREE_TIER_TOOL_ROUNDS, MAX_CONTEXT_LINES } from '../config/constants.js';
 import { provider as providerSchema } from '../config/schemas.js';
 
@@ -68,9 +69,11 @@ router.get('/history/:fileId', requireAuth, asyncHandler(async (req: AuthRequest
   const { fileId } = req.params;
   const file = await prisma.sysMLFile.findUnique({
     where: { id: fileId },
-    include: { project: { select: { ownerId: true } } },
+    select: { id: true, projectId: true },
   });
-  if (!file || file.project.ownerId !== req.userId) throw NotFound('File');
+  if (!file) throw NotFound('File');
+  const access = await assertProjectAccess(file.projectId, req.userId!, req.userRole);
+  if (!access.allowed) throw NotFound('File');
   const messages = await prisma.aiChatMessage.findMany({
     where: { userId: req.userId!, fileId },
     orderBy: { createdAt: 'asc' },
@@ -85,9 +88,11 @@ router.delete('/history/:fileId', requireAuth, asyncHandler(async (req: AuthRequ
   const { fileId } = req.params;
   const file = await prisma.sysMLFile.findUnique({
     where: { id: fileId },
-    include: { project: { select: { ownerId: true } } },
+    select: { id: true, projectId: true },
   });
-  if (!file || file.project.ownerId !== req.userId) throw NotFound('File');
+  if (!file) throw NotFound('File');
+  const access = await assertProjectAccess(file.projectId, req.userId!, req.userRole);
+  if (!access.allowed) throw NotFound('File');
   await prisma.aiChatMessage.deleteMany({ where: { userId: req.userId!, fileId } });
   res.json({ data: { success: true } });
 }));

@@ -33,8 +33,13 @@ export async function createStartup(name: string, slug: string, createdByUserId:
       return startup;
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'P2002') {
+        // Distinguish slug collision from ID collision
+        const meta = (err as { meta?: { target?: string[] } }).meta;
+        if (meta?.target?.includes('slug')) {
+          throw BadRequest('Startup slug already exists');
+        }
         lastErr = err;
-        continue; // retry with next sequence number
+        continue; // ID collision — retry with next sequence number
       }
       throw err; // non-duplicate error, propagate
     }

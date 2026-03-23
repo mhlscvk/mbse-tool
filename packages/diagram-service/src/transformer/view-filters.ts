@@ -229,19 +229,20 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
   // non-control, non-package content nodes. This handles chains of control
   // nodes (fork→join→fork) that connect only to each other.
   const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode']);
+  const nodeById = new Map(prelimNodes.map(n => [n.id, n]));
   const finalNodeIds = new Set(prelimNodes.map(n => n.id));
   let changed = true;
   while (changed) {
     changed = false;
-    for (const nId of finalNodeIds) {
-      const node = prelimNodes.find(n => n.id === nId);
+    for (const nId of Array.from(finalNodeIds)) {
+      const node = nodeById.get(nId);
       if (!node || node.kind === 'Package') continue;
       // Check if this node has at least one edge to another non-control visible node
       const hasContentNeighbor = connections.some(c => {
         if (!finalNodeIds.has(c.sourceId) || !finalNodeIds.has(c.targetId)) return false;
         const otherId = c.sourceId === nId ? c.targetId : c.targetId === nId ? c.sourceId : null;
         if (!otherId) return false;
-        const otherNode = prelimNodes.find(n => n.id === otherId);
+        const otherNode = nodeById.get(otherId);
         return otherNode && !CONTROL_KINDS.has(otherNode.kind) && otherNode.kind !== 'Package';
       });
       if (!hasContentNeighbor) {

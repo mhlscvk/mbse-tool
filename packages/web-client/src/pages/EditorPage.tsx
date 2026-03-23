@@ -509,7 +509,7 @@ export default function EditorPage() {
         setSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [projectId, fileId, readOnly, viewType, myLockedElements]);
+  }, [projectId, fileId, readOnly, viewType, showInherited, myLockedElements]);
 
   const handleSave = async () => {
     const hasLocks = myLockedElements.size > 0;
