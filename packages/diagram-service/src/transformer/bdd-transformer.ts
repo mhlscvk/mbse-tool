@@ -582,7 +582,6 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
   const sEdges: SEdge[] = filtered.connections
     .filter((conn) => {
       if (hiddenNodeIds.has(conn.sourceId) || hiddenNodeIds.has(conn.targetId)) return false;
-      if (viewType === 'general' && conn.kind === 'typereference' && behavioralNodeIds.has(conn.sourceId)) return false;
       return true;
     })
     .map(connectionToSEdge);
