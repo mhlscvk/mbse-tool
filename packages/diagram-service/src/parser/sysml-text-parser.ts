@@ -1029,6 +1029,40 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     return best;
   }
 
+  // ── 1c-pre. Pre-create typed state usage containers so behavior extraction can find them ──
+  // Typed state usages (e.g. `state s : Def { ... }`) are created in phase 2, but
+  // entry/exit/do extraction below needs them in nodeIndex to set the ownerState.
+  {
+    const TYPED_STATE_USAGE_RE = /\bstate\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*(?:parallel\s+)?\{/g;
+    let tsm: RegExpExecArray | null;
+    while ((tsm = TYPED_STATE_USAGE_RE.exec(clean)) !== null) {
+      const usageName = dequote(tsm[1], nameMap);
+      const ownerDef = findOwnerDef(tsm.index);
+      const usagePkg = findOwnerPackage(tsm.index);
+      const ownerName = ownerDef ? ownerDef.name : usagePkg ? usagePkg.name : '_top';
+      const qualKey = `${ownerName}.${usageName}`;
+      if (nodeIndex.has(qualKey) || nodeIndex.has(usageName)) continue;
+      const blockEnd = findBlockEnd(clean, tsm.index + tsm[0].length - 1);
+      const usageId = makeId('usage', `${ownerName}_${usageName}`);
+      const { line: uL, column: uC } = lineCol(source, tsm.index);
+      const { line: uEL, column: uEC } = lineCol(source, blockEnd);
+      const preNode: SysMLNode = {
+        id: usageId, kind: 'StateUsage', name: usageName,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+      };
+      nodes.push(preNode);
+      nodeIndex.set(qualKey, preNode);
+      if (!nodeIndex.has(usageName)) nodeIndex.set(usageName, preNode);
+      // Composition edge to owner
+      if (ownerDef) {
+        connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: ownerDef.id, targetId: usageId, kind: 'composition', name: '' });
+      } else if (usagePkg) {
+        connections.push({ id: makeId('owns', `${ownerName}_${usageName}`), sourceId: usagePkg.id, targetId: usageId, kind: 'composition', name: '' });
+      }
+    }
+  }
+
   // ── 1c. Extract entry/exit/do behaviors inside state defs and state usages ──
   // These appear as compartment attributes like "entry / actionName" in the diagram.
   {
@@ -1063,8 +1097,16 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       // Also check usagePositions for enclosing state usage (may be closer)
       for (const up of usagePositions) {
         if (pos > up.start && pos < up.end && up.start > ownerStart) {
-          const node = nodeIndex.get(up.name) ??
-            nodeIndex.get(`${findOwnerDef(up.start)?.name ?? ''}.${up.name}`);
+          // Try plain name, then qualified with enclosing def
+          const ownerDef = findOwnerDef(up.start);
+          let node = nodeIndex.get(up.name) ??
+            nodeIndex.get(`${ownerDef?.name ?? ''}.${up.name}`);
+          // If not found, scan for any StateUsage with this name (handles package-qualified keys)
+          if (!node) {
+            for (const [, n] of nodeIndex) {
+              if (n.kind === 'StateUsage' && n.name === up.name) { node = n; break; }
+            }
+          }
           if (node && node.kind === 'StateUsage') {
             ownerState = node;
             ownerStart = up.start;
@@ -1260,15 +1302,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Check if this usage has the 'parallel' keyword
     const isParallel = /parallel\s*[{;]/.test(match[0]) || /parallel\s*$/.test(clean.slice(match.index, match.index + match[0].length + 20));
 
-    const usageNode: SysMLNode = {
+    // Check if node was pre-created (e.g. typed state usages for behavior extraction)
+    const existingNode = nodeIndex.get(`${ownerName}.${usageName}`);
+    const usageNode: SysMLNode = existingNode ?? {
       id: usageId,
       kind: usageKind,
       name: usageName,
-      qualifiedName: typeSimple,   // reuse qualifiedName to carry the type name
-      ...(isRef ? { isRef: true } : {}),
-      ...(isDerived ? { isDerived: true } : {}),
-      ...(multiplicity ? { multiplicity } : {}),
-      ...(isParallel ? { isParallel: true } : {}),
       children: [],
       attributes: [],
       connections: [],
@@ -1277,8 +1316,16 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         end:   { line: usageEndLine - 1, character: usageEndCol - 1 },
       },
     };
+    // Apply properties that pre-creation may not have set
+    usageNode.qualifiedName = typeSimple;
+    if (isRef) usageNode.isRef = true;
+    if (isDerived) usageNode.isDerived = true;
+    if (multiplicity) usageNode.multiplicity = multiplicity;
+    if (isParallel) usageNode.isParallel = true;
 
-    nodes.push(usageNode);
+    if (!existingNode) {
+      nodes.push(usageNode);
+    }
     // Index by qualified name to avoid collisions across definitions;
     // also register unqualified name only if no prior usage claimed it
     nodeIndex.set(`${ownerName}.${usageName}`, usageNode);
