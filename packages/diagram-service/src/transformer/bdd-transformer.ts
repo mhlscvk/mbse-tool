@@ -582,6 +582,9 @@ export function transformToBDD(model: SysMLModel, viewType: ViewType = 'general'
   const sEdges: SEdge[] = filtered.connections
     .filter((conn) => {
       if (hiddenNodeIds.has(conn.sourceId) || hiddenNodeIds.has(conn.targetId)) return false;
+      // Type-reference edges only shown in General View — other views use them
+      // internally (e.g. AFV pin cloning) but don't render them
+      if (viewType !== 'general' && conn.kind === 'typereference') return false;
       return true;
     })
     .map(connectionToSEdge);

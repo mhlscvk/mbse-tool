@@ -16,7 +16,7 @@ const IV_NODE_KINDS = new Set([
 ]);
 
 const IV_EDGE_KINDS = new Set([
-  'composition', 'noncomposite', 'flow', 'successionflow', 'message', 'bind', 'association', 'typereference',
+  'composition', 'noncomposite', 'flow', 'successionflow', 'message', 'bind', 'association',
   'subsetting', 'redefinition', 'referencesubsetting', 'crossing',
 ]);
 
@@ -140,7 +140,7 @@ const STV_NODE_KINDS = new Set([
 ]);
 
 const STV_EDGE_KINDS = new Set([
-  'transition', 'succession', 'composition', 'noncomposite', 'typereference',
+  'transition', 'succession', 'composition', 'noncomposite',
 ]);
 
 function filterStateTransitionView(model: SysMLModel): FilteredModel {
