@@ -169,7 +169,7 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 
 ## Testing
 
-**Total: 732 tests** (all passing)
+**Total: 826 tests** (all passing, 92.84% statement coverage on diagram-service)
 
 - `api-server`: 200 tests across 13 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
@@ -186,7 +186,7 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
   - `services/file-ops.test.ts` (42): file CRUD, sanitization, content size limits, applyEdit line/column validation, search, MCP events
   - `lib/auth-helpers.test.ts` (16): isAdmin, assertProjectAccess (system/USER/STARTUP), assertWriteAccess
 - `web-client`: 55 tests across 3 suites (theme store, recent files, sysml helpers)
-- `diagram-service`: 477 tests across 13 suites (parser, transformer, view filters, WebSocket, etc.)
+- `diagram-service`: 571 tests across 14 suites (parser, transformer, view filters, WebSocket, OMG vehicle model validation, P0-P3 types, etc.)
 
 Run tests:
 ```bash

@@ -152,7 +152,7 @@ npx prisma db seed
 cd ../..
 ```
 
-The seed creates a system user, an admin account, and the Examples project with 30 SysML files across 8 subprojects. It is idempotent — safe to run multiple times.
+The seed creates a system user, an admin account, and the Examples project with 76 SysML files across 9 subprojects (including 39 OMG standard library files). It is idempotent — safe to run multiple times.
 
 </details>
 
@@ -285,10 +285,14 @@ When an admin edits example files via the web UI, changes are automatically sync
 |---|---|---|---|
 | **General View** | GV | Everything: defs, usages, all edges | Nothing (default) |
 | **Interconnection View** | IV | Parts, ports (boundary nodes), connections, interfaces, flows | Defs (standalone), actions, states, successions |
-| **Action Flow View** | AFV | Actions, use cases, parameters, port usages, control nodes, successions, flows | Parts, structural defs, orphan nodes with no connections |
+| **Action Flow View** | AFV | Actions, cases, use cases, parameters, control nodes, successions, flows | Parts, structural defs, orphan nodes with no connections |
 | **State Transition View** | STV | States, transitions, entry/do/exit | Actions, parts, ports, orphan nodes with no connections |
+| **Sequence View** | SEQ | Lifelines (parts), messages, time ordering | Non-message elements |
+| **Grid View** | GRD | Relationship matrix (satisfy, verify, allocate, flow) | N/A (tabular) |
+| **Browser View** | BRW | Hierarchical tree of all model elements | N/A (tree) |
+| **Geometry View** | GEO | 3D spatial visualization (placeholder) | N/A |
 
-- **View selector** — toolbar buttons `[ GV | IV | AFV | STV ]` switch between standard views
+- **View selector** — toolbar buttons `[ GV | IV | AFV | STV | SEQ | GRD | BRW | GEO ]` switch between standard views
 - **Port boundary rendering** — port usages render as small squares on part boundaries in IV and AFV, with directional arrows (in=inward green, out=outward orange, inout/none=horizontal line)
 - **Action parameter rendering** — in/out/inout items on action usages render as small boundary squares in AFV only
 - **Orphan removal** — nodes with no connections to other visible content are hidden in AFV and STV
@@ -311,7 +315,16 @@ When an admin edits example files via the web UI, changes are automatically sync
 `part`, `attribute`, `connection`, `port`, `action`, `state`, `item`
 
 **Extended definitions & usages:**
-`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `use case` (def + usage), `analysis case` (def + usage), `verification case` (def + usage), `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `occurrence`
+`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `case` (def + usage), `use case` (def + usage), `analysis case` (def + usage), `verification case` (def + usage), `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `flow`, `occurrence`
+
+**Action subtypes (P1):**
+`send ... to`, `accept`, `if { }`, `assign := `, `while loop`, `for ... in`, `include use case`, `assert constraint`, `event occurrence`
+
+**Membership types (P3):**
+`subject`, `actor`, `stakeholder`, `objective`, `expose`, `render`
+
+**Connector/port specializations (P2):**
+`port def X conjugates Y` (ConjugatedPortDefinition with conjugation edges)
 
 **Specialization operators:**
 
@@ -397,11 +410,14 @@ Node shapes per Section 8.2.3 of the spec:
 | State | Square-corner rectangle | Rounded-corner rectangle |
 | Package | Tab-rectangle | Tab-rectangle |
 | Comment | Folded-corner note (yellow) | — |
+| Send Action | — | Convex pentagon (arrow → shape) |
+| Accept Action | — | Concave pentagon (notched ← shape) |
 | Perform Action | — | Rounded-corner rectangle (`«perform»`) |
 | Exhibit State | — | Rounded-corner rectangle (`«exhibit»`) |
 | Fork / Join | Thick horizontal bar | — |
-| Merge / Decide | Diamond | — |
+| Merge / Decision | Diamond | — |
 | Start | Filled circle (auto-created from `first start;`, scoped per container) | — |
+| Done | Bull's-eye (filled circle in open circle) | — |
 | Terminate | X-circle (auto-created from `then terminate;`, scoped per container) | — |
 
 Edge styles per Section 8.2.3:
@@ -422,7 +438,8 @@ Edge styles per Section 8.2.3:
 | Satisfy | Dashed | — | Open arrowhead |
 | Verify | Dashed | — | Open arrowhead |
 | Allocate | Dashed | — | Open arrowhead |
-| Binding | Dashed | — | — |
+| Binding | Dashed | Open circle | Open circle |
+| Conjugation | Dashed | — | Open arrow |
 | Annotate | Dashed | — | — |
 
 ### Example SysML v2 Model
@@ -596,7 +613,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 ## Features
 
 ### Implemented
-- [x] Full SysML v2.0 parser (24 definition types, 20 usage types, all operators, action flow, state machines)
+- [x] Full SysML v2.0 parser (95 node kinds, 100% spec metaclass coverage — 93/93 from OMG SysML v2.0 XMI)
 - [x] Action flow diagrams (start, terminate, fork, join, merge, decide, successions, guards)
 - [x] State machine diagrams (state defs, sub-states, transitions, typed entry/exit/do with compartment display, parallel, shorthand transitions)
 - [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as nested child nodes with compartment display
@@ -607,10 +624,10 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
 - [x] If-then-else parsing with dotted guard expressions (`obj.prop.isActive`)
-- [x] OMG-compliant graphical notation per spec 8.2.3 (action pill, state rounded, use case ellipse, requirement icon, ref dashed, directed items nested in port defs)
+- [x] OMG-compliant graphical notation per spec 8.2.3 (send pentagon, accept pentagon, use case ellipse, requirement icon, decision diamond, ref dashed, ^inherited prefix, dashed dependency edges)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
-- [x] SysML v2 Standard Views: GV, IV (with port boundary rendering), AFV (with use case support), STV with orphan reparenting and pruning (per spec 9.2.20)
+- [x] All 8 SysML v2 Standard Views per spec 9.2.20: GV, IV, AFV, STV, SEQ (lifeline/message SVG), GRD (relationship matrix), BRW (hierarchical tree), GEO (placeholder)
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics
 - [x] Element panel with step-by-step collapse, visibility toggles, saved views
@@ -627,10 +644,10 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 732 vitest tests across 29 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations)
+- [x] Automated tests: 826 vitest tests across 30 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, OMG vehicle model validation)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
-- [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 30 files across 8 subprojects)
+- [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 76 files across 9 subprojects including 39 OMG standard library files)
 - [x] Admin can edit/create/delete files in system projects; changes sync to `prisma/examples/` on disk
 - [x] "Copy to My Project" for example files (right-click context menu)
 - [x] Automated local setup script (`pnpm run local-setup`) — Docker, deps, env, migrations, seed in one command
@@ -638,9 +655,11 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] Comment declarations (`comment`, `doc`, `/* */`), folded-corner note shape, `«annotate»` edges
 - [x] Legend toggle (show/hide via Relations tab checkbox)
 - [x] Training mode (20 levels, 125 tasks — part defs through conditional guards, light/dark theme support)
-- [x] Standard library support (ScalarValues, ISQ, SI — 67 types)
+- [x] OMG standard libraries integrated: Systems Library (16 files), Quantities & Units (9 files, ISQ/SI), 6 Domain Libraries (14 files)
+- [x] TypeScript types auto-generated from OMG JSON Schema (ptc/25-04-32): 175 metaclasses, 7 enum types
+- [x] Official OMG SimpleVehicleModel (ptc/25-04-31) used as parser validation fixture (557 nodes, 805 connections, 0 errors)
 - [x] Typed redefines (`part x : Type redefines y`), unnamed redefines (`part redefines x[4]`), post-type multiplicity
-- [x] Conjugated ports (`port p : ~PortDef`), binding connections (open circle markers)
+- [x] Conjugated ports (`port p : ~PortDef`), conjugated port definitions (`port def X conjugates Y`), binding connections (open circle markers)
 - [x] Succession flow, message, and flow payload edges (`succession flow`, `message of Payload`)
 - [x] Port usages as boundary squares on parts in IV + AFV (in=green inward, out=orange outward, inout/none=horizontal line)
 - [x] Action parameters (in/out/inout items) as boundary squares on action usages in AFV only
