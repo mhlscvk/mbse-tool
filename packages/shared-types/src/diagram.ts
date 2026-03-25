@@ -1,5 +1,6 @@
 // SysML v2 Standard View Types (Section 9.2.20)
-export type ViewType = 'general' | 'interconnection' | 'action-flow' | 'state-transition';
+export type ViewType = 'general' | 'interconnection' | 'action-flow' | 'state-transition'
+  | 'sequence' | 'grid' | 'browser' | 'geometry';
 
 // Sprotty-compatible diagram model types
 export interface SModelRoot {

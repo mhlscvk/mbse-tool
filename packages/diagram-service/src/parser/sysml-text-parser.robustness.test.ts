@@ -404,7 +404,7 @@ describe('Control flow parsing', () => {
     const { model } = parse(code);
     const kinds = model.nodes.map(n => n.kind);
     expect(kinds).toContain('MergeNode');
-    expect(kinds).toContain('DecideNode');
+    expect(kinds).toContain('DecisionNode');
   });
 
   it('succession creates succession edge', () => {

@@ -73,7 +73,7 @@ export function createDiagramWebSocketServer(server: Server, allowedOrigins: str
 
         let model: SysMLModel;
         let diagnostics: import('@systemodel/shared-types').DiagramDiagnostic[] = [];
-        const VALID_VIEW_TYPES = new Set(['general', 'interconnection', 'action-flow', 'state-transition']);
+        const VALID_VIEW_TYPES = new Set(['general', 'interconnection', 'action-flow', 'state-transition', 'sequence', 'grid', 'browser', 'geometry']);
         const viewType: ViewType = (request.viewType && VALID_VIEW_TYPES.has(request.viewType))
           ? request.viewType : 'general';
 

@@ -911,7 +911,7 @@ export default function EditorPage() {
               background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0,
             }}>
               <span style={{ fontSize: 11, color: t.text, fontWeight: 600, marginRight: 4 }}>
-                {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
+                {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View', 'sequence': 'Sequence View', 'grid': 'Grid View', 'browser': 'Browser View', 'geometry': 'Geometry View' }[viewType]}
               </span>
               <span style={{ fontSize: 10, color: t.textMuted }}>SysML v2</span>
               <span style={{ flex: 1 }} />

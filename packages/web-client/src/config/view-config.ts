@@ -56,11 +56,17 @@ const STATE_TRANSITION: ViewConfig = {
   suppressPinToPinFlowLabels: false,
 };
 
+const NON_GRAPH_DEFAULT: ViewConfig = { ...GENERAL };
+
 const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
   'general': GENERAL,
   'interconnection': INTERCONNECTION,
   'action-flow': ACTION_FLOW,
   'state-transition': STATE_TRANSITION,
+  'sequence': NON_GRAPH_DEFAULT,
+  'grid': NON_GRAPH_DEFAULT,
+  'browser': NON_GRAPH_DEFAULT,
+  'geometry': NON_GRAPH_DEFAULT,
 };
 
 export function getViewConfig(viewType: ViewType): ViewConfig {

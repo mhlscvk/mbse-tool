@@ -43,7 +43,7 @@ describe('Transformer: node shapes', () => {
     expect(nodes.some(n => n.cssClasses?.[0] === 'forknode')).toBe(true);
     expect(nodes.some(n => n.cssClasses?.[0] === 'joinnode')).toBe(true);
     expect(nodes.some(n => n.cssClasses?.[0] === 'mergenode')).toBe(true);
-    expect(nodes.some(n => n.cssClasses?.[0] === 'decidenode')).toBe(true);
+    expect(nodes.some(n => n.cssClasses?.[0] === 'decisionnode')).toBe(true);
   });
 
   it('fork/join nodes have bar dimensions (wide, thin)', () => {
@@ -55,7 +55,7 @@ describe('Transformer: node shapes', () => {
 
   it('merge/decide nodes have square-ish dimensions', () => {
     const { nodes } = pipeline('action def A { decide d1; }');
-    const decide = nodes.find(n => n.cssClasses?.[0] === 'decidenode');
+    const decide = nodes.find(n => n.cssClasses?.[0] === 'decisionnode');
     expect(decide!.size.width).toBe(decide!.size.height);
   });
 });

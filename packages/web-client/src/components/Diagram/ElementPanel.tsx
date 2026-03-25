@@ -98,16 +98,43 @@ const KIND_LABELS: Record<string, string> = {
   actionin:             'In Parameter',
   actionout:            'Out Parameter',
   actioninout:          'InOut Parameter',
+  casedefinition:       'Case Def',
+  caseusage:            'Case Usage',
+  metadatausage:        'Metadata Usage',
+  flowusage:            'Flow Usage',
+  successionflowusage:  'Succession Flow',
+  connectorasusage:     'Connector',
+  bindingconnectorasusage:'Binding Connector',
+  successionasusage:    'Succession',
+  conjugatedportdefinition:'Conjugated Port Def',
   performactionusage:   'Perform Action',
+  sendactionusage:      'Send Action',
+  acceptactionusage:    'Accept Action',
+  ifactionusage:        'If Action',
+  assignmentactionusage:'Assignment',
+  forloopactionusage:   'For Loop',
+  whileloopactionusage: 'While Loop',
+  includeusecaseusage:  'Include Use Case',
+  assertconstraintusage:'Assert Constraint',
+  satisfyrequirementusage:'Satisfy Requirement',
+  eventoccurrenceusage: 'Event Occurrence',
   exhibitstateusage:    'Exhibit State',
   transitionusage:      'Transition',
   forknode:             'Fork Node',
   joinnode:             'Join Node',
   mergenode:            'Merge Node',
-  decidenode:           'Decide Node',
+  decisionnode:         'Decision Node',
   startnode:            'Start Node',
   donenode:             'Done Node',
   terminatenode:        'Terminate Node',
+  objectivemembership:  'Objective',
+  subjectmembership:    'Subject',
+  actormembership:      'Actor',
+  stakeholdermembership:'Stakeholder',
+  viewrenderingmembership:'Rendering',
+  membershipexpose:     'Expose',
+  namespaceexpose:      'Expose',
+  referenceusage:       'Reference',
   alias:                'Alias',
   comment:              'Comment',
   stdlib:               'Standard Library',
@@ -133,15 +160,42 @@ const KIND_COLORS: Record<string, string> = {
   actionin:             '#082828',
   actionout:            '#1a1008',
   actioninout:          '#1a2828',
+  casedefinition:       '#1a2a4a',
+  caseusage:            '#0e1a2a',
+  metadatausage:        '#2a1a2a',
+  flowusage:            '#0a3a2a',
+  successionflowusage:  '#0a3a2a',
+  connectorasusage:     '#2a1408',
+  bindingconnectorasusage:'#2a1408',
+  successionasusage:    '#082828',
+  conjugatedportdefinition:'#3a1a5a',
   performactionusage:   '#082828',
+  sendactionusage:      '#0a2838',
+  acceptactionusage:    '#0a2838',
+  ifactionusage:        '#082830',
+  assignmentactionusage:'#082830',
+  forloopactionusage:   '#0a3030',
+  whileloopactionusage: '#0a3030',
+  includeusecaseusage:  '#0e1a3a',
+  assertconstraintusage:'#3a1a0e',
+  satisfyrequirementusage:'#3a0e0e',
+  eventoccurrenceusage: '#1a2a1a',
   exhibitstateusage:    '#202008',
   transitionusage:      '#2a2a2a',
   forknode:             '#4a4a4a',
   joinnode:             '#4a4a4a',
   mergenode:            '#3a3a2a',
-  decidenode:           '#3a3a2a',
+  decisionnode:         '#3a3a2a',
   startnode:            '#222222',
   terminatenode:        '#3a3a3a',
+  objectivemembership:  '#1a2a4a',
+  subjectmembership:    '#1a2a4a',
+  actormembership:      '#1a2a4a',
+  stakeholdermembership:'#1a2a4a',
+  viewrenderingmembership:'#0e2020',
+  membershipexpose:     '#0e2020',
+  namespaceexpose:      '#0e2020',
+  referenceusage:       '#252530',
   alias:                '#2a2040',
   comment:              '#2a3a2a',
   stdlib:               '#0a2018',
@@ -164,6 +218,7 @@ const EDGE_KIND_LABELS: Record<string, string> = {
   allocate:            'Allocate',
   bind:                'Binding',
   annotate:            'Annotate',
+  conjugation:         'Conjugation',
 };
 
 const EDGE_KIND_COLORS: Record<string, string> = {
@@ -182,6 +237,7 @@ const EDGE_KIND_COLORS: Record<string, string> = {
   allocate:            '#c0a060',
   bind:                '#9090c0',
   annotate:            '#a0a060',
+  conjugation:         '#9a7aba',
 };
 
 function getNodeName(node: SNode): string {
@@ -598,9 +654,9 @@ export default function ElementPanel({
             <span style={{
               width: 8, height: 8, flexShrink: 0,
               borderRadius: kind.includes('usage') || kind === 'actionin' || kind === 'actionout' || kind === 'actioninout'
-                || kind === 'startnode' || kind === 'terminatenode' ? 4 : kind === 'forknode' || kind === 'joinnode' ? 1 : kind === 'mergenode' || kind === 'decidenode' ? 0 : 1,
+                || kind === 'startnode' || kind === 'terminatenode' ? 4 : kind === 'forknode' || kind === 'joinnode' ? 1 : kind === 'mergenode' || kind === 'decisionnode' ? 0 : 1,
               background: color,
-              ...(kind === 'mergenode' || kind === 'decidenode' ? { transform: 'rotate(45deg)', width: 7, height: 7 } : {}),
+              ...(kind === 'mergenode' || kind === 'decisionnode' ? { transform: 'rotate(45deg)', width: 7, height: 7 } : {}),
             }} />
           )}
 
@@ -671,7 +727,7 @@ export default function ElementPanel({
               borderRadius: kind.includes('usage') || kind === 'actionin' || kind === 'actionout' || kind === 'actioninout'
                 || kind === 'startnode' || kind === 'terminatenode' ? 4 : 1,
               background: color, display: 'inline-block',
-              ...(kind === 'mergenode' || kind === 'decidenode' ? { transform: 'rotate(45deg)', width: 7, height: 7 } : {}),
+              ...(kind === 'mergenode' || kind === 'decisionnode' ? { transform: 'rotate(45deg)', width: 7, height: 7 } : {}),
             }} />
             <span
               onClick={() => toggleTreeGroupCollapse(kind)}
@@ -1100,7 +1156,7 @@ export default function ElementPanel({
                             <span style={{ fontSize: 9, color: t.textDim, flexShrink: 0 }}>
                               {hiddenCount > 0 ? `${hiddenCount} hidden` : 'all visible'}
                               {view.viewType ? ` · ${
-                                { general: 'GV', interconnection: 'IV', 'action-flow': 'AFV', 'state-transition': 'STV' }[view.viewType]
+                                ({ general: 'GV', interconnection: 'IV', 'action-flow': 'AFV', 'state-transition': 'STV', sequence: 'SEQ', grid: 'GRD', browser: 'BRW', geometry: 'GEO' } as Record<string, string>)[view.viewType]
                               }` : ''}
                               {view.viewMode === 'tree' ? ' · Tree' : ''}
                               {view.showInherited ? ' · Inh' : ''}

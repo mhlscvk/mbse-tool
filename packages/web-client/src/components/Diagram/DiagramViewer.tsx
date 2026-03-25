@@ -7,6 +7,10 @@ import { useLocalStorage } from '../../hooks/useLocalStorage.js';
 import { useTheme } from '../../store/theme.js';
 import DiagramContextMenu from './DiagramContextMenu.js';
 import type { ContextMenuData } from './DiagramContextMenu.js';
+import SequenceRenderer from './SequenceRenderer.js';
+import GridRenderer from './GridRenderer.js';
+import BrowserRenderer from './BrowserRenderer.js';
+import GeometryRenderer from './GeometryRenderer.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const elk = new (ELKModule as any)();
@@ -115,6 +119,16 @@ const NODE_COLORS_DARK: Record<string, string> = {
   portusage:            '#1e0a30',
   actionusage:                '#082828',
   performactionusage:         '#082828',
+  sendactionusage:            '#0a2838',
+  acceptactionusage:          '#0a2838',
+  ifactionusage:              '#082830',
+  assignmentactionusage:      '#082830',
+  forloopactionusage:         '#0a3030',
+  whileloopactionusage:       '#0a3030',
+  includeusecaseusage:        '#0e1a3a',
+  assertconstraintusage:      '#3a1a0e',
+  satisfyrequirementusage:    '#3a0e0e',
+  eventoccurrenceusage:       '#1a2a1a',
   entryactionusage:           '#0a2820',
   doactionusage:              '#0a2820',
   exitactionusage:            '#0a2820',
@@ -136,6 +150,8 @@ const NODE_COLORS_DARK: Record<string, string> = {
   calcusage:                   '#062028',
   allocationdefinition:        '#4a3010',
   allocationusage:             '#2a1a08',
+  casedefinition:              '#1a2a4a',
+  caseusage:                   '#0e1a2a',
   usecasedefinition:           '#1a2a5a',
   usecaseusage:                '#0e1a3a',
   analysiscasedefinition:      '#2a3a4a',
@@ -151,16 +167,31 @@ const NODE_COLORS_DARK: Record<string, string> = {
   renderingdefinition:         '#3a3a3a',
   renderingusage:              '#202020',
   metadatadefinition:          '#3a2a3a',
+  metadatausage:               '#2a1a2a',
+  flowusage:                   '#0a3a2a',
+  successionflowusage:         '#0a3a2a',
+  connectorasusage:            '#2a1408',
+  bindingconnectorasusage:     '#2a1408',
+  successionasusage:           '#082828',
+  conjugatedportdefinition:    '#3a1a5a',
   occurrencedefinition:        '#2a3a2a',
   occurrenceusage:             '#1a2a1a',
   forknode:                    '#4a4a4a',
   joinnode:                    '#4a4a4a',
   mergenode:                   '#3a3a2a',
-  decidenode:                  '#3a3a2a',
+  decisionnode:                  '#3a3a2a',
   startnode:                   '#222222',
   donenode:                    '#222222',
   terminatenode:               '#3a3a3a',
   transitionusage:             '#2a2a2a',
+  objectivemembership:         '#1a2a4a',
+  subjectmembership:           '#1a2a4a',
+  actormembership:             '#1a2a4a',
+  stakeholdermembership:       '#1a2a4a',
+  viewrenderingmembership:     '#0e2020',
+  membershipexpose:            '#0e2020',
+  namespaceexpose:             '#0e2020',
+  referenceusage:              '#252530',
   alias:                '#2a2040',
   comment:              '#3a3520',
   stdlib:               '#0a2018',
@@ -182,6 +213,16 @@ const NODE_COLORS_LIGHT: Record<string, string> = {
   portusage:            '#e8d8f8',
   actionusage:                '#d0f0f0',
   performactionusage:         '#d0f0f0',
+  sendactionusage:            '#c8e8f0',
+  acceptactionusage:          '#c8e8f0',
+  ifactionusage:              '#c8f0e8',
+  assignmentactionusage:      '#c8f0e8',
+  forloopactionusage:         '#c0f0e0',
+  whileloopactionusage:       '#c0f0e0',
+  includeusecaseusage:        '#d8e0f8',
+  assertconstraintusage:      '#f8e0d0',
+  satisfyrequirementusage:    '#f8d8d8',
+  eventoccurrenceusage:       '#d8f0d8',
   entryactionusage:           '#c0e8d8',
   doactionusage:              '#c0e8d8',
   exitactionusage:            '#c0e8d8',
@@ -203,6 +244,8 @@ const NODE_COLORS_LIGHT: Record<string, string> = {
   calcusage:                   '#d0e8f8',
   allocationdefinition:        '#f0d8b0',
   allocationusage:             '#f8e8c8',
+  casedefinition:              '#c0d0e8',
+  caseusage:                   '#d0d8f0',
   usecasedefinition:           '#c8d8f0',
   usecaseusage:                '#d8e0f8',
   analysiscasedefinition:      '#d0e0e8',
@@ -218,16 +261,31 @@ const NODE_COLORS_LIGHT: Record<string, string> = {
   renderingdefinition:         '#e0e0e0',
   renderingusage:              '#e8e8e8',
   metadatadefinition:          '#e0d0e0',
+  metadatausage:               '#e8d8e8',
+  flowusage:                   '#c8e8d8',
+  successionflowusage:         '#c8e8d8',
+  connectorasusage:            '#f8e8d0',
+  bindingconnectorasusage:     '#f8e8d0',
+  successionasusage:           '#d0f0f0',
+  conjugatedportdefinition:    '#e0c8f0',
   occurrencedefinition:        '#d0e0d0',
   occurrenceusage:             '#d8f0d8',
   forknode:                    '#c0c0c0',
   joinnode:                    '#c0c0c0',
   mergenode:                   '#d0d0c0',
-  decidenode:                  '#d0d0c0',
+  decisionnode:                  '#d0d0c0',
   startnode:                   '#b0b0b0',
   donenode:                    '#b0b0b0',
   terminatenode:               '#c8c8c8',
   transitionusage:             '#d8d8d8',
+  objectivemembership:         '#c0d0e8',
+  subjectmembership:           '#c0d0e8',
+  actormembership:             '#c0d0e8',
+  stakeholdermembership:       '#c0d0e8',
+  viewrenderingmembership:     '#d0f0f0',
+  membershipexpose:            '#d0f0f0',
+  namespaceexpose:             '#d0f0f0',
+  referenceusage:              '#e0e0e8',
   alias:                '#d8d0e8',
   comment:              '#f0e8c0',
   stdlib:               '#c8e8d8',
@@ -249,7 +307,7 @@ const NODE_COLORS_LIGHT: Record<string, string> = {
 // - Allocate:             dashed line, open arrowhead
 // - Binding:              dashed line, open circles at both ends
 const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: string; markerStart?: string; labelColor: string }> = {
-  dependency:          { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#tri-spec)',                                      labelColor: '#9e9e9e' },
+  dependency:          { stroke: '#9e9e9e', dash: '6,3',     markerEnd: 'url(#tri-spec)',                                      labelColor: '#9e9e9e' },
   subsetting:          { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',                                    labelColor: '#9e9e9e' },
   redefinition:        { stroke: '#9e9e9e', dash: undefined, markerEnd: 'url(#arrow-open)',  markerStart: 'url(#bar-redef)',   labelColor: '#9e9e9e' },
   composition:         { stroke: '#9cdcfe', dash: undefined, markerEnd: '',                  markerStart: 'url(#diamond-comp)',labelColor: '#9cdcfe' },
@@ -268,6 +326,7 @@ const EDGE_STYLES: Record<string, { stroke: string; dash?: string; markerEnd: st
   message:             { stroke: '#c0a0e0', dash: undefined, markerEnd: 'url(#arrow-message)',                                labelColor: '#c0a0e0' },
   bind:                { stroke: '#9090c0', dash: '4,3',     markerEnd: 'url(#circle-bind-end)',  markerStart: 'url(#circle-bind-start)', labelColor: '#9090c0' },
   annotate:            { stroke: '#a0a060', dash: '4,3',     markerEnd: '',                                                     labelColor: '#a0a060' },
+  conjugation:         { stroke: '#9a7aba', dash: '4,3',     markerEnd: 'url(#arrow-open)',                                    labelColor: '#9a7aba' },
 };
 const DEFAULT_EDGE_STYLE = EDGE_STYLES.association;
 
@@ -276,17 +335,17 @@ const DEF_CLASSES = new Set([
   'package', 'partdefinition', 'attributedefinition', 'connectiondefinition',
   'portdefinition', 'actiondefinition', 'statedefinition', 'itemdefinition',
   'requirementdefinition', 'constraintdefinition', 'interfacedefinition', 'enumdefinition',
-  'calcdefinition', 'allocationdefinition', 'usecasedefinition',
+  'calcdefinition', 'allocationdefinition', 'casedefinition', 'usecasedefinition',
   'analysiscasedefinition', 'verificationcasedefinition',
   'concerndefinition', 'viewdefinition', 'viewpointdefinition',
-  'renderingdefinition', 'metadatadefinition', 'occurrencedefinition',
+  'renderingdefinition', 'metadatadefinition', 'conjugatedportdefinition', 'occurrencedefinition',
 ]);
 const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';
 const isComment = (cssClass: string) => cssClass === 'comment';
 // Per spec: state defs also use rounded corners (Section 8.2.3.18)
 const nodeRadius = (cssClass: string) => (isDefinition(cssClass) && cssClass !== 'statedefinition') || cssClass === 'stdlib' ? 0 : 10;
-const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
+const CONTROL_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decisionnode', 'startnode', 'donenode', 'terminatenode']);
 const PORT_CSS = new Set(['portusage']);
 const PARAM_CSS = new Set(['actionin', 'actionout', 'actioninout']);
 const PORT_BORDER_SIZE = 16;
@@ -458,7 +517,7 @@ export default function DiagramViewer({
 
   const visibleNodeIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
 
-  const CONTROL_NODE_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decidenode', 'startnode', 'donenode', 'terminatenode']);
+  const CONTROL_NODE_CSS = new Set(['forknode', 'joinnode', 'mergenode', 'decisionnode', 'startnode', 'donenode', 'terminatenode']);
 
   const effectiveSize = useCallback((node: SNode) => {
     const override = sizeOverrides.get(node.id);
@@ -555,8 +614,11 @@ export default function DiagramViewer({
       // Behavioural container kinds: use DOWN direction + succession edges for flow ordering
       const BEHAVIOURAL_KINDS = new Set([
         'actiondefinition', 'actionusage', 'performactionusage',
+        'sendactionusage', 'acceptactionusage', 'ifactionusage', 'assignmentactionusage',
+        'forloopactionusage', 'whileloopactionusage', 'includeusecaseusage',
         'statedefinition', 'stateusage', 'exhibitstateusage',
         'portdefinition',
+        'casedefinition', 'caseusage',
         'usecasedefinition', 'usecaseusage',
         'analysiscasedefinition', 'analysiscaseusage',
         'verificationcasedefinition', 'verificationcaseusage',
@@ -1626,6 +1688,10 @@ export default function DiagramViewer({
             { key: 'interconnection' as ViewType, label: 'IV', title: 'Interconnection View — parts, ports, connections' },
             { key: 'action-flow' as ViewType, label: 'AFV', title: 'Action Flow View — actions, successions, flows' },
             { key: 'state-transition' as ViewType, label: 'STV', title: 'State Transition View — states, transitions' },
+            { key: 'sequence' as ViewType, label: 'SEQ', title: 'Sequence View — lifelines, messages, time ordering' },
+            { key: 'grid' as ViewType, label: 'GRD', title: 'Grid View — relationship matrix (satisfy, verify, allocate)' },
+            { key: 'browser' as ViewType, label: 'BRW', title: 'Browser View — hierarchical tree of model elements' },
+            { key: 'geometry' as ViewType, label: 'GEO', title: 'Geometry View — 3D spatial visualization (coming soon)' },
           ]).map(({ key, label, title }) => {
             const active = viewType === key;
             return (
@@ -1746,14 +1812,28 @@ export default function DiagramViewer({
           </button>
         )}
       </div>
-      {isEmpty && (
+      {/* Non-graph views: delegate to specialized renderers */}
+      {viewType === 'sequence' && (
+        <SequenceRenderer model={model} />
+      )}
+      {viewType === 'grid' && (
+        <GridRenderer model={model} />
+      )}
+      {viewType === 'browser' && (
+        <BrowserRenderer model={model} selectedNodeId={selectedNodeId} />
+      )}
+      {viewType === 'geometry' && (
+        <GeometryRenderer />
+      )}
+      {/* Standard graph views */}
+      {isEmpty && !['sequence', 'grid', 'browser', 'geometry'].includes(viewType) && (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim }}>
           <div style={{ fontSize: 12 }}>{emptyHint}</div>
         </div>
       )}
       <svg
         ref={svgRef}
-        style={{ width: '100%', height: '100%', background: t.bg, cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default', ...(isEmpty ? { display: 'none' } : {}) }}
+        style={{ width: '100%', height: '100%', background: t.bg, cursor: selecting.current ? 'crosshair' : dragging.current ? 'grabbing' : 'default', ...((isEmpty || ['sequence', 'grid', 'browser', 'geometry'].includes(viewType)) ? { display: 'none' } : {}) }}
         onMouseDown={onSvgMouseDown}
         onMouseMove={onSvgMouseMove}
         onMouseUp={onSvgMouseUp}
@@ -1960,7 +2040,7 @@ export default function DiagramViewer({
 
             // ── Control nodes: fork/join (bar) and merge/decide (diamond) ──
             const isForkJoin = cssClass === 'forknode' || cssClass === 'joinnode';
-            const isMergeDecide = cssClass === 'mergenode' || cssClass === 'decidenode';
+            const isMergeDecide = cssClass === 'mergenode' || cssClass === 'decisionnode';
             if (isForkJoin) {
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#aaa' : '#888';
               return (
@@ -2291,11 +2371,27 @@ export default function DiagramViewer({
                   {cssClass === 'usecasedefinition' || cssClass === 'usecaseusage' ? (
                     // Use case: ellipse/oval (spec 8.2.3.25)
                     <ellipse cx={dynamicW / 2} cy={dynamicH / 2} rx={dynamicW / 2} ry={dynamicH / 2} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} />
+                  ) : cssClass === 'sendactionusage' ? (
+                    // Send action: convex pentagon (arrow shape → pointing right) (spec 8.2.3.17)
+                    <polygon
+                      points={`0,0 ${dynamicW - 12},0 ${dynamicW},${dynamicH / 2} ${dynamicW - 12},${dynamicH} 0,${dynamicH}`}
+                      fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
+                    />
+                  ) : cssClass === 'acceptactionusage' ? (
+                    // Accept action: concave pentagon (notched ← on left) (spec 8.2.3.17)
+                    <polygon
+                      points={`12,0 ${dynamicW},0 ${dynamicW},${dynamicH} 12,${dynamicH} 0,${dynamicH / 2}`}
+                      fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1}
+                    />
                   ) : (
                     <rect width={dynamicW} height={dynamicH} rx={rx} fill={color} stroke={borderColor} strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} {...(node.data?.isRef ? { strokeDasharray: '6 3' } : {})} />
                   )}
                   {isSelected && (cssClass === 'usecasedefinition' || cssClass === 'usecaseusage'
                     ? <ellipse cx={dynamicW / 2} cy={dynamicH / 2} rx={dynamicW / 2} ry={dynamicH / 2} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
+                    : cssClass === 'sendactionusage'
+                    ? <polygon points={`0,0 ${dynamicW - 12},0 ${dynamicW},${dynamicH / 2} ${dynamicW - 12},${dynamicH} 0,${dynamicH}`} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
+                    : cssClass === 'acceptactionusage'
+                    ? <polygon points={`12,0 ${dynamicW},0 ${dynamicW},${dynamicH} 12,${dynamicH} 0,${dynamicH / 2}`} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
                     : <rect width={dynamicW} height={dynamicH} rx={rx} fill="none" stroke="#f0c040" strokeWidth={3} opacity={0.25} />
                   )}
                   {/* Requirement text icon (spec 8.2.3.21) */}
@@ -2307,8 +2403,8 @@ export default function DiagramViewer({
                       <line x1={2} y1={8} x2={5} y2={8} stroke={svgTextSub} strokeWidth={0.6} />
                     </g>
                   )}
-                  {/* Header separator (skip for ellipse) */}
-                  {cssClass !== 'usecasedefinition' && cssClass !== 'usecaseusage' && (
+                  {/* Header separator (skip for ellipse and pentagons) */}
+                  {cssClass !== 'usecasedefinition' && cssClass !== 'usecaseusage' && cssClass !== 'sendactionusage' && cssClass !== 'acceptactionusage' && (
                     <line x1={0} y1={26} x2={dynamicW} y2={26} stroke={borderColor} strokeWidth={0.5} />
                   )}
                   {/* Direction badge for action in/out/inout params */}
@@ -2355,7 +2451,7 @@ export default function DiagramViewer({
                               fontStyle="italic"
                               opacity={0.6}
                             >
-                              {label.text}
+                              {`^${label.text}`}
                             </text>
                           ))}
                         </>
@@ -2469,7 +2565,7 @@ export default function DiagramViewer({
         {showLegend && <g transform="translate(10,10)">
           {/* View type label */}
           <text x={0} y={10} fill={svgCtrlFill} fontSize={10} fontWeight={600}>
-            {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View' }[viewType]}
+            {({ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View', 'sequence': 'Sequence View', 'grid': 'Grid View', 'browser': 'Browser View', 'geometry': 'Geometry View' } as Record<string, string>)[viewType]}
           </text>
           {/* Node shape legend */}
           <g transform="translate(0,18)">

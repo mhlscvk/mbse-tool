@@ -96,11 +96,18 @@ const STATE_TRANSITION: ViewConfig = {
   suppressPinToPinFlowLabels: false,
 };
 
+// Non-graph views use general defaults (they have custom renderers)
+const NON_GRAPH_DEFAULT: ViewConfig = { ...GENERAL };
+
 export const VIEW_CONFIGS: Record<ViewType, ViewConfig> = {
   'general': GENERAL,
   'interconnection': INTERCONNECTION,
   'action-flow': ACTION_FLOW,
   'state-transition': STATE_TRANSITION,
+  'sequence': NON_GRAPH_DEFAULT,
+  'grid': NON_GRAPH_DEFAULT,
+  'browser': NON_GRAPH_DEFAULT,
+  'geometry': NON_GRAPH_DEFAULT,
 };
 
 /** Get the view config for a given view type */

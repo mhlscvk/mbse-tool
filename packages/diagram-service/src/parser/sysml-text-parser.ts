@@ -294,6 +294,8 @@ const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|
 const USE_CASE_DEF_PATTERN = /\b(abstract\s+)?use\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const VERIFICATION_CASE_DEF_PATTERN = /\b(abstract\s+)?verification\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+// case def (base case — not use/analysis/verification)
+const CASE_DEF_PATTERN = /\b(abstract\s+)?(?<!use\s+|analysis\s+|verification\s+)case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 // Multi-word usage patterns (use case, analysis case, verification case)
 const USE_CASE_USAGE_PATTERN = /\buse\s+case\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*[{;]/g;
 const USE_CASE_UNTYPED_PATTERN = /\buse\s+case\s+(?!def\b)(\w+)\s*[{;]/g;
@@ -301,9 +303,33 @@ const ANALYSIS_CASE_USAGE_PATTERN = /\banalysis\s+case\s+(\w+)\s*(?:\[[\d..*]+\]
 const ANALYSIS_CASE_UNTYPED_PATTERN = /\banalysis\s+case\s+(?!def\b)(\w+)\s*[{;]/g;
 const VERIFICATION_CASE_USAGE_PATTERN = /\bverification\s+case\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*[{;]/g;
 const VERIFICATION_CASE_UNTYPED_PATTERN = /\bverification\s+case\s+(?!def\b)(\w+)\s*[{;]/g;
+// case usage (base case — not use/analysis/verification)
+const CASE_USAGE_PATTERN = /\b(?<!use\s+|analysis\s+|verification\s+)case\s+(\w+)\s*(?:\[[\d..*]+\])?\s*:\s*([\w:]+)\s*(?:\[[\d..*]+\])?\s*[{;]/g;
+const CASE_UNTYPED_PATTERN = /\b(?<!use\s+|analysis\s+|verification\s+)case\s+(?!def\b)(\w+)\s*[{;]/g;
 // Behavioral
 const PERFORM_PATTERN = /\bperform\s+(?:action\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 const EXHIBIT_PATTERN = /\bexhibit\s+(?:state\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+// P2 connector/port patterns
+const CONJUGATED_PORT_DEF_PATTERN = /\b(abstract\s+)?port\s+def\s+(\w+)\s+conjugates\s+([\w:]+)\s*[{;]/g;
+// P1 action subtypes
+const SEND_ACTION_PATTERN = /\bsend\s+(\w+)\s+(?:via\s+(\w+(?:\.\w+)*)\s+)?to\s+(\w+(?:\.\w+)*)\s*;/g;
+const ACCEPT_ACTION_PATTERN = /\baccept\s+(?:action\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*(?:via\s+(\w+(?:\.\w+)*))?\s*;/g;
+const IF_ACTION_PATTERN = /\bif\s+(\w+(?:\.\w+)*)\s*\{/g;
+const ASSIGN_ACTION_PATTERN = /\bassign\s+(\w+(?:\.\w+)*)\s*:=\s*([^;]+);/g;
+const WHILE_LOOP_PATTERN = /\bwhile\s+(?:loop\s+)?(\w+)?\s*\{/g;
+const FOR_LOOP_PATTERN = /\bfor\s+(\w+)\s+in\s+(\w+(?:\.\w+)*)\s*\{/g;
+const INCLUDE_USE_CASE_PATTERN = /\binclude\s+(?:use\s+case\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const ASSERT_CONSTRAINT_PATTERN = /\bassert\s+(?:constraint\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const SATISFY_REQ_USAGE_PATTERN = /\bsatisfy\s+(?:requirement\s+)?(\w+)\s+by\s+(\w+)\s*;/g;
+const EVENT_OCCURRENCE_PATTERN = /\bevent\s+(?:occurrence\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+// P3 membership/internal patterns
+const SUBJECT_PATTERN = /\bsubject\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const ACTOR_PATTERN = /\bactor\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const STAKEHOLDER_PATTERN = /\bstakeholder\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const OBJECTIVE_PATTERN = /\bobjective\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const EXPOSE_PATTERN = /\bexpose\s+([\w:]+?)::(\*{1,2}|\w+)\s*;/g;
+const RENDER_PATTERN = /\brender\s+(?:as\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+const REF_PATTERN = /\bref\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 // Transition usage — matches both named and anonymous forms:
 //   transition transName first source accept trigger if guard then target;
 //   transition first source accept trigger then target;
@@ -842,9 +868,54 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     [USE_CASE_DEF_PATTERN, 'UseCaseDefinition'],
     [ANALYSIS_CASE_DEF_PATTERN, 'AnalysisCaseDefinition'],
     [VERIFICATION_CASE_DEF_PATTERN, 'VerificationCaseDefinition'],
+    [CASE_DEF_PATTERN, 'CaseDefinition'],
   ] as [RegExp, SysMLNodeKind][]) {
     parseExtDef(pattern, kind, 2, 1, 3);
   }
+
+  // Conjugated port defs: port def X conjugates Y;
+  {
+    CONJUGATED_PORT_DEF_PATTERN.lastIndex = 0;
+    let cpm: RegExpExecArray | null;
+    while ((cpm = CONJUGATED_PORT_DEF_PATTERN.exec(clean)) !== null) {
+      const isAbstract = !!cpm[1];
+      const name = dequote(cpm[2], nameMap);
+      const conjugatesTarget = simpleName(cpm[3]);
+      // Skip if already created by DEF_PATTERN (a port def with both specializes and conjugates)
+      if (nodeIndex.has(name)) {
+        // Just add the conjugation edge
+        const existing = nodeIndex.get(name)!;
+        const targetNode = resolveType(conjugatesTarget);
+        if (targetNode) {
+          connections.push({ id: makeId('conjugation', `${name}_${conjugatesTarget}`), sourceId: existing.id, targetId: targetNode.id, kind: 'conjugation', name: '«conjugates»' });
+        }
+        continue;
+      }
+      const id = makeId('def', name);
+      const blockEnd = findBlockEnd(clean, cpm.index + cpm[0].length - 1);
+      const { line: dL, column: dC } = lineCol(source, cpm.index);
+      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+      const defNode: SysMLNode = {
+        id, kind: 'ConjugatedPortDefinition', name,
+        ...(isAbstract ? { isAbstract: true } : {}),
+        children: [], attributes: [], connections: [],
+        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+      };
+      nodes.push(defNode);
+      nodeIndex.set(name, defNode);
+      defPositions.push({ name, start: cpm.index, end: blockEnd });
+      const ownerPkg = findOwnerPackage(cpm.index);
+      if (ownerPkg) {
+        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      // Conjugation edge to original port def
+      const targetNode = resolveType(conjugatesTarget);
+      if (targetNode) {
+        connections.push({ id: makeId('conjugation', `${name}_${conjugatesTarget}`), sourceId: id, targetId: targetNode.id, kind: 'conjugation', name: '«conjugates»' });
+      }
+    }
+  }
+
   defPositions.sort((a, b) => b.start - a.start);
 
   // Pre-built index of usage positions for fast enclosing-usage lookup
@@ -875,7 +946,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Multi-word usages (use case, analysis case, verification case)
     for (const pat of [USE_CASE_USAGE_PATTERN, USE_CASE_UNTYPED_PATTERN,
                         ANALYSIS_CASE_USAGE_PATTERN, ANALYSIS_CASE_UNTYPED_PATTERN,
-                        VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN]) {
+                        VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN,
+                        CASE_USAGE_PATTERN, CASE_UNTYPED_PATTERN]) {
       const scanRe = new RegExp(pat.source, 'g');
       while ((um = scanRe.exec(clean)) !== null) {
         const name = dequote(um[1], nameMap);
@@ -962,6 +1034,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       [USE_CASE_USAGE_PATTERN, USE_CASE_UNTYPED_PATTERN, 'UseCaseUsage', 'use case'],
       [ANALYSIS_CASE_USAGE_PATTERN, ANALYSIS_CASE_UNTYPED_PATTERN, 'AnalysisCaseUsage', 'analysis case'],
       [VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN, 'VerificationCaseUsage', 'verification case'],
+      [CASE_USAGE_PATTERN, CASE_UNTYPED_PATTERN, 'CaseUsage', 'case'],
     ];
     for (const [typedPat, untypedPat, kind, displayKw] of multiWordPrecreate) {
       for (const pat of [typedPat, untypedPat]) {
@@ -1253,6 +1326,226 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // ── 2-pre-p1. P1 behavioral action subtypes ────────────────────────────────
+  // Helper to create a behavioral usage node (send, accept, if, assign, loop, include, assert, satisfy, event)
+  function createBehavioralNode(
+    kind: SysMLNodeKind, name: string, pos: number, matchLen: number,
+    typeName?: string, extra?: Partial<SysMLNode>,
+  ): SysMLNode {
+    const blockEnd = findBlockEnd(clean, pos + matchLen - 1);
+    let ownerNode = findOwnerDef(pos);
+    const encUsage = findOwnerUsage(pos, pos);
+    if (encUsage && (!ownerNode || encUsage.start > (defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1))) {
+      ownerNode = encUsage.node;
+    }
+    const usagePkg = findOwnerPackage(pos);
+    const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
+    const id = makeId('usage', `${ownerName}_${name}`);
+    const { line: uL, column: uC } = lineCol(source, pos);
+    const { line: uEL, column: uEC } = lineCol(source, blockEnd);
+    const node: SysMLNode = {
+      id, kind, name,
+      ...(typeName ? { qualifiedName: simpleName(typeName) } : {}),
+      ...extra,
+      children: [], attributes: [], connections: [],
+      range: { start: { line: uL - 1, character: uC - 1 }, end: { line: uEL - 1, character: uEC - 1 } },
+    };
+    nodes.push(node);
+    nodeIndex.set(`${ownerName}.${name}`, node);
+    if (!nodeIndex.has(name)) nodeIndex.set(name, node);
+    if (ownerNode) {
+      connections.push({ id: makeId('owns', `${ownerName}_${name}`), sourceId: ownerNode.id, targetId: id, kind: 'composition', name: '' });
+    } else if (usagePkg) {
+      connections.push({ id: makeId('owns', `${ownerName}_${name}`), sourceId: usagePkg.id, targetId: id, kind: 'composition', name: '' });
+    }
+    if (typeName) {
+      const typeNode = resolveType(simpleName(typeName));
+      if (typeNode) {
+        connections.push({ id: makeId('typeref', `${name}_${simpleName(typeName)}`), sourceId: id, targetId: typeNode.id, kind: 'typereference', name: '' });
+      }
+    }
+    return node;
+  }
+
+  // send payload [via port] to target;
+  {
+    SEND_ACTION_PATTERN.lastIndex = 0;
+    let sm: RegExpExecArray | null;
+    while ((sm = SEND_ACTION_PATTERN.exec(clean)) !== null) {
+      const payload = dequote(sm[1], nameMap);
+      const target = sm[3];
+      const name = `send_${payload}_to_${simpleName(target)}`;
+      createBehavioralNode('SendActionUsage', name, sm.index, sm[0].length);
+    }
+  }
+
+  // accept [action] name [: Type] [via port];
+  {
+    ACCEPT_ACTION_PATTERN.lastIndex = 0;
+    let am: RegExpExecArray | null;
+    while ((am = ACCEPT_ACTION_PATTERN.exec(clean)) !== null) {
+      // Skip if this is part of "accept ... then" (shorthand transition, already handled)
+      const afterMatch = clean.slice(am.index + am[0].length, am.index + am[0].length + 20);
+      if (/^\s*then\b/.test(afterMatch)) continue;
+      const name = dequote(am[1], nameMap);
+      createBehavioralNode('AcceptActionUsage', name, am.index, am[0].length, am[2]);
+    }
+  }
+
+  // if guard { ... }
+  {
+    IF_ACTION_PATTERN.lastIndex = 0;
+    let ifm: RegExpExecArray | null;
+    while ((ifm = IF_ACTION_PATTERN.exec(clean)) !== null) {
+      // Skip if this is "if guard then target;" (conditional succession, not IfActionUsage)
+      const pre = clean.slice(Math.max(0, ifm.index - 15), ifm.index);
+      if (/\btransition\b/.test(pre)) continue;
+      const guard = dequote(ifm[1], nameMap);
+      const name = `if_${guard}`;
+      createBehavioralNode('IfActionUsage', name, ifm.index, ifm[0].length);
+    }
+  }
+
+  // assign target := value;
+  {
+    ASSIGN_ACTION_PATTERN.lastIndex = 0;
+    let asm: RegExpExecArray | null;
+    while ((asm = ASSIGN_ACTION_PATTERN.exec(clean)) !== null) {
+      const target = simpleName(asm[1]);
+      const name = `assign_${target}`;
+      createBehavioralNode('AssignmentActionUsage', name, asm.index, asm[0].length);
+    }
+  }
+
+  // while [loop] [name] { ... }
+  {
+    WHILE_LOOP_PATTERN.lastIndex = 0;
+    let wm: RegExpExecArray | null;
+    while ((wm = WHILE_LOOP_PATTERN.exec(clean)) !== null) {
+      const name = wm[1] ? dequote(wm[1], nameMap) : `while_${wm.index}`;
+      createBehavioralNode('WhileLoopActionUsage', name, wm.index, wm[0].length);
+    }
+  }
+
+  // for var in collection { ... }
+  {
+    FOR_LOOP_PATTERN.lastIndex = 0;
+    let fm: RegExpExecArray | null;
+    while ((fm = FOR_LOOP_PATTERN.exec(clean)) !== null) {
+      const varName = dequote(fm[1], nameMap);
+      const name = `for_${varName}`;
+      createBehavioralNode('ForLoopActionUsage', name, fm.index, fm[0].length);
+    }
+  }
+
+  // include [use case] name [: Type];
+  {
+    INCLUDE_USE_CASE_PATTERN.lastIndex = 0;
+    let im: RegExpExecArray | null;
+    while ((im = INCLUDE_USE_CASE_PATTERN.exec(clean)) !== null) {
+      const name = dequote(im[1], nameMap);
+      createBehavioralNode('IncludeUseCaseUsage', name, im.index, im[0].length, im[2]);
+    }
+  }
+
+  // assert [constraint] name [: Type];
+  {
+    ASSERT_CONSTRAINT_PATTERN.lastIndex = 0;
+    let acm: RegExpExecArray | null;
+    while ((acm = ASSERT_CONSTRAINT_PATTERN.exec(clean)) !== null) {
+      const name = dequote(acm[1], nameMap);
+      createBehavioralNode('AssertConstraintUsage', name, acm.index, acm[0].length, acm[2]);
+    }
+  }
+
+  // event [occurrence] name [: Type];
+  {
+    EVENT_OCCURRENCE_PATTERN.lastIndex = 0;
+    let eom: RegExpExecArray | null;
+    while ((eom = EVENT_OCCURRENCE_PATTERN.exec(clean)) !== null) {
+      const name = dequote(eom[1], nameMap);
+      createBehavioralNode('EventOccurrenceUsage', name, eom.index, eom[0].length, eom[2]);
+    }
+  }
+
+  // ── 2-pre-p3. P3 membership/internal keyword nodes ──────────────────────
+  // subject name [: Type]; (inside requirements/use cases)
+  {
+    SUBJECT_PATTERN.lastIndex = 0;
+    let sm: RegExpExecArray | null;
+    while ((sm = SUBJECT_PATTERN.exec(clean)) !== null) {
+      const name = dequote(sm[1], nameMap);
+      // Only inside requirement/use case/case defs
+      const owner = findOwnerDef(sm.index);
+      if (!owner || !(owner.kind.includes('Requirement') || owner.kind.includes('Case') || owner.kind.includes('UseCase'))) continue;
+      createBehavioralNode('SubjectMembership', name, sm.index, sm[0].length, sm[2]);
+    }
+  }
+
+  // actor name [: Type]; (inside requirements/use cases)
+  {
+    ACTOR_PATTERN.lastIndex = 0;
+    let am: RegExpExecArray | null;
+    while ((am = ACTOR_PATTERN.exec(clean)) !== null) {
+      const name = dequote(am[1], nameMap);
+      const owner = findOwnerDef(am.index);
+      if (!owner || !(owner.kind.includes('Requirement') || owner.kind.includes('Case') || owner.kind.includes('UseCase'))) continue;
+      createBehavioralNode('ActorMembership', name, am.index, am[0].length, am[2]);
+    }
+  }
+
+  // stakeholder name [: Type]; (inside requirements)
+  {
+    STAKEHOLDER_PATTERN.lastIndex = 0;
+    let shm: RegExpExecArray | null;
+    while ((shm = STAKEHOLDER_PATTERN.exec(clean)) !== null) {
+      const name = dequote(shm[1], nameMap);
+      const owner = findOwnerDef(shm.index);
+      if (!owner || !owner.kind.includes('Requirement')) continue;
+      createBehavioralNode('StakeholderMembership', name, shm.index, shm[0].length, shm[2]);
+    }
+  }
+
+  // objective name [: Type]; (inside case defs)
+  {
+    OBJECTIVE_PATTERN.lastIndex = 0;
+    let om: RegExpExecArray | null;
+    while ((om = OBJECTIVE_PATTERN.exec(clean)) !== null) {
+      const name = dequote(om[1], nameMap);
+      const owner = findOwnerDef(om.index);
+      if (!owner || !owner.kind.includes('Case')) continue;
+      createBehavioralNode('ObjectiveMembership', name, om.index, om[0].length, om[2]);
+    }
+  }
+
+  // expose Pkg::* or expose Pkg::Element; (inside views)
+  {
+    EXPOSE_PATTERN.lastIndex = 0;
+    let exm: RegExpExecArray | null;
+    while ((exm = EXPOSE_PATTERN.exec(clean)) !== null) {
+      const owner = findOwnerDef(exm.index);
+      if (!owner || !owner.kind.includes('View')) continue;
+      const pkg = exm[1];
+      const target = exm[2];
+      const isNamespace = target === '*' || target === '**';
+      const kind: SysMLNodeKind = isNamespace ? 'NamespaceExpose' : 'MembershipExpose';
+      const name = `expose_${pkg}::${target}`;
+      createBehavioralNode(kind, name, exm.index, exm[0].length);
+    }
+  }
+
+  // render [as] name [: Type]; (inside views)
+  {
+    RENDER_PATTERN.lastIndex = 0;
+    let rm: RegExpExecArray | null;
+    while ((rm = RENDER_PATTERN.exec(clean)) !== null) {
+      const owner = findOwnerDef(rm.index);
+      if (!owner || !owner.kind.includes('View')) continue;
+      const name = dequote(rm[1], nameMap);
+      createBehavioralNode('ViewRenderingMembership', name, rm.index, rm[0].length, rm[2]);
+    }
+  }
+
   // ── 2. Extract usages — create usage nodes + owner→usage + usage→typeDef edges ──
 
   USAGE_PATTERN.lastIndex = 0;
@@ -1505,6 +1798,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     [USE_CASE_USAGE_PATTERN, USE_CASE_UNTYPED_PATTERN, 'UseCaseUsage', 'use case'],
     [ANALYSIS_CASE_USAGE_PATTERN, ANALYSIS_CASE_UNTYPED_PATTERN, 'AnalysisCaseUsage', 'analysis case'],
     [VERIFICATION_CASE_USAGE_PATTERN, VERIFICATION_CASE_UNTYPED_PATTERN, 'VerificationCaseUsage', 'verification case'],
+    [CASE_USAGE_PATTERN, CASE_UNTYPED_PATTERN, 'CaseUsage', 'case'],
   ];
 
   for (const [typedPat, untypedPat, kind, displayKw] of multiWordUsages) {
@@ -1894,7 +2188,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const [, nodeType, rawNodeName] = match;
     const nodeName = dequote(rawNodeName, nameMap);
     const kindMap: Record<string, SysMLNodeKind> = {
-      fork: 'ForkNode', join: 'JoinNode', merge: 'MergeNode', decide: 'DecideNode',
+      fork: 'ForkNode', join: 'JoinNode', merge: 'MergeNode', decide: 'DecisionNode',
     };
     const kind = kindMap[nodeType];
     if (!kind) continue;

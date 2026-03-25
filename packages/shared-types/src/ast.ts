@@ -41,6 +41,8 @@ export type SysMLNodeKind =
   | 'EnumUsage'
   | 'CalcUsage'
   | 'AllocationUsage'
+  | 'CaseDefinition'
+  | 'CaseUsage'
   | 'UseCaseUsage'
   | 'AnalysisCaseUsage'
   | 'VerificationCaseUsage'
@@ -48,10 +50,28 @@ export type SysMLNodeKind =
   | 'ViewUsage'
   | 'ViewpointUsage'
   | 'RenderingUsage'
+  | 'FlowUsage'
+  | 'MetadataUsage'
   | 'OccurrenceUsage'
-  // ── Behavioral / control ──
+  | 'SuccessionFlowUsage'
+  // ── Connector/port specializations ──
+  | 'ConnectorAsUsage'
+  | 'BindingConnectorAsUsage'
+  | 'SuccessionAsUsage'
+  | 'ConjugatedPortDefinition'
+  // ── Behavioral / action subtypes ──
   | 'PerformActionUsage'
   | 'ExhibitStateUsage'
+  | 'SendActionUsage'
+  | 'AcceptActionUsage'
+  | 'IfActionUsage'
+  | 'AssignmentActionUsage'
+  | 'ForLoopActionUsage'
+  | 'WhileLoopActionUsage'
+  | 'IncludeUseCaseUsage'
+  | 'AssertConstraintUsage'
+  | 'SatisfyRequirementUsage'
+  | 'EventOccurrenceUsage'
   | 'EntryActionUsage'
   | 'DoActionUsage'
   | 'ExitActionUsage'
@@ -59,10 +79,27 @@ export type SysMLNodeKind =
   | 'ForkNode'
   | 'JoinNode'
   | 'MergeNode'
-  | 'DecideNode'
+  | 'DecisionNode'
   | 'StartNode'
   | 'DoneNode'
   | 'TerminateNode'
+  // ── Membership / internal types ──
+  | 'ObjectiveMembership'
+  | 'SubjectMembership'
+  | 'ActorMembership'
+  | 'StakeholderMembership'
+  | 'RequirementConstraintMembership'
+  | 'FramedConcernMembership'
+  | 'RequirementVerificationMembership'
+  | 'TransitionFeatureMembership'
+  | 'StateSubactionMembership'
+  | 'ViewRenderingMembership'
+  | 'VariantMembership'
+  | 'Expose'
+  | 'MembershipExpose'
+  | 'NamespaceExpose'
+  | 'ReferenceUsage'
+  | 'TriggerInvocationExpression'
   // ── Namespace ──
   | 'Alias'
   | 'Comment';
@@ -109,7 +146,7 @@ export interface SysMLConnection {
   kind: 'association' | 'dependency' | 'composition' | 'noncomposite' | 'flow' | 'succession' | 'transition' | 'typereference'
       | 'subsetting' | 'redefinition' | 'referencesubsetting' | 'crossing'
       | 'satisfy' | 'verify' | 'allocate' | 'bind' | 'annotate'
-      | 'successionflow' | 'message';
+      | 'successionflow' | 'message' | 'conjugation';
   name?: string;
   /** Item/port name on the source end (e.g., "engineTorque" from "action.engineTorque") */
   sourcePort?: string;

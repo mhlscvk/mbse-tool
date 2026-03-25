@@ -11,7 +11,7 @@ interface FilteredModel {
 
 const IV_NODE_KINDS = new Set([
   'PartUsage', 'PortUsage', 'ConnectionUsage', 'InterfaceUsage', 'ItemUsage', 'AttributeUsage',
-  'PartDefinition', 'PortDefinition', 'ConnectionDefinition', 'InterfaceDefinition', 'ItemDefinition', 'AttributeDefinition',
+  'PartDefinition', 'PortDefinition', 'ConjugatedPortDefinition', 'ConnectionDefinition', 'InterfaceDefinition', 'ItemDefinition', 'AttributeDefinition',
   'Package',
 ]);
 
@@ -49,10 +49,13 @@ function filterInterconnectionView(model: SysMLModel): FilteredModel {
 
 const AFV_NODE_KINDS = new Set([
   'ActionUsage', 'ActionDefinition', 'PerformActionUsage',
+  'SendActionUsage', 'AcceptActionUsage', 'IfActionUsage', 'AssignmentActionUsage',
+  'ForLoopActionUsage', 'WhileLoopActionUsage', 'IncludeUseCaseUsage',
+  'CaseUsage', 'CaseDefinition',
   'UseCaseUsage', 'UseCaseDefinition',
   'AnalysisCaseUsage', 'AnalysisCaseDefinition',
   'VerificationCaseUsage', 'VerificationCaseDefinition',
-  'ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode',
+  'ForkNode', 'JoinNode', 'MergeNode', 'DecisionNode', 'StartNode', 'DoneNode', 'TerminateNode',
   'Package',
 ]);
 
@@ -80,7 +83,8 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
   // Hide empty stub defs not connected to the flow
   const nodes = model.nodes.filter(n => {
     if (!keepIds.has(n.id)) return false;
-    if ((n.kind === 'ActionDefinition' || n.kind === 'UseCaseDefinition'
+    if ((n.kind === 'ActionDefinition' || n.kind === 'CaseDefinition'
+        || n.kind === 'UseCaseDefinition'
         || n.kind === 'AnalysisCaseDefinition' || n.kind === 'VerificationCaseDefinition')
         && !behavioralNodeIds.has(n.id)
         && (n.attributes?.length ?? 0) === 0) {
@@ -135,7 +139,7 @@ function filterActionFlowView(model: SysMLModel): FilteredModel {
 const STV_NODE_KINDS = new Set([
   'StateUsage', 'StateDefinition', 'ExhibitStateUsage', 'TransitionUsage',
   'EntryActionUsage', 'DoActionUsage', 'ExitActionUsage',
-  'ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode',
+  'ForkNode', 'JoinNode', 'MergeNode', 'DecisionNode', 'StartNode', 'DoneNode', 'TerminateNode',
   'Package',
 ]);
 
@@ -228,7 +232,7 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
   // Remove orphan nodes: iteratively prune nodes that have no edges to
   // non-control, non-package content nodes. This handles chains of control
   // nodes (fork→join→fork) that connect only to each other.
-  const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecideNode', 'StartNode', 'DoneNode', 'TerminateNode']);
+  const CONTROL_KINDS = new Set(['ForkNode', 'JoinNode', 'MergeNode', 'DecisionNode', 'StartNode', 'DoneNode', 'TerminateNode']);
   const nodeById = new Map(prelimNodes.map(n => [n.id, n]));
   const finalNodeIds = new Set(prelimNodes.map(n => n.id));
   let changed = true;
@@ -257,6 +261,57 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
   return { nodes, connections: finalConnections };
 }
 
+// ── Sequence View ───────────────────────────────────────────────────────────
+// Shows: parts/items that participate in message edges, send/accept actions
+function filterSequenceView(model: SysMLModel): FilteredModel {
+  // Collect nodes that participate in message or flow edges
+  const messageParticipants = new Set<string>();
+  for (const c of model.connections) {
+    if (c.kind === 'message' || c.kind === 'flow' || c.kind === 'successionflow') {
+      messageParticipants.add(c.sourceId);
+      messageParticipants.add(c.targetId);
+    }
+  }
+
+  // Keep message participants + their parent containers + send/accept actions
+  const SEQUENCE_KINDS = new Set([
+    'PartUsage', 'PartDefinition', 'ItemUsage', 'ItemDefinition',
+    'ActionUsage', 'ActionDefinition', 'PerformActionUsage',
+    'SendActionUsage', 'AcceptActionUsage',
+    'Package',
+  ]);
+
+  const keepIds = new Set<string>();
+  for (const node of model.nodes) {
+    if (messageParticipants.has(node.id) || SEQUENCE_KINDS.has(node.kind)) {
+      keepIds.add(node.id);
+    }
+  }
+
+  const nodes = model.nodes.filter(n => keepIds.has(n.id));
+  const nodeIdSet = new Set(nodes.map(n => n.id));
+  const connections = model.connections.filter(c =>
+    nodeIdSet.has(c.sourceId) && nodeIdSet.has(c.targetId),
+  );
+
+  return { nodes, connections };
+}
+
+// ── Grid View (pass-through — client renders as table) ──────────────────────
+function filterGridView(model: SysMLModel): FilteredModel {
+  return { nodes: model.nodes, connections: model.connections };
+}
+
+// ── Browser View (pass-through — client renders as tree) ────────────────────
+function filterBrowserView(model: SysMLModel): FilteredModel {
+  return { nodes: model.nodes, connections: model.connections };
+}
+
+// ── Geometry View (pass-through placeholder) ────────────────────────────────
+function filterGeometryView(model: SysMLModel): FilteredModel {
+  return { nodes: model.nodes, connections: model.connections };
+}
+
 // ── General View (pass-through) ─────────────────────────────────────────────
 function filterGeneralView(model: SysMLModel): FilteredModel {
   return { nodes: model.nodes, connections: model.connections };
@@ -268,6 +323,10 @@ const VIEW_FILTERS: Record<ViewType, (model: SysMLModel) => FilteredModel> = {
   'interconnection': filterInterconnectionView,
   'action-flow': filterActionFlowView,
   'state-transition': filterStateTransitionView,
+  'sequence': filterSequenceView,
+  'grid': filterGridView,
+  'browser': filterBrowserView,
+  'geometry': filterGeometryView,
 };
 
 export function applyViewFilter(model: SysMLModel, viewType: ViewType): FilteredModel {

@@ -502,7 +502,7 @@ describe('Control nodes inside state defs', () => {
     expect(model.nodes.some(n => n.kind === 'ForkNode' && n.name === 'f1')).toBe(true);
     expect(model.nodes.some(n => n.kind === 'JoinNode' && n.name === 'j1')).toBe(true);
     expect(model.nodes.some(n => n.kind === 'MergeNode' && n.name === 'm1')).toBe(true);
-    expect(model.nodes.some(n => n.kind === 'DecideNode' && n.name === 'd1')).toBe(true);
+    expect(model.nodes.some(n => n.kind === 'DecisionNode' && n.name === 'd1')).toBe(true);
   });
 
   it('control nodes owned by state def via composition', () => {
