@@ -13,6 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { resolve, dirname, basename, join } from 'path';
 import { fileURLToPath } from 'url';
+import { generateFileDisplayId, generateProjectDisplayId } from '../src/lib/id-generator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES_DIR = resolve(__dirname, 'examples');
@@ -94,22 +95,31 @@ export async function importExamples() {
       await prisma.sysMLFile.deleteMany({ where: { projectId: sub.id } });
     } else {
       sub = await prisma.project.create({
-        data: { name: dirName, ownerId: systemUser.id, parentId: root.id, depth: 1, isSystem: true },
+        data: { name: dirName, ownerId: systemUser.id, parentId: root.id, depth: 1, isSystem: true, displayId: generateProjectDisplayId('SYSTEM', dirName) },
       });
     }
 
-    // Read .sysml files and batch insert
-    const files = readdirSync(dirPath).filter(f => f.endsWith('.sysml'));
-    const fileData = files.map(fileName => {
-      const content = readFileSync(join(dirPath, fileName), 'utf-8');
-      return { name: basename(fileName, '.sysml'), content, size: Buffer.byteLength(content, 'utf-8'), projectId: sub.id };
+    // Read .sysml files (including from subdirectories) and batch insert
+    function collectSysmlFiles(dir: string): string[] {
+      const result: string[] = [];
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) result.push(...collectSysmlFiles(fullPath));
+        else if (entry.name.endsWith('.sysml')) result.push(fullPath);
+      }
+      return result;
+    }
+    const filePaths = collectSysmlFiles(dirPath);
+    const fileData = filePaths.map(filePath => {
+      const content = readFileSync(filePath, 'utf-8');
+      return { name: basename(filePath, '.sysml'), content, size: Buffer.byteLength(content, 'utf-8'), projectId: sub.id, displayId: generateFileDisplayId() };
     });
     if (fileData.length > 0) {
       await prisma.sysMLFile.createMany({ data: fileData });
     }
 
-    totalFiles += files.length;
-    console.log(`  ${dirName} (${files.length} files)`);
+    totalFiles += filePaths.length;
+    console.log(`  ${dirName} (${filePaths.length} files)`);
   }
 
   console.log(`Imported ${entries.length} subprojects, ${totalFiles} files.`);
