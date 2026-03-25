@@ -433,3 +433,117 @@ describe('Port/action boundary rules', () => {
     expect(xNode!.cssClasses?.[0]).toBe('itemusage');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Usage-level inheritance (usage inherits features from its typed definition)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Usage-level inheritance', () => {
+  it('part usage inherits attributes from its definition', () => {
+    const code = `
+      part def Engine { attribute displacement : Real; attribute cylinders : Integer; }
+      part def Vehicle { part engine : Engine; }
+    `;
+    const { nodes } = pipelineInherited(code, 'general', true);
+    const engineUsage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text.includes('engine'))
+    );
+    expect(engineUsage).toBeDefined();
+    const labels = usageLabels(engineUsage!);
+    expect(labels.some(l => l.text.includes('displacement'))).toBe(true);
+    expect(labels.some(l => l.text.includes('cylinders'))).toBe(true);
+  });
+
+  it('usage-level inherited features are marked with ^ prefix', () => {
+    const code = `
+      part def Engine { attribute hp : Real; }
+      part def Vehicle { part engine : Engine; }
+    `;
+    const { nodes } = pipelineInherited(code, 'general', true);
+    const engineUsage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text.includes('engine'))
+    );
+    expect(engineUsage).toBeDefined();
+    const inherited = engineUsage!.children.filter(c => c.id.includes('__inherited__'));
+    expect(inherited.length).toBeGreaterThanOrEqual(1);
+    expect(inherited[0].text).toMatch(/^\^/);
+  });
+
+  it('usage does not show inherited when showInherited is false', () => {
+    const code = `
+      part def Engine { attribute hp : Real; }
+      part def Vehicle { part engine : Engine; }
+    `;
+    const { nodes } = pipelineInherited(code, 'general', false);
+    const engineUsage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text.includes('engine'))
+    );
+    expect(engineUsage).toBeDefined();
+    const inherited = engineUsage!.children.filter(c => c.id.includes('__inherited__'));
+    expect(inherited.length).toBe(0);
+  });
+
+  it('action usage inherits parameters from its definition', () => {
+    const code = `
+      item def FuelCmd;
+      action def ProvidePower { in item fuelCmd : FuelCmd; }
+      action providePower : ProvidePower;
+    `;
+    const { nodes } = pipelineInherited(code, 'general', true);
+    const usage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text.includes('providePower'))
+    );
+    expect(usage).toBeDefined();
+    const labels = usageLabels(usage!);
+    expect(labels.some(l => l.text.includes('fuelCmd'))).toBe(true);
+  });
+
+  it('usage-level redefinition overrides inherited feature', () => {
+    const code = `
+      part def Engine { attribute hp : Real; }
+      part def Vehicle {
+        part engine : Engine { attribute hp : Integer; }
+      }
+    `;
+    const { nodes } = pipelineInherited(code, 'general', true);
+    const engineUsage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text.includes('engine'))
+    );
+    expect(engineUsage).toBeDefined();
+    // hp should appear once (own, not inherited) — Integer overrides Real
+    const labels = usageLabels(engineUsage!);
+    const hpLabels = labels.filter(l => l.text.includes('hp'));
+    expect(hpLabels.length).toBe(1);
+  });
+
+  it('usage inherits from definition that also has inherited features', () => {
+    const code = `
+      part def A { attribute x : Real; }
+      part def B :> A { attribute y : Real; }
+      part b : B;
+    `;
+    const { nodes } = pipelineInherited(code, 'general', true);
+    const bUsage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text === 'b : B')
+    );
+    expect(bUsage).toBeDefined();
+    const labels = usageLabels(bUsage!);
+    expect(labels.some(l => l.text.includes('x'))).toBe(true); // from A via B
+    expect(labels.some(l => l.text.includes('y'))).toBe(true); // from B
+  });
+
+  it('state usage inherits sub-states from its definition', () => {
+    const code = `
+      state def VehicleStates { state off; state on; }
+      part def Vehicle { exhibit state vs : VehicleStates; }
+    `;
+    const { nodes } = pipelineInherited(code, 'general', true);
+    const vsUsage = nodes.find(n =>
+      n.children.some(c => c.id.endsWith('__label') && c.text.includes('vs'))
+    );
+    expect(vsUsage).toBeDefined();
+    const labels = usageLabels(vsUsage!);
+    expect(labels.some(l => l.text.includes('off'))).toBe(true);
+    expect(labels.some(l => l.text.includes('on'))).toBe(true);
+  });
+});

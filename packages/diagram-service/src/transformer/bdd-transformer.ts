@@ -260,7 +260,31 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig, skipCompartments = false
     // Entry/do/exit behaviors are now rendered as graphical child nodes (not compartment labels)
     // Skip creating compartment labels for them — they'll appear as nested action nodes
 
-    // Regular usage nodes: compact, no compartment
+    // Regular usage nodes: compact, but show inherited attributes when present
+    const inheritedAttrs = (node.attributes ?? []).filter(a => a.inherited);
+    if (inheritedAttrs.length > 0) {
+      // Render usage with inherited compartment (expanded view)
+      const inheritedLabels: SLabel[] = inheritedAttrs.map((attr, i) => {
+        const kw = attr.value ? `${USAGE_KEYWORD_DISPLAY[attr.value] ?? attr.value} ` : '';
+        const text = attr.type ? `^ ${kw}${attr.name} : ${attr.type}` : `^ ${kw}${attr.name}`;
+        return makeLabel(`${node.id}__inherited__${i}`, text);
+      });
+      const nameW = textWidth(nameText, 13);
+      const kindW = textWidth(kindText, 10);
+      const inheritedW = Math.max(...inheritedLabels.map(l => textWidth(l.text, 10))) + 8;
+      const width = Math.max(120, nameW + 20, kindW + 20, inheritedW + 16);
+      const HEADER_H = 50;
+      const ROW_H = 18;
+      const height = HEADER_H + 6 + inheritedLabels.length * ROW_H + 4;
+      return {
+        type: 'node', id: node.id,
+        position: { x: 0, y: 0 },
+        size: { width, height },
+        children: [kindLabel, nameLabel, ...inheritedLabels],
+        cssClasses: [isStdlib ? 'stdlib' : node.kind.toLowerCase()],
+        data: { qualifiedName: node.qualifiedName, range: node.range, isRef: node.isRef, isParallel: node.isParallel },
+      };
+    }
     const nameW = textWidth(nameText, 13);
     const kindW = textWidth(kindText, 10);
     const width = Math.max(120, Math.max(nameW, kindW) + 20);
@@ -442,6 +466,37 @@ function resolveInheritedAttributes(nodes: SysMLNode[], connections: { sourceId:
     // Filter out attributes already defined by this node (redefined)
     const ownNames = new Set((node.attributes ?? []).map(a => a.name));
     const toAdd = inherited.filter(a => !ownNames.has(a.name));
+    if (toAdd.length > 0) {
+      node.attributes = [...(node.attributes ?? []), ...toAdd];
+    }
+  }
+
+  // ── Usage-level inheritance: usages inherit features from their typed definition ──
+  // Build type map: usageId → definitionId from typereference edges
+  const typeOf = new Map<string, string>();
+  for (const c of connections) {
+    if (c.kind === 'typereference') typeOf.set(c.sourceId, c.targetId);
+  }
+
+  for (const node of nodes) {
+    if (node.kind.endsWith('Definition') || node.kind === 'Package') continue;
+    const defId = typeOf.get(node.id);
+    if (!defId) continue;
+    const defNode = nodeById.get(defId);
+    if (!defNode) continue;
+
+    // Collect definition's own attributes + any inherited attributes it already resolved
+    const defAttrs = (defNode.attributes ?? []).filter(a => a.name !== '__doc__');
+    if (defAttrs.length === 0) continue;
+
+    const ownNames = new Set((node.attributes ?? []).map(a => a.name));
+    const toAdd = defAttrs
+      .filter(a => !ownNames.has(a.name))
+      .map(a => ({
+        ...a,
+        inherited: true,
+        inheritedFrom: a.inheritedFrom ?? defNode.name,
+      }));
     if (toAdd.length > 0) {
       node.attributes = [...(node.attributes ?? []), ...toAdd];
     }
