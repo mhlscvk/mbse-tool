@@ -338,7 +338,8 @@ const TRANSITION_NAMED_PATTERN = /\btransition\s+(?!first\b|accept\b|if\b|then\b
 const TRANSITION_ANON_PATTERN = /\btransition\s+(?=first\b|accept\b)/g;
 // Shorthand transition (TargetTransitionUsage): source inferred from previous state
 // Two-step approach: first find "accept ... then target;" span, then parse components inside
-const SHORTHAND_ACCEPT_THEN_PATTERN = /\baccept\s+([\s\S]+?)\bthen\s+(\w+)\s*;/g;
+// Bounded: [^;]+ prevents backtracking across statement boundaries (max one statement)
+const SHORTHAND_ACCEPT_THEN_PATTERN = /\baccept\s+([^;]+?)\bthen\s+(\w+)\s*;/g;
 // Successions: "first X then Y;" standalone
 const SUCCESSION_PATTERN = /\bfirst\s+(\w+)\s+then\s+(\w+)\s*;/g;
 // Inline "then Y;" or "then fork Y;" after declarations

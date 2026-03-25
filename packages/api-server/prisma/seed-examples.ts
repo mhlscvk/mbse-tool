@@ -10,7 +10,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, lstatSync, statSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { resolve, dirname, basename, join } from 'path';
 import { fileURLToPath } from 'url';
 import { generateFileDisplayId, generateProjectDisplayId } from '../src/lib/id-generator.js';
@@ -100,11 +100,15 @@ export async function importExamples() {
     }
 
     // Read .sysml files (including from subdirectories) and batch insert
-    function collectSysmlFiles(dir: string): string[] {
+    const MAX_DEPTH = 5;
+    function collectSysmlFiles(dir: string, depth = 0): string[] {
+      if (depth > MAX_DEPTH) return []; // prevent unbounded recursion
       const result: string[] = [];
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const fullPath = join(dir, entry.name);
-        if (entry.isDirectory()) result.push(...collectSysmlFiles(fullPath));
+        // Skip symlinks to prevent traversal attacks
+        if (lstatSync(fullPath).isSymbolicLink()) continue;
+        if (entry.isDirectory()) result.push(...collectSysmlFiles(fullPath, depth + 1));
         else if (entry.name.endsWith('.sysml')) result.push(fullPath);
       }
       return result;
