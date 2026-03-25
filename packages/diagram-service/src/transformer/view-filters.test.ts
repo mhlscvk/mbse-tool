@@ -653,3 +653,167 @@ describe('View Filters: STV does not show use case nodes', () => {
     expect(ucDefNodes.length).toBe(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('View Filters: Sequence View', () => {
+  it('passes through all nodes for models with messages', () => {
+    const code = `
+      package SeqTest {
+        part def A; part def B;
+        part a : A; part b : B;
+        action def Send;
+        message of Send from a to b;
+      }
+    `;
+    const filtered = rawFilter(code, 'sequence');
+    expect(filtered.nodes.length).toBeGreaterThan(0);
+    expect(filtered.connections.length).toBeGreaterThan(0);
+  });
+
+  it('includes message edges', () => {
+    const code = `
+      package SeqTest {
+        part a; part b;
+        message of Data from a to b;
+      }
+    `;
+    const filtered = rawFilter(code, 'sequence');
+    const msgEdges = filtered.connections.filter(c => c.kind === 'message');
+    expect(msgEdges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('keeps Package nodes', () => {
+    const filtered = rawFilter('package P { part a; }', 'sequence');
+    expect(filtered.nodes.some(n => n.kind === 'Package')).toBe(true);
+  });
+});
+
+describe('View Filters: Grid View', () => {
+  it('passes through all nodes (grid is client-rendered)', () => {
+    const code = `
+      package GridTest {
+        part def V; part v : V;
+        requirement def R;
+        satisfy requirement R by v;
+      }
+    `;
+    const { model } = parseSysMLText('test', code);
+    const filtered = applyViewFilter(model, 'grid');
+    expect(filtered.nodes.length).toBe(model.nodes.length);
+    expect(filtered.connections.length).toBe(model.connections.length);
+  });
+});
+
+describe('View Filters: Browser View', () => {
+  it('passes through all nodes (browser is client-rendered)', () => {
+    const code = `
+      package BrowseTest {
+        part def V { part engine; }
+        part v : V;
+      }
+    `;
+    const { model } = parseSysMLText('test', code);
+    const filtered = applyViewFilter(model, 'browser');
+    expect(filtered.nodes.length).toBe(model.nodes.length);
+  });
+});
+
+describe('View Filters: Geometry View', () => {
+  it('passes through all nodes (geometry is placeholder)', () => {
+    const code = 'package GeoTest { part shape; }';
+    const { model } = parseSysMLText('test', code);
+    const filtered = applyViewFilter(model, 'geometry');
+    expect(filtered.nodes.length).toBe(model.nodes.length);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('View Filters: AFV includes P1 action types', () => {
+  it('includes SendActionUsage in AFV', () => {
+    const code = `
+      package AFVTest {
+        action def Comm {
+          action s1 send data to target;
+          action a1 accept response;
+        }
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    expect(filtered.nodes.some(n => n.kind === 'SendActionUsage')).toBe(true);
+    expect(filtered.nodes.some(n => n.kind === 'AcceptActionUsage')).toBe(true);
+  });
+
+  it('includes IfActionUsage in AFV', () => {
+    const code = `
+      package AFVTest {
+        action def Process {
+          if isValid {
+            action doWork;
+          }
+        }
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    expect(filtered.nodes.some(n => n.kind === 'IfActionUsage')).toBe(true);
+  });
+
+  it('includes loop actions in AFV', () => {
+    const code = `
+      package AFVTest {
+        action def Process {
+          while loop monitor {
+            action check;
+          }
+          for item in list {
+            action process;
+          }
+        }
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    expect(filtered.nodes.some(n => n.kind === 'WhileLoopActionUsage')).toBe(true);
+    expect(filtered.nodes.some(n => n.kind === 'ForLoopActionUsage')).toBe(true);
+  });
+
+  it('includes CaseDefinition and CaseUsage in AFV', () => {
+    const code = `
+      package AFVTest {
+        case def TestCase { action step1; }
+        case myTest : TestCase;
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    expect(filtered.nodes.some(n => n.kind === 'CaseDefinition')).toBe(true);
+    expect(filtered.nodes.some(n => n.kind === 'CaseUsage')).toBe(true);
+  });
+
+  it('includes IncludeUseCaseUsage in AFV', () => {
+    const code = `
+      package AFVTest {
+        use case def Drive {
+          include use case board;
+          action step1;
+        }
+      }
+    `;
+    const filtered = rawFilter(code, 'action-flow');
+    expect(filtered.nodes.some(n => n.kind === 'IncludeUseCaseUsage')).toBe(true);
+  });
+});
+
+describe('View Filters: IV includes ConjugatedPortDefinition', () => {
+  it('includes ConjugatedPortDefinition in IV', () => {
+    const code = `
+      package IVTest {
+        port def FuelPort { out item fuel; }
+        port def ConjPort conjugates FuelPort;
+        part def Tank { port out1 : FuelPort; }
+        part tank : Tank;
+      }
+    `;
+    const filtered = rawFilter(code, 'interconnection');
+    expect(filtered.nodes.some(n => n.kind === 'ConjugatedPortDefinition')).toBe(true);
+  });
+});

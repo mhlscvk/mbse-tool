@@ -315,3 +315,152 @@ describe('Package-owned definitions', () => {
     expect(model.nodes.some(n => n.name === 'A2')).toBe(true);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P0: DecisionNode rename, CaseDefinition/CaseUsage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('P0: DecisionNode and Case types', () => {
+  it('parses decide as DecisionNode (not DecideNode)', () => {
+    const kinds = nodeKinds('package P { action def A { decide d1; } }');
+    expect(kinds).toContain('DecisionNode');
+    expect(kinds).not.toContain('DecideNode');
+  });
+
+  it('parses case def as CaseDefinition', () => {
+    const kinds = nodeKinds('package P { case def MyCase { action step; } }');
+    expect(kinds).toContain('CaseDefinition');
+  });
+
+  it('parses case usage as CaseUsage', () => {
+    const kinds = nodeKinds('package P { case def C; case myCase : C; }');
+    expect(kinds).toContain('CaseUsage');
+  });
+
+  it('does not confuse case with use case', () => {
+    const kinds = nodeKinds('package P { use case def UC; case def C; }');
+    expect(kinds).toContain('UseCaseDefinition');
+    expect(kinds).toContain('CaseDefinition');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P1: Action subtypes
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('P1: Send and Accept actions', () => {
+  it('parses send action', () => {
+    const kinds = nodeKinds('package P { action def A { action s send data to target; } }');
+    expect(kinds).toContain('SendActionUsage');
+  });
+
+  it('parses accept action', () => {
+    const kinds = nodeKinds('package P { action def A { action r accept response; } }');
+    expect(kinds).toContain('AcceptActionUsage');
+  });
+});
+
+describe('P1: Conditional and loop actions', () => {
+  it('parses if action', () => {
+    const kinds = nodeKinds('package P { action def A { if isValid { action work; } } }');
+    expect(kinds).toContain('IfActionUsage');
+  });
+
+  it('parses while loop', () => {
+    const kinds = nodeKinds('package P { action def A { while loop monitor { action check; } } }');
+    expect(kinds).toContain('WhileLoopActionUsage');
+  });
+
+  it('parses for loop', () => {
+    const kinds = nodeKinds('package P { action def A { for item in list { action process; } } }');
+    expect(kinds).toContain('ForLoopActionUsage');
+  });
+
+  it('parses assignment', () => {
+    const kinds = nodeKinds('package P { action def A { assign result := value; } }');
+    expect(kinds).toContain('AssignmentActionUsage');
+  });
+});
+
+describe('P1: Include, Assert, Event', () => {
+  it('parses include use case', () => {
+    const kinds = nodeKinds('package P { use case def UC { include use case sub; } }');
+    expect(kinds).toContain('IncludeUseCaseUsage');
+  });
+
+  it('parses assert constraint', () => {
+    const kinds = nodeKinds('package P { part def V { assert constraint valid; } }');
+    expect(kinds).toContain('AssertConstraintUsage');
+  });
+
+  it('parses event occurrence', () => {
+    const kinds = nodeKinds('package P { action def A { event occurrence powerOn; } }');
+    expect(kinds).toContain('EventOccurrenceUsage');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P2: Connector/Port specializations
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('P2: ConjugatedPortDefinition', () => {
+  it('parses conjugated port definition', () => {
+    const kinds = nodeKinds('package P { port def Fuel; port def ConjFuel conjugates Fuel; }');
+    expect(kinds).toContain('ConjugatedPortDefinition');
+  });
+
+  it('creates conjugation edge', () => {
+    const c = conns('package P { port def Fuel; port def ConjFuel conjugates Fuel; }');
+    expect(c.some(e => e.kind === 'conjugation')).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P3: Membership types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('P3: Subject, Actor, Stakeholder', () => {
+  it('parses subject inside requirement', () => {
+    const kinds = nodeKinds('package P { requirement def R { subject s : Vehicle; } }');
+    expect(kinds).toContain('SubjectMembership');
+  });
+
+  it('parses actor inside use case', () => {
+    const kinds = nodeKinds('package P { use case def UC { actor driver : Person; } }');
+    expect(kinds).toContain('ActorMembership');
+  });
+
+  it('parses stakeholder inside requirement', () => {
+    const kinds = nodeKinds('package P { requirement def R { stakeholder agency : Org; } }');
+    expect(kinds).toContain('StakeholderMembership');
+  });
+
+  it('ignores actor outside requirement/case context', () => {
+    const kinds = nodeKinds('package P { part def V { actor driver; } }');
+    expect(kinds).not.toContain('ActorMembership');
+  });
+});
+
+describe('P3: Objective and ViewRendering', () => {
+  it('parses objective inside case', () => {
+    const kinds = nodeKinds('package P { use case def UC { objective goal : Req; } }');
+    expect(kinds).toContain('ObjectiveMembership');
+  });
+
+  it('parses render inside view', () => {
+    const kinds = nodeKinds('package P { view def V { render asTree : TreeRender; } }');
+    expect(kinds).toContain('ViewRenderingMembership');
+  });
+});
+
+describe('P3: Expose types', () => {
+  it('parses namespace expose (::*)', () => {
+    const kinds = nodeKinds('package P { view def V { expose P::*; } }');
+    expect(kinds).toContain('NamespaceExpose');
+  });
+
+  it('parses membership expose (::Element)', () => {
+    const kinds = nodeKinds('package P { view def V { expose P::MyPart; } }');
+    expect(kinds).toContain('MembershipExpose');
+  });
+});
