@@ -1814,13 +1814,25 @@ export default function DiagramViewer({
       </div>
       {/* Non-graph views: delegate to specialized renderers */}
       {viewType === 'sequence' && (
-        <SequenceRenderer model={model} />
+        <SequenceRenderer model={model} onNodeSelect={onNodeSelect ? (id) => {
+          const n = allNodeMap.get(id);
+          const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
+          if (r) onNodeSelect(r);
+        } : undefined} />
       )}
       {viewType === 'grid' && (
-        <GridRenderer model={model} />
+        <GridRenderer model={model} onNodeSelect={onNodeSelect ? (id) => {
+          const n = allNodeMap.get(id);
+          const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
+          if (r) onNodeSelect(r);
+        } : undefined} />
       )}
       {viewType === 'browser' && (
-        <BrowserRenderer model={model} selectedNodeId={selectedNodeId} />
+        <BrowserRenderer model={model} selectedNodeId={selectedNodeId} onNodeSelect={onNodeSelect ? (id) => {
+          const n = allNodeMap.get(id);
+          const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
+          if (r) onNodeSelect(r);
+        } : undefined} />
       )}
       {viewType === 'geometry' && (
         <GeometryRenderer />
@@ -2451,7 +2463,7 @@ export default function DiagramViewer({
                               fontStyle="italic"
                               opacity={0.6}
                             >
-                              {`^${label.text}`}
+                              {label.text}
                             </text>
                           ))}
                         </>
