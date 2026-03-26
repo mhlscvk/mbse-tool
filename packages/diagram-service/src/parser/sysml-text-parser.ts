@@ -2996,10 +2996,25 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
   // ── 4. Extract flow, succession flow, and message statements ────────────
 
-  // Helper to resolve a dotted name like "action1.item1" to the root node
+  // Helper to resolve a dotted name like "vehicle.engine.enginePort" to the deepest known node.
+  // Tries: "enginePort" (leaf), "engine" (parent), "vehicle" (root) — returns first match.
+  // For paths with ports, prefer the part over the port for message lifelines.
   function resolveFlowEnd(raw: string): SysMLNode | undefined {
-    const root = raw.split('.')[0];
-    return nodeIndex.get(root);
+    const parts = raw.split('.');
+    // For 3+ segment paths like "vehicle.engine.enginePort", prefer the second-to-last (the part)
+    if (parts.length >= 3) {
+      const partName = parts[parts.length - 2];
+      const node = nodeIndex.get(partName);
+      if (node) return node;
+    }
+    // For 2-segment paths like "driver.commandPort", use the root (the part)
+    if (parts.length >= 2) {
+      const root = parts[0];
+      const node = nodeIndex.get(root);
+      if (node) return node;
+    }
+    // Single name — direct lookup
+    return nodeIndex.get(parts[0]);
   }
 
   // Streaming flow: flow [name] [of Payload] [from] X.out to Y.in;
