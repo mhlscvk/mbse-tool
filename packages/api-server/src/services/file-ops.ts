@@ -119,7 +119,7 @@ export async function applyEdit(
   newText: string,
   userId: string,
 ) {
-  const result = await prisma.$transaction(async (tx: typeof prisma) => {
+  const result = await prisma.$transaction(async (tx) => {
     const file = await tx.sysMLFile.findUnique({
       where: { id: fileId },
       include: { project: { select: { ownerId: true } } },
