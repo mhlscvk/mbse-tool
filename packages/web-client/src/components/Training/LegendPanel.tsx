@@ -124,6 +124,54 @@ function ShapePreview({ shapeType }: { shapeType: LegendShapeType }) {
           </svg>
         </div>
       );
+    case 'interface':
+      return (
+        <div style={{ ...base, border: '1.5px solid #9070c0', background: '#2a1a5a', color: '#c0a0e0' }}>
+          ifc
+        </div>
+      );
+    case 'allocation':
+      return (
+        <div style={{ ...base, border: '1.5px solid #c0a060', background: '#4a3010', color: '#d8c070' }}>
+          alloc
+        </div>
+      );
+    case 'occurrence':
+      return (
+        <div style={{ ...base, border: '1.5px solid #80b080', background: '#2a3a2a', color: '#a0d0a0' }}>
+          occ
+        </div>
+      );
+    case 'metadata':
+      return (
+        <div style={{ ...base, border: '1.5px solid #b080b0', background: '#3a2a3a', color: '#c0a0c0' }}>
+          meta
+        </div>
+      );
+    case 'concern':
+      return (
+        <div style={{ ...base, border: '1.5px solid #c0a080', background: '#4a3a2a', color: '#d8c0a0' }}>
+          con
+        </div>
+      );
+    case 'verification':
+      return (
+        <div style={{ ...base, border: '1.5px solid #a080c0', background: '#3a2a4a', color: '#c0a0e0' }}>
+          ver
+        </div>
+      );
+    case 'analysis':
+      return (
+        <div style={{ ...base, border: '1.5px solid #80a0c0', background: '#2a3a4a', color: '#a0c0e0' }}>
+          ana
+        </div>
+      );
+    case 'calculation':
+      return (
+        <div style={{ ...base, border: '1.5px solid #60b0c0', background: '#0a3a4a', color: '#90d0e0' }}>
+          calc
+        </div>
+      );
     case 'package':
       return (
         <div style={{ ...base, border: '1.5px solid #888', background: '#1e1e1e', color: '#888', height: 22, position: 'relative' as const }}>

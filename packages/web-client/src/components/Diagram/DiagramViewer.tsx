@@ -2574,74 +2574,152 @@ export default function DiagramViewer({
         </g>
 
         {/* SysML v2 View Legend — dynamic per view type */}
-        {showLegend && <g transform="translate(10,10)">
-          {/* View type label */}
-          <text x={0} y={10} fill={svgCtrlFill} fontSize={10} fontWeight={600}>
-            {({ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View', 'sequence': 'Sequence View', 'grid': 'Grid View', 'browser': 'Browser View', 'geometry': 'Geometry View' } as Record<string, string>)[viewType]}
-          </text>
-          {/* Node shape legend */}
-          <g transform="translate(0,18)">
-            <rect width={10} height={6} fill={NODE_COLORS.package ?? '#2a2a3a'} stroke={svgPkgStroke} strokeWidth={1} />
-            <rect y={6} width={14} height={8} fill={NODE_COLORS.package ?? '#2a2a3a'} stroke={svgPkgStroke} strokeWidth={1} />
-            <text x={18} y={11} fill={svgPkgLabel} fontSize={9}>Package (tab)</text>
-          </g>
-          {(viewType === 'general' || viewType === 'interconnection') && <g transform="translate(0,36)">
-            <rect width={12} height={10} rx={0} fill={NODE_COLORS.partdefinition ?? '#1c3f6e'} stroke={svgStroke} strokeWidth={1} y={2} />
-            <text x={16} y={11} fill={svgTextSub} fontSize={9}>Definition (sharp)</text>
-          </g>}
-          <g transform={`translate(0,${viewType === 'general' || viewType === 'interconnection' ? 52 : 36})`}>
-            <rect width={12} height={10} rx={4} fill={NODE_COLORS.partusage ?? '#0a2040'} stroke={svgStroke} strokeWidth={1} y={2} />
-            <text x={16} y={11} fill={svgTextSub} fontSize={9}>Usage (rounded)</text>
-          </g>
-          {viewType === 'interconnection' && <g transform="translate(0,68)">
-            <rect width={10} height={10} rx={1} fill={NODE_COLORS.portusage ?? '#1e0a30'} stroke={svgPortStroke} strokeWidth={1} y={2} />
-            <path d="M7,4 L4,7 L7,10" fill="none" stroke={isDark ? '#b0a0d0' : '#7a5ab0'} strokeWidth={1} y={2} />
-            <text x={16} y={11} fill={svgPortText} fontSize={9}>Port (boundary)</text>
-          </g>}
-          {/* Edge legend — filtered per view type */}
-          {(() => {
-            const baseOffset = viewType === 'interconnection' ? 88 : (viewType === 'general' ? 72 : 56);
-            const legendItems: { label: string; color: string; dash?: string }[] = [];
-            if (effectiveViewMode === 'tree') legendItems.push({ label: '◆── composition', color: '#9cdcfe' });
-            if (effectiveViewMode === 'tree') legendItems.push({ label: '◇── noncomposite (ref)', color: '#9cdcfe' });
-            if (viewType === 'general' || viewType === 'interconnection') {
-              legendItems.push({ label: '◁── specializes :>', color: '#9e9e9e' });
-              legendItems.push({ label: '──▷ subsets :>', color: '#9e9e9e' });
-              legendItems.push({ label: '|──▷ redefines :>>', color: '#9e9e9e' });
-              legendItems.push({ label: '- -◁ defined by :', color: '#6a7a8a', dash: '4,3' });
-            }
-            if (viewType === 'general' || viewType === 'interconnection') {
-              legendItems.push({ label: '──▶ flow', color: '#4ec9b0' });
-              legendItems.push({ label: '──▷ connection', color: '#777' });
-            }
-            if (viewType === 'interconnection') {
-              legendItems.push({ label: '- - bind', color: '#9090c0', dash: '4,3' });
-            }
-            if (viewType === 'general' || viewType === 'action-flow') {
-              legendItems.push({ label: '──▷ succession', color: '#4ec9b0' });
-              if (viewType === 'general') legendItems.push({ label: '──▶ flow', color: '#4ec9b0' });
-            }
-            if (viewType === 'general' || viewType === 'state-transition') {
-              legendItems.push({ label: '──▶ transition', color: '#4ec9b0' });
-            }
-            if (viewType === 'general') {
-              legendItems.push({ label: '──▷ ref subsets ::>', color: '#9e9e9e' });
-              legendItems.push({ label: '- -▷ satisfy', color: '#e06060', dash: '6,3' });
-              legendItems.push({ label: '- -▷ verify', color: '#60b060', dash: '6,3' });
-              legendItems.push({ label: '- -▷ allocate', color: '#c0a060', dash: '6,3' });
-              legendItems.push({ label: '- - annotate', color: '#a0a060', dash: '4,3' });
-            }
-            // Deduplicate by label
-            const seen = new Set<string>();
-            const unique = legendItems.filter(item => { if (seen.has(item.label)) return false; seen.add(item.label); return true; });
-            return unique.map(({ label, color, dash }, i) => (
-              <g key={label} transform={`translate(0,${baseOffset + i * 16})`}>
-                <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />
-                <text x={24} y={11} fill={color} fontSize={9}>{label}</text>
-              </g>
-            ));
-          })()}
-        </g>}
+        {showLegend && (() => {
+          // ── Node legend items (per view type) ──
+          type NodeLegendItem = { label: string; fill: string; stroke: string; rx: number; textColor: string; icon?: 'pkg' | 'port' | 'ctrl-fork' | 'ctrl-join' | 'ctrl-decision' | 'ctrl-merge' | 'ctrl-start' | 'ctrl-done' | 'ctrl-terminate' };
+          const nodeItems: NodeLegendItem[] = [];
+
+          // Package — all views
+          nodeItems.push({ label: 'Package', fill: NODE_COLORS.package, stroke: svgPkgStroke, rx: 0, textColor: svgPkgLabel, icon: 'pkg' });
+
+          if (viewType === 'general' || viewType === 'interconnection') {
+            nodeItems.push({ label: 'Part def', fill: NODE_COLORS.partdefinition, stroke: svgStroke, rx: 0, textColor: svgTextSub });
+            nodeItems.push({ label: 'Part usage', fill: NODE_COLORS.partusage, stroke: svgStroke, rx: 4, textColor: svgTextSub });
+            nodeItems.push({ label: 'Attribute def', fill: NODE_COLORS.attributedefinition, stroke: isDark ? '#4a8a4a' : '#8aaa8a', rx: 0, textColor: isDark ? '#a8d8a8' : '#3a6a3a' });
+            nodeItems.push({ label: 'Connection def', fill: NODE_COLORS.connectiondefinition, stroke: isDark ? '#8a6a4a' : '#aa8a6a', rx: 0, textColor: isDark ? '#d8b888' : '#6a4a2a' });
+            nodeItems.push({ label: 'Port def', fill: NODE_COLORS.portdefinition, stroke: svgPortStroke, rx: 0, textColor: svgPortText });
+            nodeItems.push({ label: 'Port usage', fill: NODE_COLORS.portusage, stroke: svgPortStroke, rx: 0, textColor: svgPortText, icon: 'port' });
+            nodeItems.push({ label: 'Item def', fill: NODE_COLORS.itemdefinition, stroke: isDark ? '#8a6a30' : '#aa8a50', rx: 0, textColor: isDark ? '#d8b878' : '#6a4a20' });
+            nodeItems.push({ label: 'Interface def', fill: NODE_COLORS.interfacedefinition, stroke: isDark ? '#6a4a8a' : '#8a6aaa', rx: 0, textColor: isDark ? '#c0a0e0' : '#5a3a8a' });
+            nodeItems.push({ label: 'Enum def', fill: NODE_COLORS.enumdefinition, stroke: isDark ? '#4a8a6a' : '#6aaa8a', rx: 0, textColor: isDark ? '#a8d8c0' : '#2a5a40' });
+            nodeItems.push({ label: 'Requirement def', fill: NODE_COLORS.requirementdefinition, stroke: isDark ? '#8a4a4a' : '#aa6a6a', rx: 0, textColor: isDark ? '#f0a0a0' : '#6a2a2a' });
+            nodeItems.push({ label: 'Requirement usage', fill: NODE_COLORS.requirementusage, stroke: isDark ? '#8a4a4a' : '#aa6a6a', rx: 4, textColor: isDark ? '#f0a0a0' : '#6a2a2a' });
+            nodeItems.push({ label: 'Constraint def', fill: NODE_COLORS.constraintdefinition, stroke: isDark ? '#8a5a3a' : '#aa7a5a', rx: 0, textColor: isDark ? '#e0b898' : '#6a3a1a' });
+            nodeItems.push({ label: 'Use case def', fill: NODE_COLORS.usecasedefinition, stroke: isDark ? '#4a5a8a' : '#6a7aaa', rx: 10, textColor: isDark ? '#a0b8e8' : '#3a4a7a' });
+            nodeItems.push({ label: 'Calculation def', fill: NODE_COLORS.calcdefinition, stroke: isDark ? '#3a7a8a' : '#5a9aaa', rx: 0, textColor: isDark ? '#90d0e0' : '#2a5a6a' });
+            nodeItems.push({ label: 'Allocation def', fill: NODE_COLORS.allocationdefinition, stroke: isDark ? '#8a7030' : '#aa9050', rx: 0, textColor: isDark ? '#d8c070' : '#6a5010' });
+            nodeItems.push({ label: 'View def', fill: NODE_COLORS.viewdefinition, stroke: isDark ? '#4a8a8a' : '#6aaaaa', rx: 0, textColor: isDark ? '#a0d8d8' : '#2a6a6a' });
+            nodeItems.push({ label: 'Viewpoint def', fill: NODE_COLORS.viewpointdefinition, stroke: isDark ? '#5a5a8a' : '#7a7aaa', rx: 0, textColor: isDark ? '#b0b0e0' : '#4a4a7a' });
+            nodeItems.push({ label: 'Metadata def', fill: NODE_COLORS.metadatadefinition, stroke: isDark ? '#6a4a6a' : '#8a6a8a', rx: 0, textColor: isDark ? '#c0a0c0' : '#5a3a5a' });
+            nodeItems.push({ label: 'Comment', fill: NODE_COLORS.comment, stroke: svgCommentStroke, rx: 0, textColor: svgCommentLabel });
+          }
+
+          if (viewType === 'action-flow') {
+            nodeItems.push({ label: 'Action def', fill: NODE_COLORS.actiondefinition, stroke: isDark ? '#3a8a8a' : '#5aaaaa', rx: 0, textColor: isDark ? '#90d0d0' : '#2a6a6a' });
+            nodeItems.push({ label: 'Action usage', fill: NODE_COLORS.actionusage, stroke: isDark ? '#3a8a8a' : '#5aaaaa', rx: 4, textColor: isDark ? '#90d0d0' : '#2a6a6a' });
+            nodeItems.push({ label: 'Send action', fill: NODE_COLORS.sendactionusage, stroke: isDark ? '#3a7a9a' : '#5a9aba', rx: 4, textColor: isDark ? '#80c0e0' : '#2a5a7a' });
+            nodeItems.push({ label: 'Accept action', fill: NODE_COLORS.acceptactionusage, stroke: isDark ? '#3a7a9a' : '#5a9aba', rx: 4, textColor: isDark ? '#80c0e0' : '#2a5a7a' });
+            nodeItems.push({ label: 'If action', fill: NODE_COLORS.ifactionusage, stroke: isDark ? '#3a8090' : '#5aa0b0', rx: 4, textColor: isDark ? '#80c8d8' : '#2a6070' });
+            nodeItems.push({ label: 'For loop', fill: NODE_COLORS.forloopactionusage, stroke: isDark ? '#3a9090' : '#5ab0b0', rx: 4, textColor: isDark ? '#80d0d0' : '#2a7070' });
+            nodeItems.push({ label: 'Action in', fill: NODE_COLORS.actionin, stroke: isDark ? '#3a8a58' : '#5aaa78', rx: 2, textColor: isDark ? '#80d0a0' : '#2a6a40' });
+            nodeItems.push({ label: 'Action out', fill: NODE_COLORS.actionout, stroke: isDark ? '#8a3a3a' : '#aa5a5a', rx: 2, textColor: isDark ? '#e09090' : '#7a2a2a' });
+            nodeItems.push({ label: 'Fork node', fill: NODE_COLORS.forknode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-fork' });
+            nodeItems.push({ label: 'Join node', fill: NODE_COLORS.joinnode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-join' });
+            nodeItems.push({ label: 'Decision node', fill: NODE_COLORS.decisionnode, stroke: isDark ? '#8a8a5a' : '#aaaaaa', rx: 0, textColor: isDark ? '#d0d0a0' : '#5a5a3a', icon: 'ctrl-decision' });
+            nodeItems.push({ label: 'Merge node', fill: NODE_COLORS.mergenode, stroke: isDark ? '#8a8a5a' : '#aaaaaa', rx: 0, textColor: isDark ? '#d0d0a0' : '#5a5a3a', icon: 'ctrl-merge' });
+            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-start' });
+            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-done' });
+          }
+
+          if (viewType === 'state-transition') {
+            nodeItems.push({ label: 'State def', fill: NODE_COLORS.statedefinition, stroke: isDark ? '#8a8a3a' : '#aaaa5a', rx: 0, textColor: isDark ? '#d8d880' : '#5a5a20' });
+            nodeItems.push({ label: 'State usage', fill: NODE_COLORS.stateusage, stroke: isDark ? '#8a8a3a' : '#aaaa5a', rx: 10, textColor: isDark ? '#d8d880' : '#5a5a20' });
+            nodeItems.push({ label: 'Entry/Do/Exit', fill: NODE_COLORS.entryactionusage, stroke: isDark ? '#3a8a70' : '#5aaa90', rx: 4, textColor: isDark ? '#80d0b8' : '#2a6a50' });
+            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-start' });
+            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-done' });
+            nodeItems.push({ label: 'Terminate', fill: NODE_COLORS.terminatenode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-terminate' });
+          }
+
+          // ── Edge legend items (per view type) ──
+          type EdgeLegendItem = { label: string; color: string; dash?: string };
+          const edgeItems: EdgeLegendItem[] = [];
+          if (effectiveViewMode === 'tree') {
+            edgeItems.push({ label: '◆── composition', color: '#9cdcfe' });
+            edgeItems.push({ label: '◇── noncomposite (ref)', color: '#9cdcfe' });
+          }
+          if (viewType === 'general' || viewType === 'interconnection') {
+            edgeItems.push({ label: '◁── specializes :>', color: '#9e9e9e' });
+            edgeItems.push({ label: '──▷ subsets :>', color: '#9e9e9e' });
+            edgeItems.push({ label: '|──▷ redefines :>>', color: '#9e9e9e' });
+            edgeItems.push({ label: '- -◁ defined by :', color: '#6a7a8a', dash: '4,3' });
+            edgeItems.push({ label: '──▶ flow', color: '#4ec9b0' });
+            edgeItems.push({ label: '──▷ connection', color: '#777' });
+          }
+          if (viewType === 'interconnection') {
+            edgeItems.push({ label: '- - bind', color: '#9090c0', dash: '4,3' });
+          }
+          if (viewType === 'action-flow') {
+            edgeItems.push({ label: '──▷ succession', color: '#4ec9b0' });
+            edgeItems.push({ label: '──▶ flow', color: '#4ec9b0' });
+          }
+          if (viewType === 'state-transition') {
+            edgeItems.push({ label: '──▶ transition', color: '#4ec9b0' });
+          }
+          if (viewType === 'general') {
+            edgeItems.push({ label: '──▷ succession', color: '#4ec9b0' });
+            edgeItems.push({ label: '──▷ ref subsets ::>', color: '#9e9e9e' });
+            edgeItems.push({ label: '- -▷ satisfy', color: '#e06060', dash: '6,3' });
+            edgeItems.push({ label: '- -▷ verify', color: '#60b060', dash: '6,3' });
+            edgeItems.push({ label: '- -▷ allocate', color: '#c0a060', dash: '6,3' });
+            edgeItems.push({ label: '- - annotate', color: '#a0a060', dash: '4,3' });
+          }
+          // Deduplicate edges
+          const seenEdge = new Set<string>();
+          const uniqueEdges = edgeItems.filter(item => { if (seenEdge.has(item.label)) return false; seenEdge.add(item.label); return true; });
+
+          // Compute layout
+          const viewLabel = ({ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View', 'sequence': 'Sequence View', 'grid': 'Grid View', 'browser': 'Browser View', 'geometry': 'Geometry View' } as Record<string, string>)[viewType];
+          const ROW = 16;
+          const nodeStart = 18;
+          const edgeStart = nodeStart + nodeItems.length * ROW + 6;
+          const totalH = edgeStart + uniqueEdges.length * ROW + 4;
+
+          return (
+            <g transform="translate(10,10)">
+              {/* Background */}
+              <rect x={-6} y={-4} width={170} height={totalH} rx={4} fill={isDark ? 'rgba(30,30,30,0.85)' : 'rgba(245,245,245,0.9)'} stroke={isDark ? '#444' : '#ccc'} strokeWidth={0.5} />
+              {/* View type label */}
+              <text x={0} y={10} fill={svgCtrlFill} fontSize={10} fontWeight={600}>{viewLabel}</text>
+              {/* Node shapes */}
+              {nodeItems.map((item, i) => (
+                <g key={item.label} transform={`translate(0,${nodeStart + i * ROW})`}>
+                  {item.icon === 'pkg' ? <>
+                    <rect width={10} height={5} fill={item.fill} stroke={item.stroke} strokeWidth={1} />
+                    <rect y={5} width={14} height={7} fill={item.fill} stroke={item.stroke} strokeWidth={1} />
+                  </> : item.icon === 'port' ? <>
+                    <rect width={10} height={10} rx={1} fill={item.fill} stroke={item.stroke} strokeWidth={1} y={1} />
+                    <path d="M7,3 L4,6 L7,9" fill="none" stroke={item.stroke} strokeWidth={1} />
+                  </> : item.icon === 'ctrl-fork' || item.icon === 'ctrl-join' ? <>
+                    <rect width={14} height={3} fill={item.stroke} rx={1} y={5} />
+                  </> : item.icon === 'ctrl-decision' || item.icon === 'ctrl-merge' ? <>
+                    <polygon points="7,1 14,6 7,11 0,6" fill={item.fill} stroke={item.stroke} strokeWidth={1} />
+                  </> : item.icon === 'ctrl-start' ? <>
+                    <circle cx={6} cy={6} r={5} fill={isDark ? '#e0e0e0' : '#333'} />
+                  </> : item.icon === 'ctrl-done' ? <>
+                    <circle cx={6} cy={6} r={5} fill="none" stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
+                    <circle cx={6} cy={6} r={3} fill={isDark ? '#e0e0e0' : '#333'} />
+                  </> : item.icon === 'ctrl-terminate' ? <>
+                    <circle cx={6} cy={6} r={5} fill="none" stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
+                    <line x1={2} y1={2} x2={10} y2={10} stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
+                    <line x1={10} y1={2} x2={2} y2={10} stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
+                  </> : <>
+                    <rect width={12} height={10} rx={item.rx} fill={item.fill} stroke={item.stroke} strokeWidth={1} y={1} />
+                  </>}
+                  <text x={18} y={10} fill={item.textColor} fontSize={9}>{item.label}</text>
+                </g>
+              ))}
+              {/* Divider */}
+              <line x1={0} y1={edgeStart - 3} x2={150} y2={edgeStart - 3} stroke={isDark ? '#444' : '#ccc'} strokeWidth={0.5} />
+              {/* Edge styles */}
+              {uniqueEdges.map(({ label, color, dash }, i) => (
+                <g key={label} transform={`translate(0,${edgeStart + i * ROW})`}>
+                  <line x1={0} y1={7} x2={20} y2={7} stroke={color} strokeWidth={1.5} strokeDasharray={dash} />
+                  <text x={24} y={11} fill={color} fontSize={9}>{label}</text>
+                </g>
+              ))}
+            </g>
+          );
+        })()}
       </svg>
 
       {/* Right-click context menu */}

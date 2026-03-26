@@ -32,9 +32,17 @@ export type LegendShapeType =
   | 'requirement'
   | 'constraint'
   | 'connection'
+  | 'interface'
   | 'package'
   | 'usecase'
   | 'view'
+  | 'allocation'
+  | 'occurrence'
+  | 'metadata'
+  | 'concern'
+  | 'verification'
+  | 'analysis'
+  | 'calculation'
   | 'edge-generalization'
   | 'edge-composition'
   | 'edge-subsetting'
@@ -376,6 +384,70 @@ export const LEGEND_ITEMS: LegendItem[] = [
     explanation:
       'A viewpoint defines stakeholder concerns. A view renders model content for a viewpoint.',
     minLevel: 15,
+  },
+  {
+    label: '«interface def»',
+    shapeType: 'interface',
+    textualSyntax: 'interface def FuelInterface { }',
+    explanation:
+      'An interface definition specifies a set of features that define an interaction point between parts.',
+    minLevel: 8,
+  },
+  {
+    label: '«allocation def»',
+    shapeType: 'allocation',
+    textualSyntax: 'allocation def FuncToComp { }',
+    explanation:
+      'An allocation maps logical elements (functions, requirements) to physical elements (parts, components).',
+    minLevel: 13,
+  },
+  {
+    label: '«occurrence def»',
+    shapeType: 'occurrence',
+    textualSyntax: 'occurrence def CrashEvent { }',
+    explanation:
+      'An occurrence definition defines something that happens in time and space — events, situations, or phenomena.',
+    minLevel: 11,
+  },
+  {
+    label: '«metadata def»',
+    shapeType: 'metadata',
+    textualSyntax: 'metadata def Safety { }',
+    explanation:
+      'A metadata definition defines annotations that can be applied to model elements for tooling or traceability.',
+    minLevel: 15,
+  },
+  {
+    label: '«concern def»',
+    shapeType: 'concern',
+    textualSyntax: 'concern def PerformanceConcern { }',
+    explanation:
+      'A concern definition captures a stakeholder interest to be addressed by viewpoints and views.',
+    minLevel: 15,
+  },
+  {
+    label: '«verification case def»',
+    shapeType: 'verification',
+    textualSyntax: 'verification def MassTest { }',
+    explanation:
+      'A verification case defines a test or analysis that confirms whether a requirement is met.',
+    minLevel: 12,
+  },
+  {
+    label: '«analysis case def»',
+    shapeType: 'analysis',
+    textualSyntax: 'analysis def ThermalAnalysis { }',
+    explanation:
+      'An analysis case defines a study with an objective, subject, and calculation to evaluate a system property.',
+    minLevel: 13,
+  },
+  {
+    label: '«calc def»  (shape)',
+    shapeType: 'calculation',
+    textualSyntax: 'calc def TotalMass {\n  in attribute partMass : Real;\n  return : Real;\n}',
+    explanation:
+      'A calculation definition defines a computation with typed parameters and a return value.',
+    minLevel: 13,
   },
 ];
 
