@@ -38,6 +38,10 @@ export type LegendShapeType =
   | 'view'
   | 'allocation'
   | 'occurrence'
+  | 'individual'
+  | 'snapshot'
+  | 'timeslice'
+  | 'interaction'
   | 'metadata'
   | 'concern'
   | 'verification'
@@ -448,6 +452,38 @@ export const LEGEND_ITEMS: LegendItem[] = [
     explanation:
       'A calculation definition defines a computation with typed parameters and a return value.',
     minLevel: 13,
+  },
+  {
+    label: '«interaction def»',
+    shapeType: 'interaction',
+    textualSyntax: 'interaction def DriveEncounter { }',
+    explanation:
+      'An interaction combines behavior with association — it models a communication protocol between parts.',
+    minLevel: 21,
+  },
+  {
+    label: '«individual def»',
+    shapeType: 'individual',
+    textualSyntax: 'individual def Vehicle_1 :> Vehicle;',
+    explanation:
+      'An individual definition represents a specific, unique instance — "this one car" rather than the class "cars".',
+    minLevel: 22,
+  },
+  {
+    label: '«snapshot»',
+    shapeType: 'snapshot',
+    textualSyntax: 'snapshot t0 { }',
+    explanation:
+      'A snapshot captures the state of an individual at a specific point in time.',
+    minLevel: 22,
+  },
+  {
+    label: '«timeslice»',
+    shapeType: 'timeslice',
+    textualSyntax: 'timeslice trip { }',
+    explanation:
+      'A timeslice captures the state of an individual over a time interval.',
+    minLevel: 22,
   },
 ];
 
@@ -5827,9 +5863,338 @@ action workflow {
       { pat: /if\s+\w+\s+then\s+\w+/, hint: 'Add conditional guards after decide.' },
     ], 'Complete control flow with all node types — congratulations!', 'Build the full flow with fork/join/decide/merge and conditional guards.'),
   },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 21: Occurrences & Interactions (5 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l21t1', level: 21, levelName: 'Occurrences & Interactions',
+    title: 'Create an Occurrence Definition',
+    instruction:
+      'An **occurrence def** defines something that happens in time and space.\n\n' +
+      'Occurrences are the base of all behavioral types — actions, states, and events are all specializations.\n\n' +
+      'Add: `occurrence def CrashEvent;`',
+    hint: 'Use `occurrence def Name;` syntax.',
+    concept: '«occurrence def»',
+    conceptExplanation: 'An occurrence definition is a general-purpose temporal type. Actions and states are its specializations.',
+    starterCode: `\
+part def Vehicle {
+  attribute speed : Real;
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute speed : Real;
+}
+occurrence def CrashEvent;
+`,
+    validate: vDef('occurrence\\s+def', 'CrashEvent', 'Occurrence definition created — a thing that happens in time and space.', 'Add `occurrence def CrashEvent;`'),
+  },
+  {
+    id: 'l21t2', level: 21, levelName: 'Occurrences & Interactions',
+    title: 'Use an Event Occurrence',
+    instruction:
+      'An **event occurrence** marks a point in time within a behavior — a signal or trigger.\n\n' +
+      'Inside the action, add two events:\n' +
+      '- `event occurrence driverReady;`\n' +
+      '- `event occurrence doorClosed;`',
+    hint: 'Use `event occurrence name;` inside an action or part.',
+    concept: '«event occurrence»',
+    conceptExplanation: 'Events mark instants in time. They can trigger transitions or sequences.',
+    starterCode: `\
+item def VehicleStart;
+
+action def StartVehicle {
+  /* Events go here */
+}
+`,
+    targetCode: `\
+item def VehicleStart;
+
+action def StartVehicle {
+  event occurrence driverReady;
+  event occurrence doorClosed;
+  first doorClosed then driverReady;
+}
+`,
+    validate: vAll([
+      { pat: /event\s+(?:occurrence\s+)?driverReady/, hint: 'Add `event occurrence driverReady;`' },
+      { pat: /event\s+(?:occurrence\s+)?doorClosed/, hint: 'Add `event occurrence doorClosed;`' },
+    ], 'Events created — driverReady and doorClosed mark instants in the action.', 'Add event occurrences inside StartVehicle.'),
+  },
+  {
+    id: 'l21t3', level: 21, levelName: 'Occurrences & Interactions',
+    title: 'Create an Interaction Definition',
+    instruction:
+      'An **interaction def** defines a combined behavior and association — modeling how parts communicate.\n\n' +
+      'Add: `interaction def DriveEncounter;`',
+    hint: 'Use `interaction def Name;` syntax.',
+    concept: '«interaction def»',
+    conceptExplanation: 'An interaction combines a behavior with an association. It models communication protocols between parts.',
+    starterCode: `\
+part def Driver;
+part def Vehicle;
+`,
+    targetCode: `\
+part def Driver;
+part def Vehicle;
+interaction def DriveEncounter;
+`,
+    validate: vDef('interaction\\s+def', 'DriveEncounter', 'Interaction definition created — a communication protocol between parts.', 'Add `interaction def DriveEncounter;`'),
+  },
+  {
+    id: 'l21t4', level: 21, levelName: 'Occurrences & Interactions',
+    title: 'Use an Interaction',
+    instruction:
+      'An **interaction usage** instantiates a communication protocol.\n\n' +
+      'Inside the package, add: `interaction driving : DriveEncounter;`',
+    hint: 'Use `interaction name : InteractionDef;` syntax.',
+    concept: '«interaction»',
+    conceptExplanation: 'An interaction usage creates an instance of a communication protocol between specific parts.',
+    starterCode: `\
+part def Driver;
+part def Vehicle;
+interaction def DriveEncounter;
+
+package Scenario {
+  part driver : Driver;
+  part vehicle : Vehicle;
+}
+`,
+    targetCode: `\
+part def Driver;
+part def Vehicle;
+interaction def DriveEncounter;
+
+package Scenario {
+  part driver : Driver;
+  part vehicle : Vehicle;
+  interaction driving : DriveEncounter;
+}
+`,
+    validate: vMatch(/interaction\s+\w+\s*:\s*DriveEncounter/, 'Interaction usage created — an instance of the communication protocol.', /interaction\s+\w+/, 'Add the type: `interaction driving : DriveEncounter;`', 'Add `interaction driving : DriveEncounter;` inside Scenario.'),
+  },
+  {
+    id: 'l21t5', level: 21, levelName: 'Occurrences & Interactions',
+    title: 'Events with Messages',
+    instruction:
+      'Combine **events** and **messages** in a realistic scenario.\n\n' +
+      'Inside StartVehicle, add:\n' +
+      '- A send action: `action turnOn send vs : VehicleStart to vehicle.controlPort;`\n' +
+      '- A message: `message of VehicleStart from turnOn to waitForStart;`',
+    hint: 'Use `send name : Type to target;` and `message of Type from X to Y;`.',
+    concept: 'event + message',
+    conceptExplanation: 'Send actions produce items. Messages model abstract transfers between lifelines in a sequence.',
+    starterCode: `\
+item def VehicleStart;
+part def Vehicle { port controlPort; }
+
+action def StartVehicle {
+  event occurrence driverReady;
+  action waitForStart accept vs : VehicleStart;
+}
+
+part vehicle : Vehicle;
+`,
+    targetCode: `\
+item def VehicleStart;
+part def Vehicle { port controlPort; }
+
+action def StartVehicle {
+  event occurrence driverReady;
+  action turnOn send vs : VehicleStart to vehicle.controlPort;
+  action waitForStart accept vs : VehicleStart;
+  message of VehicleStart from turnOn to waitForStart;
+}
+
+part vehicle : Vehicle;
+`,
+    validate: vAll([
+      { pat: /send\s+\w+\s*:\s*VehicleStart\s+to/, hint: 'Add a send action: `action turnOn send vs : VehicleStart to vehicle.controlPort;`' },
+      { pat: /message\s+(?:of\s+\w+\s+)?from\s+\w+\s+to\s+\w+/, hint: 'Add `message of VehicleStart from turnOn to waitForStart;`' },
+    ], 'Events, send actions, and messages working together — a complete communication sequence.', 'Add both a send action and a message inside StartVehicle.'),
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LEVEL 22: Individual, Snapshot & Timeslice (5 tasks)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'l22t1', level: 22, levelName: 'Individual & Temporal',
+    title: 'Create an Individual Definition',
+    instruction:
+      'An **individual def** defines a specific, unique instance — not a class but one concrete entity.\n\n' +
+      'In SysML v2, `individual` marks a definition as representing exactly one thing in reality.\n\n' +
+      'Add: `individual def Vehicle_1 :> Vehicle;`',
+    hint: 'Use `individual def Name :> ParentDef;` to declare a specific individual.',
+    concept: '«individual occurrence def»',
+    conceptExplanation: 'An individual definition is an occurrence that represents a specific instance — "this one car" vs "cars in general".',
+    starterCode: `\
+part def Vehicle {
+  attribute vin : String;
+  attribute color : Color;
+}
+enum def Color { Red; Blue; White; }
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute vin : String;
+  attribute color : Color;
+}
+enum def Color { Red; Blue; White; }
+individual def Vehicle_1 :> Vehicle;
+`,
+    validate: vMatch(/individual\s+(?:occurrence\s+)?def\s+Vehicle_1\s*:>\s*Vehicle/, 'Individual definition created — Vehicle_1 is a specific vehicle, not a class.', /individual.*def\s+\w+/, 'Add specialization: `individual def Vehicle_1 :> Vehicle;`', 'Add `individual def Vehicle_1 :> Vehicle;`'),
+  },
+  {
+    id: 'l22t2', level: 22, levelName: 'Individual & Temporal',
+    title: 'Create an Individual Usage',
+    instruction:
+      'An **individual** usage creates a context for a specific instance — where we model its life.\n\n' +
+      'Add: `individual myVehicle : Vehicle_1 { }`',
+    hint: 'Use `individual name : IndividualDef { }` syntax.',
+    concept: '«individual occurrence»',
+    conceptExplanation: 'An individual usage provides the context in which we observe a specific instance over time.',
+    starterCode: `\
+part def Vehicle {
+  attribute vin : String;
+}
+individual def Vehicle_1 :> Vehicle;
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute vin : String;
+}
+individual def Vehicle_1 :> Vehicle;
+individual myVehicle : Vehicle_1 { }
+`,
+    validate: vMatch(/individual\s+(?:occurrence\s+)?myVehicle\s*:\s*Vehicle_1/, 'Individual usage created — myVehicle is the context for observing Vehicle_1.', /individual\s+\w+/, 'Add the type: `individual myVehicle : Vehicle_1 { }`', 'Add `individual myVehicle : Vehicle_1 { }` after the individual def.'),
+  },
+  {
+    id: 'l22t3', level: 22, levelName: 'Individual & Temporal',
+    title: 'Add a Snapshot',
+    instruction:
+      'A **snapshot** captures the state of an individual at a specific point in time.\n\n' +
+      'Inside `myVehicle`, add: `snapshot t0 { }`\n\n' +
+      'This represents "the state of myVehicle at time t0".',
+    hint: 'Use `snapshot name { }` inside an individual usage.',
+    concept: '«snapshot»',
+    conceptExplanation: 'A snapshot is an occurrence usage with portionKind=snapshot — it captures an instant in an individual\'s life.',
+    starterCode: `\
+part def Vehicle {
+  attribute vin : String;
+  attribute mileage : Real;
+}
+individual def Vehicle_1 :> Vehicle;
+
+individual myVehicle : Vehicle_1 {
+  /* Add a snapshot here */
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute vin : String;
+  attribute mileage : Real;
+}
+individual def Vehicle_1 :> Vehicle;
+
+individual myVehicle : Vehicle_1 {
+  snapshot t0 { }
+  snapshot t1 { }
+}
+`,
+    validate: vAll([
+      { pat: /snapshot\s+t0/, hint: 'Add `snapshot t0 { }` inside myVehicle.' },
+      { pat: /snapshot\s+t1/, hint: 'Add `snapshot t1 { }` as a second point in time.' },
+    ], 'Snapshots created — t0 and t1 capture myVehicle at two instants in time.', 'Add `snapshot t0 { }` and `snapshot t1 { }` inside myVehicle.'),
+  },
+  {
+    id: 'l22t4', level: 22, levelName: 'Individual & Temporal',
+    title: 'Add a Timeslice',
+    instruction:
+      'A **timeslice** captures the state of an individual over a time interval (not just an instant).\n\n' +
+      'Inside `myVehicle`, add: `timeslice t0_to_t1 { }`\n\n' +
+      'This represents "the state of myVehicle between t0 and t1".',
+    hint: 'Use `timeslice name { }` inside an individual usage.',
+    concept: '«timeslice»',
+    conceptExplanation: 'A timeslice captures a duration — the state of an individual over a time interval.',
+    starterCode: `\
+part def Vehicle {
+  attribute mileage : Real;
+}
+individual def Vehicle_1 :> Vehicle;
+
+individual myVehicle : Vehicle_1 {
+  snapshot t0 { }
+  snapshot t1 { }
+  /* Add a timeslice between t0 and t1 */
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute mileage : Real;
+}
+individual def Vehicle_1 :> Vehicle;
+
+individual myVehicle : Vehicle_1 {
+  snapshot t0 { }
+  snapshot t1 { }
+  timeslice t0_to_t1 { }
+}
+`,
+    validate: vMatch(/timeslice\s+\w+/, 'Timeslice created — captures the state of myVehicle over a time interval.', null, '', 'Add `timeslice t0_to_t1 { }` inside myVehicle.'),
+  },
+  {
+    id: 'l22t5', level: 22, levelName: 'Individual & Temporal',
+    title: 'Complete Temporal Model',
+    instruction:
+      'Build a complete temporal model with **individual**, **snapshots**, **timeslice**, and **successions**.\n\n' +
+      'Model a road trip: the vehicle starts at t0 (home), drives to t1 (destination), with a timeslice for the journey.\n\n' +
+      'Add successions: `first t0 then trip;` and `first trip then t1;`',
+    hint: 'Use `first X then Y;` to order snapshots and timeslices in time.',
+    concept: 'temporal modeling',
+    conceptExplanation: 'Combine individual + snapshots + timeslices + successions to model an entity\'s complete lifecycle over time.',
+    starterCode: `\
+part def Vehicle {
+  attribute location : String;
+  attribute mileage : Real;
+}
+individual def Vehicle_1 :> Vehicle;
+
+individual myVehicle : Vehicle_1 {
+  snapshot t0 { }
+  snapshot t1 { }
+  timeslice trip { }
+}
+`,
+    targetCode: `\
+part def Vehicle {
+  attribute location : String;
+  attribute mileage : Real;
+}
+individual def Vehicle_1 :> Vehicle;
+
+individual myVehicle : Vehicle_1 {
+  snapshot t0 { }
+  snapshot t1 { }
+  timeslice trip { }
+
+  first t0 then trip;
+  first trip then t1;
+}
+`,
+    validate: vAll([
+      { pat: /snapshot\s+t0/, hint: 'Keep the snapshot t0.' },
+      { pat: /snapshot\s+t1/, hint: 'Keep the snapshot t1.' },
+      { pat: /timeslice\s+trip/, hint: 'Keep the timeslice trip.' },
+      { pat: /first\s+t0\s+then\s+trip/, hint: 'Add `first t0 then trip;` for the temporal ordering.' },
+      { pat: /first\s+trip\s+then\s+t1/, hint: 'Add `first trip then t1;` to complete the sequence.' },
+    ], 'Complete temporal model — snapshots at departure/arrival with a timeslice for the journey, ordered in time.', 'Add successions to order the snapshots and timeslice in time.'),
+  },
 ];
 
-export const TOTAL_LEVELS = 20;
+export const TOTAL_LEVELS = 22;
 
 export const COMPLETED_CODE = `\
 // SysML v2 Training Complete!
@@ -5854,6 +6219,8 @@ export const COMPLETED_CODE = `\
 // - Comments, documentation, aliases
 // - Conjugated ports, interfaces, bindings
 // - Conditional guards, if-then-else, fork/join/decide/merge
+// - Occurrences, event occurrences, interactions
+// - Individual definitions, snapshots, timeslices, temporal modeling
 
 part def Vehicle {
     attribute maxSpeed : Real;
@@ -5941,5 +6308,17 @@ satisfy MassRequirement by Vehicle;
 package VehicleDomain {
     part def SystemModel {
     }
+}
+
+occurrence def CrashEvent;
+interaction def DriveEncounter;
+
+individual def Vehicle_1 :> Vehicle;
+individual myVehicle : Vehicle_1 {
+    snapshot t0 { }
+    snapshot t1 { }
+    timeslice trip { }
+    first t0 then trip;
+    first trip then t1;
 }
 `;

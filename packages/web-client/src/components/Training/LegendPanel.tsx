@@ -142,6 +142,30 @@ function ShapePreview({ shapeType }: { shapeType: LegendShapeType }) {
           occ
         </div>
       );
+    case 'individual':
+      return (
+        <div style={{ ...base, border: '1.5px solid #80b080', background: '#2a3a2a', color: '#a0d0a0', fontWeight: 700 }}>
+          ind
+        </div>
+      );
+    case 'snapshot':
+      return (
+        <div style={{ ...base, border: '1.5px dashed #80b080', background: '#1a2a1a', color: '#a0d0a0' }}>
+          snap
+        </div>
+      );
+    case 'timeslice':
+      return (
+        <div style={{ ...base, border: '1.5px solid #80b080', background: '#1a2a1a', color: '#a0d0a0', borderStyle: 'double' }}>
+          time
+        </div>
+      );
+    case 'interaction':
+      return (
+        <div style={{ ...base, border: '1.5px solid #8080c0', background: '#2a2a3a', color: '#b0b0e0' }}>
+          iact
+        </div>
+      );
     case 'metadata':
       return (
         <div style={{ ...base, border: '1.5px solid #b080b0', background: '#3a2a3a', color: '#c0a0c0' }}>
