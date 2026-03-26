@@ -45,7 +45,7 @@ interface SeqFragment {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const LL_WIDTH = 140;
+const LL_WIDTH = 160;
 const LL_GAP = 40;
 const LL_HEADER_H = 44;
 const MSG_STEP = 50;
@@ -135,8 +135,10 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
     // Build lifeline array
     const llArr: SeqLifeline[] = [...lifelineIds].map((id, i) => {
       const node = nodeMap.get(id);
+      // Use __label text (already has "name : Type" from transformer), fallback to raw name
       let name = node ? nodeName(node) : id.split('__').pop() ?? id;
-      if (node) {
+      // Only add type if the label doesn't already contain ':'
+      if (node && !name.includes(':')) {
         const typeName = nodeType(node);
         if (typeName && typeName !== name) name = `${name} : ${typeName}`;
       }
@@ -165,13 +167,8 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
       else if (srcNode && sendNodes.has(srcNode.id)) kind = 'sync';
       else if (srcNode && acceptNodes.has(srcNode.id)) kind = 'async';
 
-      // Label: edge label or source node name
+      // Label: edge label, or derive from edge name/kind
       let label = e.children.find(c => c.id.endsWith('__label'))?.text ?? '';
-      if (!label && srcNode) {
-        const srcName = nodeName(srcNode);
-        const srcType = nodeType(srcNode);
-        label = srcType ? `${srcName}(${srcType})` : srcName;
-      }
 
       msgArr.push({
         id: e.id, label, sourceId: e.sourceId, targetId: e.targetId,
@@ -491,7 +488,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
                 x={ll.x + LL_WIDTH / 2} y={PAD_TOP + LL_HEADER_H / 2 + 4}
                 textAnchor="middle" fill={textColor} fontSize={11} fontWeight={600}
               >
-                {ll.name.length > 18 ? ll.name.slice(0, 17) + '…' : ll.name}
+                {ll.name.length > 22 ? ll.name.slice(0, 21) + '…' : ll.name}
               </text>
             </g>
           );
