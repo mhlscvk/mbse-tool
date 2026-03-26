@@ -5,6 +5,8 @@ import { useTheme } from '../../store/theme.js';
 interface SequenceRendererProps {
   model: SModelRoot | null;
   onNodeSelect?: (nodeId: string) => void;
+  /** Increment to trigger fit-to-window */
+  fitTrigger?: number;
 }
 
 interface Lifeline {
@@ -30,7 +32,7 @@ const MESSAGE_SPACING = 40;
 const TOP_PADDING = 20;
 const LEFT_PADDING = 30;
 
-export default function SequenceRenderer({ model, onNodeSelect }: SequenceRendererProps) {
+export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: SequenceRendererProps) {
   const t = useTheme();
   const isDark = t.mode === 'dark';
   const svgRef = useRef<SVGSVGElement>(null);
@@ -128,6 +130,21 @@ export default function SequenceRenderer({ model, onNodeSelect }: SequenceRender
       scale: Math.max(0.1, Math.min(3, prev.scale * factor)),
     }));
   }, []);
+
+  // Fit-to-window: compute scale and offset to center content in viewport
+  useEffect(() => {
+    if (fitTrigger === undefined || fitTrigger === 0) return;
+    const svg = svgRef.current;
+    if (!svg || totalWidth === 0 || totalHeight === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const padX = 20, padY = 20;
+    const scaleX = (rect.width - padX * 2) / totalWidth;
+    const scaleY = (rect.height - padY * 2) / totalHeight;
+    const s = Math.min(scaleX, scaleY, 2);
+    const tx = (rect.width - totalWidth * s) / 2;
+    const ty = (rect.height - totalHeight * s) / 2;
+    setTransform({ x: tx, y: ty, scale: s });
+  }, [fitTrigger, totalWidth, totalHeight]);
 
   const textColor = isDark ? '#e8eef6' : '#1a1a2e';
   const lineColor = isDark ? '#555' : '#bbb';

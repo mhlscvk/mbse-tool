@@ -1834,7 +1834,7 @@ export default function DiagramViewer({
       </div>
       {/* Non-graph views: delegate to specialized renderers */}
       {viewType === 'sequence' && (
-        <SequenceRenderer model={model} onNodeSelect={onNodeSelect ? (id) => {
+        <SequenceRenderer model={model} fitTrigger={layoutTrigger} onNodeSelect={onNodeSelect ? (id) => {
           const n = allNodeMap.get(id);
           const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
           if (r) onNodeSelect(r);
