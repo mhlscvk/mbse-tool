@@ -8,6 +8,7 @@ import { useTheme } from '../../store/theme.js';
 import DiagramContextMenu from './DiagramContextMenu.js';
 import type { ContextMenuData } from './DiagramContextMenu.js';
 import SequenceRenderer from './SequenceRenderer.js';
+import StateTransitionRenderer from './StateTransitionRenderer.js';
 import GridRenderer from './GridRenderer.js';
 import BrowserRenderer from './BrowserRenderer.js';
 import GeometryRenderer from './GeometryRenderer.js';
@@ -1840,6 +1841,13 @@ export default function DiagramViewer({
           if (r) onNodeSelect(r);
         } : undefined} />
       )}
+      {viewType === 'state-transition' && (
+        <StateTransitionRenderer model={model} fitTrigger={layoutTrigger} onNodeSelect={onNodeSelect ? (id) => {
+          const n = allNodeMap.get(id);
+          const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
+          if (r) onNodeSelect(r);
+        } : undefined} />
+      )}
       {viewType === 'grid' && (
         <GridRenderer model={model} onNodeSelect={onNodeSelect ? (id) => {
           const n = allNodeMap.get(id);
@@ -1858,7 +1866,7 @@ export default function DiagramViewer({
         <GeometryRenderer />
       )}
       {/* Standard graph views */}
-      {isEmpty && !['sequence', 'grid', 'browser', 'geometry'].includes(viewType) && (
+      {isEmpty && !['sequence', 'state-transition', 'grid', 'browser', 'geometry'].includes(viewType) && (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim }}>
           <div style={{ fontSize: 12 }}>{emptyHint}</div>
         </div>
