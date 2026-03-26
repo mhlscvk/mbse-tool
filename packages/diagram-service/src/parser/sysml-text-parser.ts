@@ -3081,10 +3081,14 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const targetNode = resolveFlowEnd(dequote(rawTo, nameMap));
     if (!sourceNode || !targetNode) continue;
     const label = payload ? `«message» of ${simpleName(payload)}` : (msgName ? `«message» ${msgName}` : '«message»');
+    const { line: mL, column: mC } = lineCol(source, match.index);
+    const mEnd = match.index + match[0].length;
+    const { line: mEL, column: mEC } = lineCol(source, mEnd);
     connections.push({
       id: makeId('message', `${sourceNode.id}_${targetNode.id}_${match.index}`),
       sourceId: sourceNode.id, targetId: targetNode.id,
       kind: 'message', name: label,
+      range: { start: { line: mL - 1, character: mC - 1 }, end: { line: mEL - 1, character: mEC - 1 } },
     });
   }
 

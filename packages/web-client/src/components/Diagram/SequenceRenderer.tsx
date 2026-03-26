@@ -146,41 +146,49 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
     }
 
     // 3b. Build parent map for lifeline containment
-    // Strategy: for each lifeline, walk up composition edges to find if any ancestor is also a lifeline
+    // Strategy: engine is composed from def__Vehicle, and vehicle is typed as Vehicle.
+    // So if a lifeline's composition parent is a definition node, and another lifeline
+    // has that definition as its qualifiedName (type), they are parent-child.
     const parentOf = new Map<string, string>();
-    const compositionParent = new Map<string, string>(); // nodeId → parent nodeId (from composition edges)
+    const compositionParent = new Map<string, string>(); // nodeId → parent nodeId
     for (const e of edges) {
       if (e.cssClasses?.[0] === 'composition') {
         compositionParent.set(e.targetId, e.sourceId);
       }
     }
-    // For each lifeline, walk up the composition chain to find another lifeline as ancestor
+
+    // Build type-to-lifeline map: qualifiedName → lifeline id
+    // e.g., "Vehicle" → id of the `vehicle : Vehicle` usage node
+    const typeToLifeline = new Map<string, string>();
     for (const llId of lifelineIds) {
-      let current = llId;
-      for (let depth = 0; depth < 5; depth++) {
-        const parent = compositionParent.get(current);
-        if (!parent) break;
-        if (lifelineIds.has(parent) && parent !== llId) {
-          parentOf.set(llId, parent);
-          break;
-        }
-        current = parent;
+      const node = nodeMap.get(llId);
+      if (node) {
+        const typeName = nodeType(node);
+        if (typeName) typeToLifeline.set(typeName, llId);
       }
     }
-    // Also detect containment from node ID naming patterns (e.g., engine's ID contains vehicle's scope)
-    if (parentOf.size === 0) {
-      // Fallback: check if lifeline node names suggest containment via the original SysML dotted paths
-      // Look at message edges for dotted source/target that share a common root
-      const llIdSet = new Set(lifelineIds);
-      for (const e of msgEdges) {
-        // If source and target share a common ancestor lifeline, group them
-        const srcParent = compositionParent.get(e.sourceId);
-        const tgtParent = compositionParent.get(e.targetId);
-        if (srcParent && llIdSet.has(srcParent) && srcParent !== e.sourceId && !parentOf.has(e.sourceId)) {
-          parentOf.set(e.sourceId, srcParent);
-        }
-        if (tgtParent && llIdSet.has(tgtParent) && tgtParent !== e.targetId && !parentOf.has(e.targetId)) {
-          parentOf.set(e.targetId, tgtParent);
+
+    // For each lifeline, check if its composition parent is a definition
+    // whose name matches another lifeline's type
+    for (const llId of lifelineIds) {
+      if (parentOf.has(llId)) continue;
+      const compParentId = compositionParent.get(llId);
+      if (!compParentId) continue;
+
+      // Direct: parent is also a lifeline
+      if (lifelineIds.has(compParentId)) {
+        parentOf.set(llId, compParentId);
+        continue;
+      }
+
+      // Indirect: parent is a definition node (def__Vehicle), find the lifeline typed by it
+      const parentNode = nodeMap.get(compParentId);
+      if (parentNode) {
+        const parentName = nodeName(parentNode);
+        // Find a lifeline whose type matches this definition's name
+        const ownerLL = typeToLifeline.get(parentName);
+        if (ownerLL && ownerLL !== llId) {
+          parentOf.set(llId, ownerLL);
         }
       }
     }
