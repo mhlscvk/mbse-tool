@@ -12,7 +12,6 @@ interface FilteredModel {
 const IV_NODE_KINDS = new Set([
   'PartUsage', 'PortUsage', 'ConnectionUsage', 'InterfaceUsage', 'ItemUsage', 'AttributeUsage',
   'PartDefinition', 'PortDefinition', 'ConjugatedPortDefinition', 'ConnectionDefinition', 'InterfaceDefinition', 'ItemDefinition', 'AttributeDefinition',
-  'InteractionDefinition', 'InteractionUsage',
   'Package',
 ]);
 
@@ -279,7 +278,7 @@ function filterSequenceView(model: SysMLModel): FilteredModel {
     'PartUsage', 'PartDefinition', 'ItemUsage', 'ItemDefinition',
     'ActionUsage', 'ActionDefinition', 'PerformActionUsage',
     'SendActionUsage', 'AcceptActionUsage',
-    'OccurrenceDefinition', 'OccurrenceUsage', 'InteractionDefinition', 'InteractionUsage',
+    'OccurrenceDefinition', 'OccurrenceUsage',
     'Package',
   ]);
 

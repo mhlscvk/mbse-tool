@@ -160,12 +160,6 @@ function ShapePreview({ shapeType }: { shapeType: LegendShapeType }) {
           time
         </div>
       );
-    case 'interaction':
-      return (
-        <div style={{ ...base, border: '1.5px solid #8080c0', background: '#2a2a3a', color: '#b0b0e0' }}>
-          iact
-        </div>
-      );
     case 'metadata':
       return (
         <div style={{ ...base, border: '1.5px solid #b080b0', background: '#3a2a3a', color: '#c0a0c0' }}>

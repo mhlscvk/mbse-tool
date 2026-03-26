@@ -34,7 +34,6 @@ export type SysMLNodeKind =
   | 'MetadataDefinition'
   | 'FlowDefinition'
   | 'OccurrenceDefinition'
-  | 'InteractionDefinition'
   | 'CaseDefinition'
   // ── Extended usages ──
   | 'CaseUsage'
@@ -54,7 +53,6 @@ export type SysMLNodeKind =
   | 'FlowUsage'
   | 'MetadataUsage'
   | 'OccurrenceUsage'
-  | 'InteractionUsage'
   | 'SuccessionFlowUsage'
   // ── Connector/port specializations ──
   | 'ConnectorAsUsage'

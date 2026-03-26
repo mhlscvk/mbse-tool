@@ -178,8 +178,6 @@ const NODE_COLORS_DARK: Record<string, string> = {
   conjugatedportdefinition:    '#3a1a5a',
   occurrencedefinition:        '#2a3a2a',
   occurrenceusage:             '#1a2a1a',
-  interactiondefinition:       '#2a2a3a',
-  interactionusage:            '#1a1a2a',
   forknode:                    '#4a4a4a',
   joinnode:                    '#4a4a4a',
   mergenode:                   '#3a3a2a',
@@ -274,8 +272,6 @@ const NODE_COLORS_LIGHT: Record<string, string> = {
   conjugatedportdefinition:    '#e0c8f0',
   occurrencedefinition:        '#d0e0d0',
   occurrenceusage:             '#d8f0d8',
-  interactiondefinition:       '#d0d0e0',
-  interactionusage:            '#d8d8f0',
   forknode:                    '#c0c0c0',
   joinnode:                    '#c0c0c0',
   mergenode:                   '#d0d0c0',
@@ -344,7 +340,7 @@ const DEF_CLASSES = new Set([
   'calcdefinition', 'allocationdefinition', 'casedefinition', 'usecasedefinition',
   'analysiscasedefinition', 'verificationcasedefinition',
   'concerndefinition', 'viewdefinition', 'viewpointdefinition',
-  'renderingdefinition', 'metadatadefinition', 'conjugatedportdefinition', 'occurrencedefinition', 'interactiondefinition',
+  'renderingdefinition', 'metadatadefinition', 'conjugatedportdefinition', 'occurrencedefinition',
 ]);
 const isDefinition = (cssClass: string) => DEF_CLASSES.has(cssClass);
 const isPackage = (cssClass: string) => cssClass === 'package';

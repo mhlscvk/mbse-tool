@@ -573,34 +573,3 @@ describe('Timeslice usages', () => {
   });
 });
 
-describe('Interaction definitions and usages', () => {
-  it('parses interaction def', () => {
-    const code = `interaction def Communicate;`;
-    const n = nodes(code).find(n => n.name === 'Communicate');
-    expect(n).toBeDefined();
-    expect(n!.kind).toBe('InteractionDefinition');
-  });
-
-  it('parses interaction def with specialization', () => {
-    const code = `interaction def Chat :> Communicate;`;
-    const n = nodes(code).find(n => n.name === 'Chat');
-    expect(n).toBeDefined();
-    expect(n!.kind).toBe('InteractionDefinition');
-    const dep = conns(code).filter(c => c.kind === 'dependency');
-    expect(dep.length).toBeGreaterThan(0);
-  });
-
-  it('parses interaction usage typed', () => {
-    const code = `interaction def Comm; part def P { interaction comm1 : Comm; }`;
-    const n = nodes(code).find(n => n.name === 'comm1');
-    expect(n).toBeDefined();
-    expect(n!.kind).toBe('InteractionUsage');
-  });
-
-  it('parses interaction usage untyped', () => {
-    const code = `part def P { interaction chat; }`;
-    const n = nodes(code).find(n => n.name === 'chat');
-    expect(n).toBeDefined();
-    expect(n!.kind).toBe('InteractionUsage');
-  });
-});

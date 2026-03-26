@@ -41,7 +41,6 @@ export type LegendShapeType =
   | 'individual'
   | 'snapshot'
   | 'timeslice'
-  | 'interaction'
   | 'metadata'
   | 'concern'
   | 'verification'
@@ -452,14 +451,6 @@ export const LEGEND_ITEMS: LegendItem[] = [
     explanation:
       'A calculation definition defines a computation with typed parameters and a return value.',
     minLevel: 13,
-  },
-  {
-    label: '«interaction def»',
-    shapeType: 'interaction',
-    textualSyntax: 'interaction def DriveEncounter { }',
-    explanation:
-      'An interaction combines behavior with association — it models a communication protocol between parts.',
-    minLevel: 21,
   },
   {
     label: '«individual def»',
@@ -5925,58 +5916,6 @@ action def StartVehicle {
   },
   {
     id: 'l21t3', level: 21, levelName: 'Occurrences & Interactions',
-    title: 'Create an Interaction Definition',
-    instruction:
-      'An **interaction def** defines a combined behavior and association — modeling how parts communicate.\n\n' +
-      'Add: `interaction def DriveEncounter;`',
-    hint: 'Use `interaction def Name;` syntax.',
-    concept: '«interaction def»',
-    conceptExplanation: 'An interaction combines a behavior with an association. It models communication protocols between parts.',
-    starterCode: `\
-part def Driver;
-part def Vehicle;
-`,
-    targetCode: `\
-part def Driver;
-part def Vehicle;
-interaction def DriveEncounter;
-`,
-    validate: vDef('interaction\\s+def', 'DriveEncounter', 'Interaction definition created — a communication protocol between parts.', 'Add `interaction def DriveEncounter;`'),
-  },
-  {
-    id: 'l21t4', level: 21, levelName: 'Occurrences & Interactions',
-    title: 'Use an Interaction',
-    instruction:
-      'An **interaction usage** instantiates a communication protocol.\n\n' +
-      'Inside the package, add: `interaction driving : DriveEncounter;`',
-    hint: 'Use `interaction name : InteractionDef;` syntax.',
-    concept: '«interaction»',
-    conceptExplanation: 'An interaction usage creates an instance of a communication protocol between specific parts.',
-    starterCode: `\
-part def Driver;
-part def Vehicle;
-interaction def DriveEncounter;
-
-package Scenario {
-  part driver : Driver;
-  part vehicle : Vehicle;
-}
-`,
-    targetCode: `\
-part def Driver;
-part def Vehicle;
-interaction def DriveEncounter;
-
-package Scenario {
-  part driver : Driver;
-  part vehicle : Vehicle;
-  interaction driving : DriveEncounter;
-}
-`,
-    validate: vMatch(/interaction\s+\w+\s*:\s*DriveEncounter/, 'Interaction usage created — an instance of the communication protocol.', /interaction\s+\w+/, 'Add the type: `interaction driving : DriveEncounter;`', 'Add `interaction driving : DriveEncounter;` inside Scenario.'),
-  },
-  {
-    id: 'l21t5', level: 21, levelName: 'Occurrences & Interactions',
     title: 'Events with Messages',
     instruction:
       'Combine **events** and **messages** in a realistic scenario.\n\n' +
@@ -6219,7 +6158,7 @@ export const COMPLETED_CODE = `\
 // - Comments, documentation, aliases
 // - Conjugated ports, interfaces, bindings
 // - Conditional guards, if-then-else, fork/join/decide/merge
-// - Occurrences, event occurrences, interactions
+// - Occurrences, event occurrences
 // - Individual definitions, snapshots, timeslices, temporal modeling
 
 part def Vehicle {
@@ -6311,8 +6250,6 @@ package VehicleDomain {
 }
 
 occurrence def CrashEvent;
-interaction def DriveEncounter;
-
 individual def Vehicle_1 :> Vehicle;
 individual myVehicle : Vehicle_1 {
     snapshot t0 { }

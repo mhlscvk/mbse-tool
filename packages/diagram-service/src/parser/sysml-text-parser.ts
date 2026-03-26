@@ -261,7 +261,7 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*(?:parallel\s+)?[{;]/g;
 // group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional, before or after type), group[5]=type
 // Core + extended usage keywords (all single-word keywords that can appear as usages)
-const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence|interaction';
+const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence';
 const USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*(?:parallel\\s+)?[;{]`, 'g');
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
 const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
@@ -289,7 +289,7 @@ const SUCCESSION_FLOW_PATTERN = /\bsuccession\s+flow\s+(?:(\w+)\s+)?(?:(?:of\s+(
 // Message: message [name] [of Payload] from X to Y;
 const MESSAGE_PATTERN = /\bmessage\s+(?:(\w+)\s+)?(?:of\s+([\w:]+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // Extended definition patterns (single-word keywords)
-const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|flow|concern|view|viewpoint|rendering|metadata|occurrence|interaction)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|flow|concern|view|viewpoint|rendering|metadata|occurrence)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 // Multi-word definition patterns
 const USE_CASE_DEF_PATTERN = /\b(abstract\s+)?use\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
@@ -376,7 +376,6 @@ const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
   allocation: 'AllocationDefinition', flow: 'FlowDefinition', concern: 'ConcernDefinition',
   view: 'ViewDefinition', viewpoint: 'ViewpointDefinition', rendering: 'RenderingDefinition',
   metadata: 'MetadataDefinition', occurrence: 'OccurrenceDefinition',
-  interaction: 'InteractionDefinition',
 };
 
 // ─── Main parser ─────────────────────────────────────────────────────────────
