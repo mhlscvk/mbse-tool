@@ -956,19 +956,6 @@ export default function ElementPanel({
       )}
 
       {/* Relationships tab */}
-      {tab === 'relationships' && onToggleLegend && (
-        <div style={{ padding: '6px 8px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: t.textSecondary }}>
-            <input
-              type="checkbox"
-              checked={showLegend}
-              onChange={onToggleLegend}
-              style={{ accentColor: t.info, cursor: 'pointer' }}
-            />
-            Show Legend
-          </label>
-        </div>
-      )}
       {tab === 'relationships' && (
         edges.length === 0 ? (
           <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic' }}>

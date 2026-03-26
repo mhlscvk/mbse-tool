@@ -722,6 +722,7 @@ export default function EditorPage() {
                 onSelectedNodeChange={setDiagramSelectedNodeId}
                 onSelectedEdgeChange={setDiagramSelectedEdgeId}
                 showLegend={showLegend}
+                onToggleLegend={() => setShowLegend(!showLegend)}
                 viewType={viewType}
                 onViewTypeChange={(vt) => {
                   setViewType(vt);
@@ -1004,6 +1005,7 @@ export default function EditorPage() {
                 onSelectedNodeChange={setDiagramSelectedNodeId}
                 onSelectedEdgeChange={setDiagramSelectedEdgeId}
                 showLegend={showLegend}
+                onToggleLegend={() => setShowLegend(!showLegend)}
                 viewType={viewType}
                 onViewTypeChange={(vt) => {
                   setViewType(vt);

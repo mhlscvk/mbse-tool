@@ -40,6 +40,8 @@ interface DiagramViewerProps {
   onSelectedEdgeChange?: (id: string | null) => void;
   /** Show/hide the legend overlay */
   showLegend?: boolean;
+  /** Called when user toggles legend visibility */
+  onToggleLegend?: () => void;
   /** Active SysML v2 standard view type */
   viewType?: ViewType;
   /** Called when user selects a different view type */
@@ -356,6 +358,7 @@ export default function DiagramViewer({
   selectedNodeId: controlledNodeId, selectedEdgeId: controlledEdgeId,
   onSelectedNodeChange, onSelectedEdgeChange,
   showLegend = true,
+  onToggleLegend,
   viewType = 'general',
   onViewTypeChange,
   showInherited = false,
@@ -1761,6 +1764,23 @@ export default function DiagramViewer({
             onMouseLeave={e => { if (!showInherited) e.currentTarget.style.background = t.bgSecondary; }}
           >
             Inherited
+          </button>
+        )}
+        {onToggleLegend && (
+          <button
+            onClick={onToggleLegend}
+            title={showLegend ? 'Hide legend' : 'Show legend'}
+            style={{
+              background: showLegend ? t.statusBar : t.bgSecondary,
+              border: '1px solid', borderColor: showLegend ? t.statusBar : t.btnBorder,
+              color: showLegend ? '#fff' : t.text,
+              fontSize: 10, borderRadius: 3, padding: '3px 6px', cursor: 'pointer',
+              fontWeight: showLegend ? 700 : 400,
+            }}
+            onMouseEnter={e => { if (!showLegend) e.currentTarget.style.background = t.btnBgHover; }}
+            onMouseLeave={e => { if (!showLegend) e.currentTarget.style.background = t.bgSecondary; }}
+          >
+            Legend
           </button>
         )}
         <button
