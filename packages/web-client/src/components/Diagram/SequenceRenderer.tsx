@@ -233,7 +233,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
     const w = PAD_LEFT * 2 + llArr.length * (LL_WIDTH + LL_GAP);
 
     // Title from model id
-    const sdTitle = 'sd ' + (model.id.replace(/^.*\/\//, '').replace(/\?.*$/, '').split('/').pop() ?? 'Sequence');
+    const sdTitle = 'sd';
 
     return { lifelines: llArr, messages: msgArr, activations: actArr, fragments: fragArr, totalW: w, totalH: h, title: sdTitle };
   }, [model]);
