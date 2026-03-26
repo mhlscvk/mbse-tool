@@ -9,8 +9,8 @@ function mockReqRes(headers: Record<string, string> = {}) {
   const res = {
     statusCode: 200,
     body: null as unknown,
-    status(code: number) { this.statusCode = code; return this; },
-    json(data: unknown) { this.body = data; return this; },
+    status(code: number) { (this as any).statusCode = code; return this; },
+    json(data: unknown) { (this as any).body = data; return this; },
   } as unknown as import('express').Response;
   const next = vi.fn();
   return { req, res, next };
