@@ -74,14 +74,14 @@ const KIND_DISPLAY: Record<string, string> = {
   DoneNode:                    '«done»',
   MergeNode:                   '«merge»',
   DecisionNode:                '«decide»',
-  PerformActionUsage:          '«perform»',
+  PerformActionUsage:          '«perform» \u229E',
   ExhibitStateUsage:           '«exhibit»',
   SendActionUsage:             '«send»',
   AcceptActionUsage:           '«accept»',
   IfActionUsage:               '«if»',
   AssignmentActionUsage:       '«assign»',
-  ForLoopActionUsage:          '«for loop»',
-  WhileLoopActionUsage:        '«while loop»',
+  ForLoopActionUsage:          '«for loop» \u21BB',
+  WhileLoopActionUsage:        '«while loop» \u21BB',
   IncludeUseCaseUsage:         '«include»',
   AssertConstraintUsage:       '«assert»',
   SatisfyRequirementUsage:     '«satisfy»',
@@ -391,9 +391,21 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig, skipCompartments = false
   };
 }
 
-function connectionToSEdge(conn: { id: string; sourceId: string; targetId: string; kind: string; name?: string; range?: import('@systemodel/shared-types').SourceRange }): SEdge {
-  const children: SLabel[] = conn.name
-    ? [makeLabel(`${conn.id}__label`, conn.name)]
+function connectionToSEdge(conn: { id: string; sourceId: string; targetId: string; kind: string; name?: string; sourcePort?: string; targetPort?: string; range?: import('@systemodel/shared-types').SourceRange }): SEdge {
+  // Build label: use name if set, otherwise show port info for flow edges (only when not retargeted to pins)
+  let labelText = conn.name ?? '';
+  if (!labelText && (conn.kind === 'flow' || conn.kind === 'successionflow') && (conn.sourcePort || conn.targetPort)) {
+    // Only add port labels if the edge hasn't been retargeted to pin nodes
+    const isRetargeted = conn.sourceId.includes('__param__') || conn.targetId.includes('__param__');
+    if (!isRetargeted) {
+      const parts: string[] = [];
+      if (conn.sourcePort) parts.push(conn.sourcePort);
+      if (conn.targetPort && conn.targetPort !== conn.sourcePort) parts.push(conn.targetPort);
+      labelText = parts.join(' → ');
+    }
+  }
+  const children: SLabel[] = labelText
+    ? [makeLabel(`${conn.id}__label`, labelText)]
     : [];
 
   return {
