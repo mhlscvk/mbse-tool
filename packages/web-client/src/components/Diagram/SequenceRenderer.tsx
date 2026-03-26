@@ -16,6 +16,15 @@ interface SeqLifeline {
   name: string;          // partName : TypeName
   cssClass: string;
   x: number;             // center x of header
+  groupId?: string;      // parent part id (for containment grouping)
+}
+
+interface SeqGroup {
+  id: string;
+  name: string;
+  lifelineIds: string[];
+  x: number;
+  width: number;
 }
 
 interface SeqMessage {
@@ -48,6 +57,8 @@ interface SeqFragment {
 const LL_WIDTH = 160;
 const LL_GAP = 40;
 const LL_HEADER_H = 44;
+const GROUP_HEADER_H = 22;
+const GROUP_PAD = 8;
 const MSG_STEP = 50;
 const ACT_BAR_W = 14;
 const PAD_TOP = 60;         // room for sd frame label
@@ -71,8 +82,8 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
 
   // ── Build view model from SModel ─────────────────────────────────────────
 
-  const { lifelines, messages, activations, fragments, totalW, totalH, title } = useMemo(() => {
-    const empty = { lifelines: [] as SeqLifeline[], messages: [] as SeqMessage[], activations: [] as SeqActivation[], fragments: [] as SeqFragment[], totalW: 400, totalH: 300, title: 'sd' };
+  const { lifelines, messages, activations, fragments, groups, totalW, totalH, title } = useMemo(() => {
+    const empty = { lifelines: [] as SeqLifeline[], messages: [] as SeqMessage[], activations: [] as SeqActivation[], fragments: [] as SeqFragment[], groups: [] as SeqGroup[], totalW: 400, totalH: 300, title: 'sd' };
     if (!model) return empty;
 
     const nodes = model.children.filter((c): c is SNode => c.type === 'node');
@@ -132,12 +143,42 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
       }
     }
 
-    // Build lifeline array
-    const llArr: SeqLifeline[] = [...lifelineIds].map((id, i) => {
+    // 3b. Build parent map from composition edges (child → parent)
+    const parentOf = new Map<string, string>();
+    for (const e of edges) {
+      if (e.cssClasses?.[0] === 'composition' && lifelineIds.has(e.targetId) && lifelineIds.has(e.sourceId)) {
+        parentOf.set(e.targetId, e.sourceId);
+      }
+    }
+    // Also detect parent from node naming: if lifeline X has a composition to lifeline Y anywhere
+    // in the full edge set, even if Y is the parent not in lifelineIds directly
+    for (const e of edges) {
+      if (e.cssClasses?.[0] === 'composition' && lifelineIds.has(e.targetId) && !parentOf.has(e.targetId)) {
+        // Check if source is also a lifeline
+        if (lifelineIds.has(e.sourceId)) {
+          parentOf.set(e.targetId, e.sourceId);
+        }
+      }
+    }
+
+    // Sort lifelines: group children after their parent
+    const sortedIds = [...lifelineIds];
+    sortedIds.sort((a, b) => {
+      const pa = parentOf.get(a);
+      const pb = parentOf.get(b);
+      // Parents come first, then children grouped under their parent
+      if (pa === b) return 1;   // a is child of b → b first
+      if (pb === a) return -1;  // b is child of a → a first
+      if (pa && pb && pa === pb) return 0; // siblings
+      if (pa && !pb) return 1;  // a has parent, b doesn't → b first (unless b is a's parent)
+      if (!pa && pb) return -1;
+      return 0;
+    });
+
+    // Build lifeline array with groupId
+    const llArr: SeqLifeline[] = sortedIds.map((id, i) => {
       const node = nodeMap.get(id);
-      // Use __label text (already has "name : Type" from transformer), fallback to raw name
       let name = node ? nodeName(node) : id.split('__').pop() ?? id;
-      // Only add type if the label doesn't already contain ':'
       if (node && !name.includes(':')) {
         const typeName = nodeType(node);
         if (typeName && typeName !== name) name = `${name} : ${typeName}`;
@@ -147,12 +188,52 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
         name,
         cssClass: node?.cssClasses?.[0] ?? 'default',
         x: PAD_LEFT + i * (LL_WIDTH + LL_GAP),
+        groupId: parentOf.get(id),
       };
     });
+
+    // Build groups: parent lifelines that contain children
+    const groupMap = new Map<string, SeqGroup>();
+    for (const ll of llArr) {
+      if (!ll.groupId) continue;
+      const group = groupMap.get(ll.groupId);
+      if (group) {
+        group.lifelineIds.push(ll.id);
+        const llRight = ll.x + LL_WIDTH;
+        group.width = Math.max(group.width, llRight - group.x + GROUP_PAD);
+      } else {
+        const parentLL = llArr.find(l => l.id === ll.groupId);
+        const parentName = parentLL?.name ?? ll.groupId.split('__').pop() ?? '';
+        // Group starts at the parent's x or the first child's x, whichever is leftmost
+        const startX = parentLL ? Math.min(parentLL.x, ll.x) - GROUP_PAD : ll.x - GROUP_PAD;
+        groupMap.set(ll.groupId, {
+          id: ll.groupId,
+          name: parentName,
+          lifelineIds: [ll.id],
+          x: startX,
+          width: (ll.x + LL_WIDTH) - startX + GROUP_PAD,
+        });
+      }
+    }
+    const groupArr = [...groupMap.values()];
+
+    // Adjust: if a parent is itself a lifeline, extend the group to include it
+    for (const g of groupArr) {
+      const parentLL = llArr.find(l => l.id === g.id);
+      if (parentLL) {
+        const minX = Math.min(g.x, parentLL.x - GROUP_PAD);
+        const maxX = Math.max(g.x + g.width, parentLL.x + LL_WIDTH + GROUP_PAD);
+        g.x = minX;
+        g.width = maxX - minX;
+      }
+    }
+
+    const hasGroups = groupArr.length > 0;
+    const groupHeaderOffset = hasGroups ? GROUP_HEADER_H + GROUP_PAD : 0;
     const llMap = new Map(llArr.map(l => [l.id, l]));
 
     // 4. Build messages
-    let msgY = PAD_TOP + LL_HEADER_H + 30;
+    let msgY = PAD_TOP + groupHeaderOffset + LL_HEADER_H + 30;
     const msgArr: SeqMessage[] = [];
 
     for (const e of msgEdges) {
@@ -232,7 +313,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
     // Title from model id
     const sdTitle = 'sd';
 
-    return { lifelines: llArr, messages: msgArr, activations: actArr, fragments: fragArr, totalW: w, totalH: h, title: sdTitle };
+    return { lifelines: llArr, messages: msgArr, activations: actArr, fragments: fragArr, groups: groupArr, totalW: w, totalH: h, title: sdTitle };
   }, [model]);
 
   const llMap = useMemo(() => new Map(lifelines.map(l => [l.id, l])), [lifelines]);
@@ -292,6 +373,13 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
   const fragStroke = isDark ? '#6a6a8a' : '#9a9ab0';
   const fragLabel = isDark ? '#c0c0e0' : '#4a4a7a';
   const highlightColor = isDark ? '#f0c040' : '#d0a020';
+  const groupBg = isDark ? 'rgba(40,50,70,0.3)' : 'rgba(200,215,240,0.3)';
+  const groupStroke = isDark ? '#4a6a8a' : '#8aaaba';
+  const groupText = isDark ? '#8ab0d0' : '#4a6a8a';
+
+  // Compute lifeline header Y (shifted down if groups exist)
+  const hasGroups = groups.length > 0;
+  const llHeaderY = PAD_TOP + (hasGroups ? GROUP_HEADER_H + GROUP_PAD : 0);
 
   if (!model) {
     return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>No model data for Sequence View</div>;
@@ -379,11 +467,28 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
           );
         })}
 
+        {/* Containment groups (behind lifelines) */}
+        {groups.map(g => (
+          <g key={`group-${g.id}`}>
+            <rect
+              x={g.x} y={PAD_TOP}
+              width={g.width} height={LL_HEADER_H + GROUP_HEADER_H + GROUP_PAD + 4}
+              rx={6} fill={groupBg} stroke={groupStroke} strokeWidth={1}
+            />
+            <text
+              x={g.x + g.width / 2} y={PAD_TOP + 14}
+              textAnchor="middle" fill={groupText} fontSize={10} fontWeight={600}
+            >
+              {g.name}
+            </text>
+          </g>
+        ))}
+
         {/* Lifeline dashed stems (behind everything) */}
         {lifelines.map(ll => (
           <line
             key={`stem-${ll.id}`}
-            x1={ll.x + LL_WIDTH / 2} y1={PAD_TOP + LL_HEADER_H}
+            x1={ll.x + LL_WIDTH / 2} y1={llHeaderY + LL_HEADER_H}
             x2={ll.x + LL_WIDTH / 2} y2={totalH - PAD_BOTTOM}
             stroke={isHighlightedLL(ll.id) ? highlightColor : lineColor} strokeWidth={1} strokeDasharray="6,4"
           />
@@ -477,7 +582,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
               style={{ cursor: 'pointer' }}
             >
               <rect
-                x={ll.x} y={PAD_TOP}
+                x={ll.x} y={llHeaderY}
                 width={LL_WIDTH} height={LL_HEADER_H}
                 rx={4}
                 fill={highlighted ? (isDark ? '#2a4a7a' : '#b0c8e8') : headerBg}
@@ -485,7 +590,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
                 strokeWidth={highlighted ? 2 : 1.5}
               />
               <text
-                x={ll.x + LL_WIDTH / 2} y={PAD_TOP + LL_HEADER_H / 2 + 4}
+                x={ll.x + LL_WIDTH / 2} y={llHeaderY + LL_HEADER_H / 2 + 4}
                 textAnchor="middle" fill={textColor} fontSize={11} fontWeight={600}
               >
                 {ll.name.length > 22 ? ll.name.slice(0, 21) + '…' : ll.name}
