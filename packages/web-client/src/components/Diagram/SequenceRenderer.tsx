@@ -9,28 +9,53 @@ interface SequenceRendererProps {
   fitTrigger?: number;
 }
 
-interface Lifeline {
+// ── Data model ───────────────────────────────────────────────────────────────
+
+interface SeqLifeline {
   id: string;
-  name: string;
+  name: string;          // partName : TypeName
   cssClass: string;
-  x: number;
+  x: number;             // center x of header
 }
 
-interface Message {
+interface SeqMessage {
   id: string;
-  name: string;
+  label: string;
   sourceId: string;
   targetId: string;
   y: number;
-  kind: string;
+  kind: 'sync' | 'async' | 'return' | 'self' | 'flow';
+  edgeKind: string;      // original edge cssClass
 }
 
-const LIFELINE_WIDTH = 120;
-const LIFELINE_SPACING = 60;
-const LIFELINE_HEADER_HEIGHT = 40;
-const MESSAGE_SPACING = 40;
-const TOP_PADDING = 20;
-const LEFT_PADDING = 30;
+interface SeqActivation {
+  lifelineId: string;
+  startY: number;
+  endY: number;
+}
+
+interface SeqFragment {
+  id: string;
+  operator: string;      // alt, opt, loop, par, ref
+  coveredIds: string[];
+  topY: number;
+  bottomY: number;
+  guards: string[];
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const LL_WIDTH = 140;
+const LL_GAP = 40;
+const LL_HEADER_H = 44;
+const MSG_STEP = 50;
+const ACT_BAR_W = 14;
+const PAD_TOP = 60;         // room for sd frame label
+const PAD_LEFT = 40;
+const PAD_BOTTOM = 50;
+const FRAME_PAD = 20;
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: SequenceRendererProps) {
   const t = useTheme();
@@ -40,78 +65,183 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
   const dragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const transformRef = useRef(transform);
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
+  const [hoveredLL, setHoveredLL] = useState<string | null>(null);
   useEffect(() => { transformRef.current = transform; }, [transform]);
 
-  const { lifelines, messages, totalHeight, totalWidth } = useMemo(() => {
-    if (!model) return { lifelines: [] as Lifeline[], messages: [] as Message[], totalHeight: 200, totalWidth: 400 };
+  // ── Build view model from SModel ─────────────────────────────────────────
+
+  const { lifelines, messages, activations, fragments, totalW, totalH, title } = useMemo(() => {
+    const empty = { lifelines: [] as SeqLifeline[], messages: [] as SeqMessage[], activations: [] as SeqActivation[], fragments: [] as SeqFragment[], totalW: 400, totalH: 300, title: 'sd' };
+    if (!model) return empty;
 
     const nodes = model.children.filter((c): c is SNode => c.type === 'node');
     const edges = model.children.filter((c): c is SEdge => c.type === 'edge');
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-    // Find message edges
-    const messageEdges = edges.filter(e => {
-      const kind = e.cssClasses?.[0] ?? '';
-      return kind === 'message' || kind === 'flow' || kind === 'successionflow';
+    // Helper: extract name from node
+    const nodeName = (n: SNode) => n.children.find(c => c.id.endsWith('__label'))?.text ?? n.id.split('__').pop() ?? n.id;
+    const nodeKind = (n: SNode) => n.children.find(c => c.id.endsWith('__kind'))?.text ?? '';
+    const nodeType = (n: SNode) => (n.data?.qualifiedName as string) ?? '';
+
+    // 1. Collect message/flow edges
+    const msgEdgeKinds = new Set(['message', 'flow', 'successionflow']);
+    const msgEdges = edges.filter(e => msgEdgeKinds.has(e.cssClasses?.[0] ?? ''));
+
+    // Also collect succession edges for ordering (first X then Y)
+    const succEdges = edges.filter(e => {
+      const k = e.cssClasses?.[0] ?? '';
+      return k === 'succession' || k === 'transition';
     });
 
-    if (messageEdges.length === 0) {
-      // Fallback: show all top-level part/action nodes as lifelines
-      const fallbackLifelines: Lifeline[] = nodes
-        .filter(n => {
-          const css = n.cssClasses?.[0] ?? '';
-          return css.includes('part') || css.includes('action') || css.includes('item');
-        })
-        .slice(0, 20)
-        .map((n, i) => ({
-          id: n.id,
-          name: n.children.find(c => c.id.endsWith('__label'))?.text ?? n.id,
-          cssClass: n.cssClasses?.[0] ?? 'default',
-          x: LEFT_PADDING + i * (LIFELINE_WIDTH + LIFELINE_SPACING),
-        }));
-      return {
-        lifelines: fallbackLifelines,
-        messages: [] as Message[],
-        totalHeight: 300,
-        totalWidth: LEFT_PADDING * 2 + fallbackLifelines.length * (LIFELINE_WIDTH + LIFELINE_SPACING),
-      };
+    // 2. Identify send/accept action nodes
+    const sendNodes = new Set<string>();
+    const acceptNodes = new Set<string>();
+    const performNodes = new Set<string>();
+    const controlNodes = new Map<string, string>(); // id → operator (fork/join/decide/merge/if/while/for)
+    for (const n of nodes) {
+      const css = n.cssClasses?.[0] ?? '';
+      if (css === 'sendactionusage') sendNodes.add(n.id);
+      else if (css === 'acceptactionusage') acceptNodes.add(n.id);
+      else if (css === 'performactionusage') performNodes.add(n.id);
+      else if (css === 'forknode') controlNodes.set(n.id, 'par');
+      else if (css === 'joinnode') controlNodes.set(n.id, 'par');
+      else if (css === 'decisionnode') controlNodes.set(n.id, 'alt');
+      else if (css === 'mergenode') controlNodes.set(n.id, 'alt');
+      else if (css === 'ifactionusage') controlNodes.set(n.id, 'opt');
+      else if (css === 'forloopactionusage') controlNodes.set(n.id, 'loop');
+      else if (css === 'whileloopactionusage') controlNodes.set(n.id, 'loop');
     }
 
-    // Collect unique lifeline IDs from message endpoints
+    // 3. Determine lifelines: endpoints of message edges, or fallback to part/action nodes
     const lifelineIds = new Set<string>();
-    for (const e of messageEdges) {
+    for (const e of msgEdges) {
       lifelineIds.add(e.sourceId);
       lifelineIds.add(e.targetId);
     }
 
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    const lifelineArr: Lifeline[] = [...lifelineIds].map((id, i) => {
+    // If no messages, show all top-level parts/actions as lifelines
+    if (lifelineIds.size === 0) {
+      for (const n of nodes) {
+        const css = n.cssClasses?.[0] ?? '';
+        if (css.includes('partusage') || css.includes('actionusage') || css.includes('itemusage') ||
+            css.includes('partdefinition') || css.includes('actiondefinition')) {
+          lifelineIds.add(n.id);
+        }
+        if (lifelineIds.size >= 20) break;
+      }
+    }
+
+    // Build lifeline array
+    const llArr: SeqLifeline[] = [...lifelineIds].map((id, i) => {
       const node = nodeMap.get(id);
+      let name = node ? nodeName(node) : id.split('__').pop() ?? id;
+      if (node) {
+        const typeName = nodeType(node);
+        if (typeName && typeName !== name) name = `${name} : ${typeName}`;
+      }
       return {
         id,
-        name: node?.children.find(c => c.id.endsWith('__label'))?.text ?? id.split('__').pop() ?? id,
+        name,
         cssClass: node?.cssClasses?.[0] ?? 'default',
-        x: LEFT_PADDING + i * (LIFELINE_WIDTH + LIFELINE_SPACING),
+        x: PAD_LEFT + i * (LL_WIDTH + LL_GAP),
       };
     });
+    const llMap = new Map(llArr.map(l => [l.id, l]));
 
-    const msgArr: Message[] = messageEdges.map((e, i) => ({
-      id: e.id,
-      name: e.children.find(c => c.id.endsWith('__label'))?.text ?? '',
-      sourceId: e.sourceId,
-      targetId: e.targetId,
-      y: TOP_PADDING + LIFELINE_HEADER_HEIGHT + 30 + i * MESSAGE_SPACING,
-      kind: e.cssClasses?.[0] ?? 'message',
-    }));
+    // 4. Build messages
+    let msgY = PAD_TOP + LL_HEADER_H + 30;
+    const msgArr: SeqMessage[] = [];
 
-    const h = TOP_PADDING + LIFELINE_HEADER_HEIGHT + 30 + msgArr.length * MESSAGE_SPACING + 60;
-    const w = LEFT_PADDING * 2 + lifelineArr.length * (LIFELINE_WIDTH + LIFELINE_SPACING);
+    for (const e of msgEdges) {
+      const srcNode = nodeMap.get(e.sourceId);
+      const edgeKind = e.cssClasses?.[0] ?? 'message';
+      const isSelf = e.sourceId === e.targetId;
 
-    return { lifelines: lifelineArr, messages: msgArr, totalHeight: h, totalWidth: w };
+      // Determine message kind
+      let kind: SeqMessage['kind'] = 'sync';
+      if (isSelf) kind = 'self';
+      else if (edgeKind === 'flow' || edgeKind === 'successionflow') kind = 'flow';
+      else if (srcNode && sendNodes.has(srcNode.id)) kind = 'sync';
+      else if (srcNode && acceptNodes.has(srcNode.id)) kind = 'async';
+
+      // Label: edge label or source node name
+      let label = e.children.find(c => c.id.endsWith('__label'))?.text ?? '';
+      if (!label && srcNode) {
+        const srcName = nodeName(srcNode);
+        const srcType = nodeType(srcNode);
+        label = srcType ? `${srcName}(${srcType})` : srcName;
+      }
+
+      msgArr.push({
+        id: e.id, label, sourceId: e.sourceId, targetId: e.targetId,
+        y: msgY, kind, edgeKind,
+      });
+      msgY += MSG_STEP;
+    }
+
+    // 5. Build activation bars (paired send→accept on same lifeline)
+    const actArr: SeqActivation[] = [];
+    // Track active messages per lifeline
+    const llActive = new Map<string, number[]>(); // lifelineId → [startY indices]
+    for (const msg of msgArr) {
+      const tgtLL = llMap.get(msg.targetId);
+      if (!tgtLL || msg.kind === 'self') continue;
+      // Start activation at target lifeline
+      const starts = llActive.get(msg.targetId) ?? [];
+      starts.push(msg.y);
+      llActive.set(msg.targetId, starts);
+    }
+    // Each activation starts at message receipt and extends for one message step
+    for (const [llId, starts] of llActive) {
+      for (const startY of starts) {
+        actArr.push({ lifelineId: llId, startY, endY: startY + MSG_STEP * 0.7 });
+      }
+    }
+
+    // 6. Build combined fragments from control nodes that are referenced in successions
+    const fragArr: SeqFragment[] = [];
+    for (const [nodeId, operator] of controlNodes) {
+      // Find messages that span this control region
+      const node = nodeMap.get(nodeId);
+      if (!node) continue;
+      const name = nodeName(node);
+      // Find succession edges from/to this control node to determine Y range
+      const incoming = succEdges.filter(e => e.targetId === nodeId);
+      const outgoing = succEdges.filter(e => e.sourceId === nodeId);
+      if (incoming.length === 0 && outgoing.length === 0) continue;
+
+      // Estimate Y range from messages near these connected nodes
+      const connectedIds = new Set([...incoming.map(e => e.sourceId), ...outgoing.map(e => e.targetId)]);
+      const relatedMsgs = msgArr.filter(m => connectedIds.has(m.sourceId) || connectedIds.has(m.targetId));
+      if (relatedMsgs.length === 0) continue;
+
+      const topY = Math.min(...relatedMsgs.map(m => m.y)) - 15;
+      const bottomY = Math.max(...relatedMsgs.map(m => m.y)) + 25;
+      const coveredIds = [...new Set(relatedMsgs.flatMap(m => [m.sourceId, m.targetId]))].filter(id => llMap.has(id));
+      if (coveredIds.length === 0) continue;
+
+      fragArr.push({
+        id: nodeId, operator, coveredIds, topY, bottomY,
+        guards: [name],
+      });
+    }
+
+    // 7. Compute totals
+    const lastMsgY = msgArr.length > 0 ? msgArr[msgArr.length - 1].y : PAD_TOP + LL_HEADER_H + 30;
+    const h = lastMsgY + PAD_BOTTOM + 40;
+    const w = PAD_LEFT * 2 + llArr.length * (LL_WIDTH + LL_GAP);
+
+    // Title from model id
+    const sdTitle = 'sd ' + (model.id.replace(/^.*\/\//, '').replace(/\?.*$/, '').split('/').pop() ?? 'Sequence');
+
+    return { lifelines: llArr, messages: msgArr, activations: actArr, fragments: fragArr, totalW: w, totalH: h, title: sdTitle };
   }, [model]);
 
-  const lifelineMap = useMemo(() => new Map(lifelines.map(l => [l.id, l])), [lifelines]);
+  const llMap = useMemo(() => new Map(lifelines.map(l => [l.id, l])), [lifelines]);
 
-  // Pan handlers
+  // ── Pan/Zoom ───────────────────────────────────────────────────────────────
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
     dragging.current = true;
@@ -131,30 +261,57 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
     }));
   }, []);
 
-  // Fit-to-window: compute scale and offset to center content in viewport
+  // Fit-to-window
   useEffect(() => {
     if (fitTrigger === undefined || fitTrigger === 0) return;
     const svg = svgRef.current;
-    if (!svg || totalWidth === 0 || totalHeight === 0) return;
+    if (!svg || totalW === 0 || totalH === 0) return;
     const rect = svg.getBoundingClientRect();
     const padX = 20, padY = 20;
-    const scaleX = (rect.width - padX * 2) / totalWidth;
-    const scaleY = (rect.height - padY * 2) / totalHeight;
+    const scaleX = (rect.width - padX * 2) / totalW;
+    const scaleY = (rect.height - padY * 2) / totalH;
     const s = Math.min(scaleX, scaleY, 2);
-    const tx = (rect.width - totalWidth * s) / 2;
-    const ty = (rect.height - totalHeight * s) / 2;
+    const tx = (rect.width - totalW * s) / 2;
+    const ty = (rect.height - totalH * s) / 2;
     setTransform({ x: tx, y: ty, scale: s });
-  }, [fitTrigger, totalWidth, totalHeight]);
+  }, [fitTrigger, totalW, totalH]);
+
+  // ── Colors ─────────────────────────────────────────────────────────────────
 
   const textColor = isDark ? '#e8eef6' : '#1a1a2e';
+  const dimText = isDark ? '#888' : '#999';
   const lineColor = isDark ? '#555' : '#bbb';
-  const arrowColor = isDark ? '#4ec9b0' : '#2a8a70';
+  const syncColor = isDark ? '#4ec9b0' : '#2a8a70';
+  const asyncColor = isDark ? '#9cdcfe' : '#3a6a9a';
+  const returnColor = isDark ? '#888' : '#999';
+  const flowColor = isDark ? '#c586c0' : '#7a3a9a';
   const headerBg = isDark ? '#1c3f6e' : '#c8daf0';
   const headerStroke = isDark ? '#4a8ab0' : '#8a8aaa';
+  const actBarFill = isDark ? '#2a5a8a' : '#a0c8e8';
+  const actBarStroke = isDark ? '#4a8ab0' : '#6a8aaa';
+  const frameBg = isDark ? 'rgba(30,30,30,0.3)' : 'rgba(245,245,245,0.3)';
+  const frameStroke = isDark ? '#555' : '#bbb';
+  const fragBg = isDark ? 'rgba(40,40,50,0.5)' : 'rgba(230,230,240,0.5)';
+  const fragStroke = isDark ? '#6a6a8a' : '#9a9ab0';
+  const fragLabel = isDark ? '#c0c0e0' : '#4a4a7a';
+  const highlightColor = isDark ? '#f0c040' : '#d0a020';
 
   if (!model) {
     return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>No model data for Sequence View</div>;
   }
+
+  const msgColor = (kind: SeqMessage['kind']) => {
+    switch (kind) {
+      case 'sync': return syncColor;
+      case 'async': return asyncColor;
+      case 'return': return returnColor;
+      case 'flow': return flowColor;
+      case 'self': return syncColor;
+      default: return syncColor;
+    }
+  };
+
+  const isHighlightedLL = (id: string) => hoveredLL === id || messages.some(m => (m.sourceId === id || m.targetId === id) && hoveredMsg === m.id);
 
   return (
     <svg
@@ -168,85 +325,195 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
       onWheel={onWheel}
     >
       <defs>
-        <marker id="seq-arrow" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto">
-          <polygon points="0,0 10,4 0,8" fill={arrowColor} />
+        {/* Filled arrowhead (sync) */}
+        <marker id="seq-sync" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto">
+          <polygon points="0,0 10,4 0,8" fill={syncColor} />
+        </marker>
+        {/* Open arrowhead (async) */}
+        <marker id="seq-async" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto">
+          <polyline points="0,0 10,4 0,8" fill="none" stroke={asyncColor} strokeWidth="1.5" />
+        </marker>
+        {/* Return arrowhead (dashed) */}
+        <marker id="seq-return" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto">
+          <polyline points="0,0 10,4 0,8" fill="none" stroke={returnColor} strokeWidth="1.5" />
+        </marker>
+        {/* Flow arrowhead */}
+        <marker id="seq-flow" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="8" markerHeight="6" orient="auto">
+          <polygon points="0,0 10,4 0,8" fill={flowColor} />
         </marker>
       </defs>
-      <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-        {/* Lifeline headers */}
-        {lifelines.map(ll => (
-          <g key={ll.id} onClick={() => onNodeSelect?.(ll.id)} style={{ cursor: 'pointer' }}>
-            <rect
-              x={ll.x} y={TOP_PADDING}
-              width={LIFELINE_WIDTH} height={LIFELINE_HEADER_HEIGHT}
-              rx={4} fill={headerBg} stroke={headerStroke} strokeWidth={1.5}
-            />
-            <text
-              x={ll.x + LIFELINE_WIDTH / 2} y={TOP_PADDING + LIFELINE_HEADER_HEIGHT / 2 + 4}
-              textAnchor="middle" fill={textColor} fontSize={11} fontWeight={600}
-            >
-              {ll.name.length > 14 ? ll.name.slice(0, 13) + '…' : ll.name}
-            </text>
-          </g>
-        ))}
 
-        {/* Lifeline dashed vertical lines */}
+      <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
+        {/* SD Frame */}
+        {lifelines.length > 0 && <>
+          <rect
+            x={FRAME_PAD / 2} y={FRAME_PAD / 2}
+            width={totalW - FRAME_PAD} height={totalH - FRAME_PAD}
+            rx={3} fill={frameBg} stroke={frameStroke} strokeWidth={1}
+          />
+          {/* Pentagon label */}
+          <path
+            d={`M ${FRAME_PAD / 2} ${FRAME_PAD / 2} h ${title.length * 6.5 + 20} v 20 l -10 10 h ${-(title.length * 6.5 + 10)} z`}
+            fill={isDark ? '#2a2a3a' : '#e0e0ee'} stroke={frameStroke} strokeWidth={1}
+          />
+          <text x={FRAME_PAD / 2 + 8} y={FRAME_PAD / 2 + 16} fill={textColor} fontSize={11} fontWeight={600}>{title}</text>
+        </>}
+
+        {/* Combined fragments */}
+        {fragments.map(frag => {
+          const coveredLLs = frag.coveredIds.map(id => llMap.get(id)).filter(Boolean) as SeqLifeline[];
+          if (coveredLLs.length === 0) return null;
+          const minX = Math.min(...coveredLLs.map(l => l.x)) - 20;
+          const maxX = Math.max(...coveredLLs.map(l => l.x + LL_WIDTH)) + 20;
+          return (
+            <g key={frag.id}>
+              <rect x={minX} y={frag.topY} width={maxX - minX} height={frag.bottomY - frag.topY} rx={2} fill={fragBg} stroke={fragStroke} strokeWidth={1} />
+              {/* Pentagon operator label */}
+              <path
+                d={`M ${minX} ${frag.topY} h ${frag.operator.length * 7 + 16} v 14 l -8 8 h ${-(frag.operator.length * 7 + 8)} z`}
+                fill={isDark ? '#2a2a4a' : '#d0d0e8'} stroke={fragStroke} strokeWidth={1}
+              />
+              <text x={minX + 6} y={frag.topY + 14} fill={fragLabel} fontSize={10} fontWeight={700}>{frag.operator}</text>
+              {/* Guard text */}
+              {frag.guards.map((g, i) => (
+                <text key={i} x={minX + frag.operator.length * 7 + 24} y={frag.topY + 14} fill={fragLabel} fontSize={9} fontStyle="italic">[{g}]</text>
+              ))}
+            </g>
+          );
+        })}
+
+        {/* Lifeline dashed stems (behind everything) */}
         {lifelines.map(ll => (
           <line
-            key={`line-${ll.id}`}
-            x1={ll.x + LIFELINE_WIDTH / 2} y1={TOP_PADDING + LIFELINE_HEADER_HEIGHT}
-            x2={ll.x + LIFELINE_WIDTH / 2} y2={totalHeight - 20}
-            stroke={lineColor} strokeWidth={1} strokeDasharray="6,4"
+            key={`stem-${ll.id}`}
+            x1={ll.x + LL_WIDTH / 2} y1={PAD_TOP + LL_HEADER_H}
+            x2={ll.x + LL_WIDTH / 2} y2={totalH - PAD_BOTTOM}
+            stroke={isHighlightedLL(ll.id) ? highlightColor : lineColor} strokeWidth={1} strokeDasharray="6,4"
           />
         ))}
 
+        {/* Activation bars */}
+        {activations.map((act, i) => {
+          const ll = llMap.get(act.lifelineId);
+          if (!ll) return null;
+          const cx = ll.x + LL_WIDTH / 2;
+          return (
+            <rect
+              key={`act-${i}`}
+              x={cx - ACT_BAR_W / 2} y={act.startY - 4}
+              width={ACT_BAR_W} height={act.endY - act.startY + 8}
+              rx={2} fill={actBarFill} stroke={actBarStroke} strokeWidth={1}
+            />
+          );
+        })}
+
         {/* Messages */}
         {messages.map(msg => {
-          const src = lifelineMap.get(msg.sourceId);
-          const tgt = lifelineMap.get(msg.targetId);
+          const src = llMap.get(msg.sourceId);
+          const tgt = llMap.get(msg.targetId);
           if (!src || !tgt) return null;
-          const x1 = src.x + LIFELINE_WIDTH / 2;
-          const x2 = tgt.x + LIFELINE_WIDTH / 2;
-          const isSelf = src.id === tgt.id;
+          const x1 = src.x + LL_WIDTH / 2;
+          const x2 = tgt.x + LL_WIDTH / 2;
+          const color = msgColor(msg.kind);
+          const isHovered = hoveredMsg === msg.id;
+          const markerId = msg.kind === 'async' ? 'seq-async' : msg.kind === 'return' ? 'seq-return' : msg.kind === 'flow' ? 'seq-flow' : 'seq-sync';
+          const dashArray = msg.kind === 'return' ? '6,3' : undefined;
 
-          if (isSelf) {
-            // Self-message: loop arrow
-            const loopW = 30;
+          if (msg.kind === 'self') {
+            const loopW = 40;
+            const loopH = 24;
             return (
-              <g key={msg.id}>
+              <g key={msg.id}
+                onMouseEnter={() => setHoveredMsg(msg.id)} onMouseLeave={() => setHoveredMsg(null)}
+                style={{ cursor: 'pointer' }}
+              >
                 <path
-                  d={`M ${x1} ${msg.y} h ${loopW} v ${20} h ${-loopW}`}
-                  fill="none" stroke={arrowColor} strokeWidth={1.5} markerEnd="url(#seq-arrow)"
+                  d={`M ${x1} ${msg.y} h ${loopW} v ${loopH} h ${-loopW}`}
+                  fill="none" stroke={isHovered ? highlightColor : color} strokeWidth={isHovered ? 2 : 1.5}
+                  markerEnd="url(#seq-sync)"
                 />
-                <text x={x1 + loopW + 4} y={msg.y + 12} fill={arrowColor} fontSize={10}>{msg.name}</text>
+                <text x={x1 + loopW + 6} y={msg.y + loopH / 2 + 3} fill={color} fontSize={10}>{msg.label}</text>
               </g>
             );
           }
 
           const labelX = (x1 + x2) / 2;
+          const goesRight = x2 > x1;
           return (
-            <g key={msg.id}>
+            <g key={msg.id}
+              onMouseEnter={() => setHoveredMsg(msg.id)} onMouseLeave={() => setHoveredMsg(null)}
+              style={{ cursor: 'pointer' }}
+            >
               <line
                 x1={x1} y1={msg.y} x2={x2} y2={msg.y}
-                stroke={arrowColor} strokeWidth={1.5} markerEnd="url(#seq-arrow)"
+                stroke={isHovered ? highlightColor : color} strokeWidth={isHovered ? 2.5 : 1.5}
+                strokeDasharray={dashArray}
+                markerEnd={`url(#${markerId})`}
               />
-              {msg.name && (
+              {msg.label && (
                 <text
-                  x={labelX} y={msg.y - 6}
-                  textAnchor="middle" fill={arrowColor} fontSize={10}
+                  x={labelX} y={msg.y - 8}
+                  textAnchor="middle" fill={isHovered ? highlightColor : color} fontSize={10}
+                  fontWeight={isHovered ? 600 : 400}
                 >
-                  {msg.name}
+                  {msg.label}
                 </text>
               )}
+              {/* Sequence number */}
+              <text
+                x={goesRight ? x1 + 4 : x1 - 4} y={msg.y + 14}
+                textAnchor={goesRight ? 'start' : 'end'} fill={dimText} fontSize={8}
+              >
+                {messages.indexOf(msg) + 1}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Lifeline headers (on top of everything) */}
+        {lifelines.map(ll => {
+          const highlighted = isHighlightedLL(ll.id);
+          return (
+            <g key={ll.id}
+              onClick={() => onNodeSelect?.(ll.id)}
+              onMouseEnter={() => setHoveredLL(ll.id)} onMouseLeave={() => setHoveredLL(null)}
+              style={{ cursor: 'pointer' }}
+            >
+              <rect
+                x={ll.x} y={PAD_TOP}
+                width={LL_WIDTH} height={LL_HEADER_H}
+                rx={4}
+                fill={highlighted ? (isDark ? '#2a4a7a' : '#b0c8e8') : headerBg}
+                stroke={highlighted ? highlightColor : headerStroke}
+                strokeWidth={highlighted ? 2 : 1.5}
+              />
+              <text
+                x={ll.x + LL_WIDTH / 2} y={PAD_TOP + LL_HEADER_H / 2 + 4}
+                textAnchor="middle" fill={textColor} fontSize={11} fontWeight={600}
+              >
+                {ll.name.length > 18 ? ll.name.slice(0, 17) + '…' : ll.name}
+              </text>
             </g>
           );
         })}
 
         {/* Empty state */}
         {lifelines.length === 0 && (
-          <text x={200} y={100} fill={isDark ? '#888' : '#999'} fontSize={13} textAnchor="middle">
-            No lifelines found. Add message connections (message X from A to B;) to see the sequence.
+          <text x={200} y={120} fill={dimText} fontSize={13} textAnchor="middle">
+            No lifelines found. Add message statements to see the sequence diagram.
           </text>
+        )}
+
+        {/* Legend — bottom-left */}
+        {messages.length > 0 && (
+          <g transform={`translate(${FRAME_PAD},${totalH - 38})`}>
+            <line x1={0} y1={0} x2={20} y2={0} stroke={syncColor} strokeWidth={1.5} markerEnd="url(#seq-sync)" />
+            <text x={24} y={4} fill={dimText} fontSize={9}>sync/send</text>
+            <line x1={90} y1={0} x2={110} y2={0} stroke={flowColor} strokeWidth={1.5} markerEnd="url(#seq-flow)" />
+            <text x={114} y={4} fill={dimText} fontSize={9}>flow</text>
+            <line x1={150} y1={0} x2={170} y2={0} stroke={returnColor} strokeWidth={1.5} strokeDasharray="6,3" markerEnd="url(#seq-return)" />
+            <text x={174} y={4} fill={dimText} fontSize={9}>return</text>
+          </g>
         )}
       </g>
     </svg>
