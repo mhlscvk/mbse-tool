@@ -5,6 +5,7 @@ import { useTheme } from '../../store/theme.js';
 interface SequenceRendererProps {
   model: SModelRoot | null;
   onNodeSelect?: (nodeId: string) => void;
+  onEdgeSelect?: (edgeId: string) => void;
   /** Increment to trigger fit-to-window */
   fitTrigger?: number;
 }
@@ -68,7 +69,7 @@ const FRAME_PAD = 20;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: SequenceRendererProps) {
+export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fitTrigger }: SequenceRendererProps) {
   const t = useTheme();
   const isDark = t.mode === 'dark';
   const svgRef = useRef<SVGSVGElement>(null);
@@ -78,6 +79,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
   const transformRef = useRef(transform);
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
   const [hoveredLL, setHoveredLL] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; targetId: string; isEdge: boolean } | null>(null);
   useEffect(() => { transformRef.current = transform; }, [transform]);
 
   // ── Build view model from SModel ─────────────────────────────────────────
@@ -143,20 +145,42 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
       }
     }
 
-    // 3b. Build parent map from composition edges (child → parent)
+    // 3b. Build parent map for lifeline containment
+    // Strategy: for each lifeline, walk up composition edges to find if any ancestor is also a lifeline
     const parentOf = new Map<string, string>();
+    const compositionParent = new Map<string, string>(); // nodeId → parent nodeId (from composition edges)
     for (const e of edges) {
-      if (e.cssClasses?.[0] === 'composition' && lifelineIds.has(e.targetId) && lifelineIds.has(e.sourceId)) {
-        parentOf.set(e.targetId, e.sourceId);
+      if (e.cssClasses?.[0] === 'composition') {
+        compositionParent.set(e.targetId, e.sourceId);
       }
     }
-    // Also detect parent from node naming: if lifeline X has a composition to lifeline Y anywhere
-    // in the full edge set, even if Y is the parent not in lifelineIds directly
-    for (const e of edges) {
-      if (e.cssClasses?.[0] === 'composition' && lifelineIds.has(e.targetId) && !parentOf.has(e.targetId)) {
-        // Check if source is also a lifeline
-        if (lifelineIds.has(e.sourceId)) {
-          parentOf.set(e.targetId, e.sourceId);
+    // For each lifeline, walk up the composition chain to find another lifeline as ancestor
+    for (const llId of lifelineIds) {
+      let current = llId;
+      for (let depth = 0; depth < 5; depth++) {
+        const parent = compositionParent.get(current);
+        if (!parent) break;
+        if (lifelineIds.has(parent) && parent !== llId) {
+          parentOf.set(llId, parent);
+          break;
+        }
+        current = parent;
+      }
+    }
+    // Also detect containment from node ID naming patterns (e.g., engine's ID contains vehicle's scope)
+    if (parentOf.size === 0) {
+      // Fallback: check if lifeline node names suggest containment via the original SysML dotted paths
+      // Look at message edges for dotted source/target that share a common root
+      const llIdSet = new Set(lifelineIds);
+      for (const e of msgEdges) {
+        // If source and target share a common ancestor lifeline, group them
+        const srcParent = compositionParent.get(e.sourceId);
+        const tgtParent = compositionParent.get(e.targetId);
+        if (srcParent && llIdSet.has(srcParent) && srcParent !== e.sourceId && !parentOf.has(e.sourceId)) {
+          parentOf.set(e.sourceId, srcParent);
+        }
+        if (tgtParent && llIdSet.has(tgtParent) && tgtParent !== e.targetId && !parentOf.has(e.targetId)) {
+          parentOf.set(e.targetId, tgtParent);
         }
       }
     }
@@ -398,10 +422,11 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
 
   const isHighlightedLL = (id: string) => hoveredLL === id || messages.some(m => (m.sourceId === id || m.targetId === id) && hoveredMsg === m.id);
 
-  return (
+  return (<>
     <svg
       ref={svgRef}
       width="100%" height="100%"
+      onClick={() => setCtxMenu(null)}
       style={{ cursor: dragging.current ? 'grabbing' : 'grab' }}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
@@ -527,6 +552,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
             return (
               <g key={msg.id}
                 onMouseEnter={() => setHoveredMsg(msg.id)} onMouseLeave={() => setHoveredMsg(null)}
+                onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, targetId: msg.id, isEdge: true }); }}
                 style={{ cursor: 'pointer' }}
               >
                 <path
@@ -578,6 +604,7 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
           return (
             <g key={ll.id}
               onClick={() => onNodeSelect?.(ll.id)}
+              onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, targetId: ll.id, isEdge: false }); }}
               onMouseEnter={() => setHoveredLL(ll.id)} onMouseLeave={() => setHoveredLL(null)}
               style={{ cursor: 'pointer' }}
             >
@@ -619,5 +646,38 @@ export default function SequenceRenderer({ model, onNodeSelect, fitTrigger }: Se
         )}
       </g>
     </svg>
+
+    {/* Right-click context menu */}
+    {ctxMenu && (
+      <div
+        style={{
+          position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000,
+          background: isDark ? '#2a2a2a' : '#fff', border: `1px solid ${isDark ? '#555' : '#ccc'}`,
+          borderRadius: 4, padding: '4px 0', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          minWidth: 140,
+        }}
+        onMouseLeave={() => setCtxMenu(null)}
+      >
+        <div
+          style={{
+            padding: '6px 12px', fontSize: 12, cursor: 'pointer',
+            color: textColor, display: 'flex', alignItems: 'center', gap: 6,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isDark ? '#3a3a3a' : '#e8e8e8'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          onClick={() => {
+            if (ctxMenu.isEdge) {
+              onEdgeSelect?.(ctxMenu.targetId);
+            } else {
+              onNodeSelect?.(ctxMenu.targetId);
+            }
+            setCtxMenu(null);
+          }}
+        >
+          Go to Code
+        </div>
+      </div>
+    )}
+    </>
   );
 }

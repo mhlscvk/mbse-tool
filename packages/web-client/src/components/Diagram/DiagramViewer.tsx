@@ -1834,11 +1834,18 @@ export default function DiagramViewer({
       </div>
       {/* Non-graph views: delegate to specialized renderers */}
       {viewType === 'sequence' && (
-        <SequenceRenderer model={model} fitTrigger={layoutTrigger} onNodeSelect={onNodeSelect ? (id) => {
-          const n = allNodeMap.get(id);
-          const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
-          if (r) onNodeSelect(r);
-        } : undefined} />
+        <SequenceRenderer model={model} fitTrigger={layoutTrigger}
+          onNodeSelect={onNodeSelect ? (id) => {
+            const n = allNodeMap.get(id);
+            const r = n?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
+            if (r) onNodeSelect(r);
+          } : undefined}
+          onEdgeSelect={onEdgeSelect ? (id) => {
+            const e = model?.children.find(c => c.type === 'edge' && c.id === id);
+            const r = (e as any)?.data?.range as { start: { line: number; character: number }; end: { line: number; character: number } } | undefined;
+            if (r) onEdgeSelect(r);
+          } : undefined}
+        />
       )}
       {viewType === 'grid' && (
         <GridRenderer model={model} onNodeSelect={onNodeSelect ? (id) => {
