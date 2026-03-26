@@ -152,7 +152,7 @@ npx prisma db seed
 cd ../..
 ```
 
-The seed creates a system user, an admin account, and the Examples project with 76 SysML files across 9 subprojects (including 39 OMG standard library files). It is idempotent — safe to run multiple times.
+The seed creates a system user, an admin account, and the Examples project with 79 SysML files across 9 subprojects (including 39 OMG standard library files). It is idempotent — safe to run multiple times.
 
 </details>
 
@@ -287,7 +287,7 @@ When an admin edits example files via the web UI, changes are automatically sync
 | **Interconnection View** | IV | Parts, ports (boundary nodes), connections, interfaces, flows | Defs (standalone), actions, states, successions |
 | **Action Flow View** | AFV | Actions, cases, use cases, parameters, control nodes, successions, flows | Parts, structural defs, orphan nodes with no connections |
 | **State Transition View** | STV | States, transitions, entry/do/exit | Actions, parts, ports, orphan nodes with no connections |
-| **Sequence View** | SEQ | Lifelines (parts), messages, time ordering | Non-message elements |
+| **Sequence View** | SEQ | Lifelines (parts) with containment groups, messages (sync/async/flow), activation bars, SD frame | Non-message elements |
 | **Grid View** | GRD | Relationship matrix (satisfy, verify, allocate, flow) | N/A (tabular) |
 | **Browser View** | BRW | Hierarchical tree of all model elements | N/A (tree) |
 | **Geometry View** | GEO | 3D spatial visualization (placeholder) | N/A |
@@ -315,10 +315,10 @@ When an admin edits example files via the web UI, changes are automatically sync
 `part`, `attribute`, `connection`, `port`, `action`, `state`, `item`
 
 **Extended definitions & usages:**
-`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `case` (def + usage), `use case` (def + usage), `analysis case` (def + usage), `verification case` (def + usage), `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `flow`, `occurrence`
+`requirement`, `constraint`, `interface`, `enum`, `calc`, `allocation`, `case` (def + usage), `use case` (def + usage), `analysis case` (def + usage), `verification case` (def + usage), `concern`, `view`, `viewpoint`, `rendering`, `metadata`, `flow`, `occurrence`, `individual` (with `isIndividual` flag), `snapshot`, `timeslice` (portionKind)
 
 **Action subtypes (P1):**
-`send ... to`, `accept`, `if { }`, `assign := `, `while loop`, `for ... in`, `include use case`, `assert constraint`, `event occurrence`
+`send ... to`, `accept`, `if { }`, `assign := `, `while loop`, `for ... in`, `include use case`, `assert constraint`, `event occurrence`, `message of X from A to B`
 
 **Membership types (P3):**
 `subject`, `actor`, `stakeholder`, `objective`, `expose`, `render`
@@ -554,7 +554,7 @@ External AI clients (Claude Desktop, Cursor, VS Code, Windsurf) connect to syste
 
 ### Training Mode
 
-Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
+Interactive 22-level tutorial building a Vehicle model from scratch:
 1. Part Definitions — 6. Composition
 7. Ports — 9. Enumerations
 10. Actions — 11. States
@@ -563,6 +563,7 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 16. Flows & Messages — 17. Perform & Exhibit
 18. Comments & Documentation — 19. Conjugated Ports & Interfaces
 20. Conditional Guards & Control Flow
+21. Occurrences & Events — 22. Individual, Snapshot & Timeslice
 
 ---
 
@@ -627,6 +628,8 @@ Interactive 20-level, 125-task tutorial building a Vehicle model from scratch:
 - [x] OMG-compliant graphical notation per spec 8.2.3 (send pentagon, accept pentagon, use case ellipse, requirement icon, decision diamond, ref dashed, ^inherited prefix, dashed dependency edges)
 - [x] Orthogonal edge routing in nested view — right-angle paths with obstacle avoidance
 - [x] Nested containment view with ELK compound layout
+- [x] Occurrence subtypes: `individual def/usage`, `snapshot`, `timeslice` with `isIndividual`/`portionKind` fields
+- [x] Sequence View with SD frame, containment groups, activation bars, message types (sync/async/flow/return), right-click Go to Code
 - [x] All 8 SysML v2 Standard Views per spec 9.2.20: GV, IV, AFV, STV, SEQ (lifeline/message SVG), GRD (relationship matrix), BRW (hierarchical tree), GEO (placeholder)
 - [x] Tree view (flat BDD) with ELK orthogonal edge routing
 - [x] Monaco editor with SysML syntax highlighting and diagnostics

@@ -276,7 +276,7 @@ describe('Audit: entry-then succession', () => {
     expect(suc).toBeDefined();
   });
 
-  it.skip('entry; then off; in state usage parses entry behavior', () => {
+  it('entry; then off; in state usage parses entry behavior', () => {
     const code = `
       state def SD { }
       state s : SD { entry; then off; state off; }
