@@ -6,6 +6,7 @@ const KEYWORD_VALUES = new Set([
   'part', 'attribute', 'port', 'action', 'state', 'item', 'in', 'out',
   'requirement', 'constraint', 'interface', 'enum', 'calc', 'allocation',
   'usecase', 'case', 'view', 'viewpoint', 'concern', 'rendering', 'perform', 'exhibit', 'ref',
+  'interaction', 'individual', 'snapshot', 'timeslice', 'occurrence',
   'ref part', 'ref attribute', 'ref port', 'ref action', 'ref state', 'ref item',
 ]);
 
@@ -68,6 +69,8 @@ const KIND_DISPLAY: Record<string, string> = {
   ConjugatedPortDefinition:    '«conjugated port def»',
   OccurrenceDefinition:        '«occurrence def»',
   OccurrenceUsage:             '«occurrence»',
+  InteractionDefinition:       '«interaction def»',
+  InteractionUsage:            '«interaction»',
   ForkNode:                    '«fork»',
   JoinNode:                    '«join»',
   DoneNode:                    '«done»',
@@ -122,7 +125,7 @@ const IS_USAGE = new Set([
   'PartUsage', 'AttributeUsage', 'ConnectionUsage', 'PortUsage', 'ActionUsage', 'StateUsage', 'ItemUsage',
   'RequirementUsage', 'ConstraintUsage', 'InterfaceUsage', 'EnumUsage', 'CalcUsage',
   'AllocationUsage', 'CaseUsage', 'UseCaseUsage', 'AnalysisCaseUsage', 'VerificationCaseUsage',
-  'ConcernUsage', 'ViewUsage', 'ViewpointUsage', 'RenderingUsage', 'OccurrenceUsage', 'FlowUsage',
+  'ConcernUsage', 'ViewUsage', 'ViewpointUsage', 'RenderingUsage', 'OccurrenceUsage', 'InteractionUsage', 'FlowUsage',
   'MetadataUsage', 'SuccessionFlowUsage',
   'ConnectorAsUsage', 'BindingConnectorAsUsage', 'SuccessionAsUsage',
   'ObjectiveMembership', 'SubjectMembership', 'ActorMembership', 'StakeholderMembership',
@@ -150,6 +153,9 @@ function nodeToSNode(node: SysMLNode, vcfg: ViewConfig, skipCompartments = false
   let kindText = baseKindText;
   if (node.isAbstract) kindText = kindText.replace('«', '«abstract ');
   if (node.isRef) kindText = kindText.replace('«', '«ref ');
+  if (node.isIndividual) kindText = kindText.replace('«', '«individual ');
+  if (node.portionKind === 'snapshot') kindText = '«snapshot»';
+  if (node.portionKind === 'timeslice') kindText = '«timeslice»';
   if (node.isParallel) kindText += ' {parallel}';
   const kindLabel = makeLabel(`${node.id}__kind`, kindText);
 

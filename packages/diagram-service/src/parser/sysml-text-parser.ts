@@ -261,7 +261,7 @@ const PACKAGE_PATTERN = /\bpackage\s+(\w+)\s*\{/g;
 const DEF_PATTERN = /\b(abstract\s+)?(part|attribute|connection|port|action|state|item)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*(?:parallel\s+)?[{;]/g;
 // group[1]=ref?, group[2]=keyword, group[3]=name, group[4]=multiplicity (optional, before or after type), group[5]=type
 // Core + extended usage keywords (all single-word keywords that can appear as usages)
-const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence';
+const USAGE_KW = 'part|attribute|port|action|state|item|requirement|constraint|interface|enum|calc|allocation|connection|flow|concern|view|viewpoint|rendering|metadata|occurrence|interaction';
 const USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(\\w+)\\s*(\\[[\\d..*]+\\])?\\s*:\\s*([\\w:]+)\\s*(\\[[\\d..*]+\\])?\\s*(?:parallel\\s+)?[;{]`, 'g');
 // Untyped usages: e.g. `action generateTorque;` or `action generateTorque { ... }`
 const UNTYPED_USAGE_PATTERN = new RegExp(`\\b(derived\\s+)?(ref\\s+)?(${USAGE_KW})\\s+(?!def\\b)(\\w+)\\s*(?:parallel\\s+)?[;{]`, 'g');
@@ -289,7 +289,7 @@ const SUCCESSION_FLOW_PATTERN = /\bsuccession\s+flow\s+(?:(\w+)\s+)?(?:(?:of\s+(
 // Message: message [name] [of Payload] from X to Y;
 const MESSAGE_PATTERN = /\bmessage\s+(?:(\w+)\s+)?(?:of\s+([\w:]+)\s+)?from\s+(\w+(?:\.\w+)*)\s+to\s+(\w+(?:\.\w+)*)\s*;/g;
 // Extended definition patterns (single-word keywords)
-const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|flow|concern|view|viewpoint|rendering|metadata|occurrence)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+const EXT_DEF_PATTERN = /\b(abstract\s+)?(requirement|constraint|interface|enum|calc|allocation|flow|concern|view|viewpoint|rendering|metadata|occurrence|interaction)\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 // Multi-word definition patterns
 const USE_CASE_DEF_PATTERN = /\b(abstract\s+)?use\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
 const ANALYSIS_CASE_DEF_PATTERN = /\b(abstract\s+)?analysis\s+case\s+def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
@@ -322,6 +322,14 @@ const INCLUDE_USE_CASE_PATTERN = /\binclude\s+(?:use\s+case\s+)?(\w+)(?:\s*:\s*(
 const ASSERT_CONSTRAINT_PATTERN = /\bassert\s+(?:constraint\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 const SATISFY_REQ_USAGE_PATTERN = /\bsatisfy\s+(?:requirement\s+)?(\w+)\s+by\s+(\w+)\s*;/g;
 const EVENT_OCCURRENCE_PATTERN = /\bevent\s+(?:occurrence\s+)?(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+// Individual occurrence definitions: individual [occurrence] def Name [:> Parent];
+const INDIVIDUAL_DEF_PATTERN = /\bindividual\s+(?:occurrence\s+)?def\s+(\w+)(?:\s+(?:specializes\s+|:>(?!>)\s*)([\w:]+))?\s*[{;]/g;
+// Individual occurrence usages: individual [occurrence] name [: Type];
+const INDIVIDUAL_USAGE_PATTERN = /\bindividual\s+(?:occurrence\s+)?(\w+)\s*(?::\s*([\w:]+))?\s*[{;]/g;
+// Snapshot: snapshot name [: Type];
+const SNAPSHOT_PATTERN = /\bsnapshot\s+(\w+)\s*(?::\s*([\w:]+))?\s*[{;]/g;
+// Timeslice: timeslice name [: Type];
+const TIMESLICE_PATTERN = /\btimeslice\s+(\w+)\s*(?::\s*([\w:]+))?\s*[{;]/g;
 // P3 membership/internal patterns
 const SUBJECT_PATTERN = /\bsubject\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
 const ACTOR_PATTERN = /\bactor\s+(\w+)(?:\s*:\s*([\w:]+))?\s*[;{]/g;
@@ -368,6 +376,7 @@ const EXT_KIND_MAP: Record<string, SysMLNodeKind> = {
   allocation: 'AllocationDefinition', flow: 'FlowDefinition', concern: 'ConcernDefinition',
   view: 'ViewDefinition', viewpoint: 'ViewpointDefinition', rendering: 'RenderingDefinition',
   metadata: 'MetadataDefinition', occurrence: 'OccurrenceDefinition',
+  interaction: 'InteractionDefinition',
 };
 
 // ─── Main parser ─────────────────────────────────────────────────────────────
@@ -833,6 +842,36 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // individual [occurrence] def Name [:> Parent]; — MUST run before EXT_DEF_PATTERN
+  {
+    INDIVIDUAL_DEF_PATTERN.lastIndex = 0;
+    let idm: RegExpExecArray | null;
+    while ((idm = INDIVIDUAL_DEF_PATTERN.exec(clean)) !== null) {
+      const name = dequote(idm[1], nameMap);
+      const specializes = idm[2];
+      const id = makeId('def', name);
+      if (definedNames.has(name)) continue;
+      definedNames.add(name);
+      const { line: dL, column: dC } = lineCol(source, idm.index);
+      const blockEnd = findBlockEnd(clean, idm.index + idm[0].length - 1);
+      const { line: dEL, column: dEC } = lineCol(source, blockEnd);
+      nodes.push({
+        id, kind: 'OccurrenceDefinition', name, qualifiedName: name, isIndividual: true,
+        children: [], attributes: [], connections: [],
+        range: { start: { line: dL - 1, character: dC - 1 }, end: { line: dEL - 1, character: dEC - 1 } },
+      });
+      defPositions.push({ name, start: idm.index, end: blockEnd });
+      const ownerPkg = findOwnerPackage(idm.index);
+      if (ownerPkg) {
+        connections.push({ id: makeId('pkg-member', `${ownerPkg.name}_${name}`), sourceId: ownerPkg.id, targetId: id, kind: 'composition', name: '' });
+      }
+      if (specializes) {
+        const specSimple = simpleName(specializes);
+        connections.push({ id: makeId('specializes', `${name}_${specSimple}`), sourceId: id, targetId: makeId('def', specSimple), kind: 'dependency', name: '«specializes»' });
+      }
+    }
+  }
+
   // Single-word extended defs
   EXT_DEF_PATTERN.lastIndex = 0;
   while ((match = EXT_DEF_PATTERN.exec(clean)) !== null) {
@@ -968,6 +1007,14 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     while ((um = exhibitScanRe.exec(clean)) !== null) {
       const end = findBlockEnd(clean, um.index + um[0].length - 1);
       usagePositions.push({ name: dequote(um[1], nameMap), start: um.index, end });
+    }
+    // Individual, snapshot, timeslice blocks (so nested items can find parent)
+    for (const pat of [INDIVIDUAL_USAGE_PATTERN, SNAPSHOT_PATTERN, TIMESLICE_PATTERN]) {
+      const scanRe = new RegExp(pat.source, 'g');
+      while ((um = scanRe.exec(clean)) !== null) {
+        const end = findBlockEnd(clean, um.index + um[0].length - 1);
+        usagePositions.push({ name: dequote(um[1], nameMap), start: um.index, end });
+      }
     }
     usagePositions.sort((a, b) => b.start - a.start);
   }
@@ -1469,6 +1516,36 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // individual [occurrence] name [: Type];
+  {
+    INDIVIDUAL_USAGE_PATTERN.lastIndex = 0;
+    let ium: RegExpExecArray | null;
+    while ((ium = INDIVIDUAL_USAGE_PATTERN.exec(clean)) !== null) {
+      const name = dequote(ium[1], nameMap);
+      createBehavioralNode('OccurrenceUsage', name, ium.index, ium[0].length, ium[2], { isIndividual: true });
+    }
+  }
+
+  // snapshot name [: Type];
+  {
+    SNAPSHOT_PATTERN.lastIndex = 0;
+    let snm: RegExpExecArray | null;
+    while ((snm = SNAPSHOT_PATTERN.exec(clean)) !== null) {
+      const name = dequote(snm[1], nameMap);
+      createBehavioralNode('OccurrenceUsage', name, snm.index, snm[0].length, snm[2], { portionKind: 'snapshot' });
+    }
+  }
+
+  // timeslice name [: Type];
+  {
+    TIMESLICE_PATTERN.lastIndex = 0;
+    let tsm: RegExpExecArray | null;
+    while ((tsm = TIMESLICE_PATTERN.exec(clean)) !== null) {
+      const name = dequote(tsm[1], nameMap);
+      createBehavioralNode('OccurrenceUsage', name, tsm.index, tsm[0].length, tsm[2], { portionKind: 'timeslice' });
+    }
+  }
+
   // ── 2-pre-p3. P3 membership/internal keyword nodes ──────────────────────
   // subject name [: Type]; (inside requirements/use cases)
   {
@@ -1559,8 +1636,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const isRef = !!refKw;
 
     // Skip if preceded by 'in', 'out', 'inout', 'perform', 'exhibit', 'entry', 'exit', 'do' — handled separately
-    const pre = clean.slice(Math.max(0, match.index - 9), match.index);
-    if (/\b(inout|in|out|perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
+    const pre = clean.slice(Math.max(0, match.index - 12), match.index);
+    if (/\b(inout|in|out|perform|exhibit|entry|exit|do|individual|event)\s+$/.test(pre)) continue;
 
     // Find the innermost enclosing definition or usage block that owns this usage
     const usagePos = match.index;
@@ -1674,8 +1751,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const isRef = !!refKw;
 
     // Skip if preceded by 'in', 'out', 'inout', 'def', 'perform', 'exhibit', 'entry', 'exit', 'do'
-    const pre = clean.slice(Math.max(0, match.index - 9), match.index);
-    if (/\b(inout|in|out|perform|exhibit|entry|exit|do)\s+$/.test(pre)) continue;
+    const pre = clean.slice(Math.max(0, match.index - 12), match.index);
+    if (/\b(inout|in|out|perform|exhibit|entry|exit|do|individual|event)\s+$/.test(pre)) continue;
     if (/\bdef\s+$/.test(pre)) continue;   // skip `part def Foo`
 
     // Skip if this name was already captured as a typed usage or definition

@@ -34,6 +34,7 @@ export type SysMLNodeKind =
   | 'MetadataDefinition'
   | 'FlowDefinition'
   | 'OccurrenceDefinition'
+  | 'InteractionDefinition'
   | 'CaseDefinition'
   // ── Extended usages ──
   | 'CaseUsage'
@@ -53,6 +54,7 @@ export type SysMLNodeKind =
   | 'FlowUsage'
   | 'MetadataUsage'
   | 'OccurrenceUsage'
+  | 'InteractionUsage'
   | 'SuccessionFlowUsage'
   // ── Connector/port specializations ──
   | 'ConnectorAsUsage'
@@ -117,6 +119,10 @@ export interface SysMLNode {
   isDerived?: boolean;
   /** True for parallel state definitions/usages */
   isParallel?: boolean;
+  /** True for individual occurrence definitions/usages */
+  isIndividual?: boolean;
+  /** Portion kind for occurrence usages: snapshot or timeslice */
+  portionKind?: 'snapshot' | 'timeslice';
   /** True when this directed param is owned by a port or action usage */
   ownerIsPortOrActionUsage?: boolean;
   /** Multiplicity text, e.g. "[4]", "[1..*]", "[0..1]" */

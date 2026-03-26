@@ -464,3 +464,143 @@ describe('P3: Expose types', () => {
     expect(kinds).toContain('MembershipExpose');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INDIVIDUAL, SNAPSHOT, TIMESLICE, INTERACTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Individual occurrence definitions', () => {
+  it('parses individual def Name :> Parent', () => {
+    const code = `part def Vehicle; individual def Vehicle_1 :> Vehicle;`;
+    const n = nodes(code).find(n => n.name === 'Vehicle_1');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceDefinition');
+    expect(n!.isIndividual).toBe(true);
+  });
+
+  it('parses individual occurrence def Name :> Parent', () => {
+    const code = `individual occurrence def MyOcc :> SomeParent;`;
+    const n = nodes(code).find(n => n.name === 'MyOcc');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceDefinition');
+    expect(n!.isIndividual).toBe(true);
+  });
+
+  it('parses individual def without parent', () => {
+    const code = `individual def Ctx { }`;
+    const n = nodes(code).find(n => n.name === 'Ctx');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceDefinition');
+    expect(n!.isIndividual).toBe(true);
+  });
+
+  it('creates specialization edge for individual def', () => {
+    const code = `part def Vehicle; individual def Vehicle_1 :> Vehicle;`;
+    const dep = conns(code).filter(c => c.kind === 'dependency');
+    expect(dep.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Individual occurrence usages', () => {
+  it('parses individual name : Type', () => {
+    const code = `individual def Ctx; individual a : Ctx { }`;
+    const n = nodes(code).find(n => n.name === 'a');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceUsage');
+    expect(n!.isIndividual).toBe(true);
+    expect(n!.qualifiedName).toBe('Ctx');
+  });
+
+  it('parses untyped individual usage', () => {
+    const code = `individual a { }`;
+    const n = nodes(code).find(n => n.name === 'a');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceUsage');
+    expect(n!.isIndividual).toBe(true);
+  });
+
+  it('does not double-parse as occurrence usage', () => {
+    const code = `individual occurrence myOcc : SomeType;`;
+    const all = nodes(code).filter(n => n.name === 'myOcc');
+    expect(all).toHaveLength(1);
+    expect(all[0].isIndividual).toBe(true);
+  });
+});
+
+describe('Snapshot usages', () => {
+  it('parses snapshot name : Type', () => {
+    const code = `individual def V1; individual a : V1 { snapshot t0 : V1; }`;
+    const n = nodes(code).find(n => n.name === 't0');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceUsage');
+    expect(n!.portionKind).toBe('snapshot');
+  });
+
+  it('parses untyped snapshot', () => {
+    const code = `individual a { snapshot t0_a { } }`;
+    const n = nodes(code).find(n => n.name === 't0_a');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceUsage');
+    expect(n!.portionKind).toBe('snapshot');
+  });
+
+  it('creates composition edge from parent to snapshot', () => {
+    const code = `individual a { snapshot t0 { } }`;
+    const comp = conns(code).filter(c => c.kind === 'composition');
+    const parent = nodes(code).find(n => n.name === 'a');
+    const child = nodes(code).find(n => n.name === 't0');
+    expect(parent).toBeDefined();
+    expect(child).toBeDefined();
+    expect(comp.some(c => c.sourceId === parent!.id && c.targetId === child!.id)).toBe(true);
+  });
+});
+
+describe('Timeslice usages', () => {
+  it('parses timeslice name', () => {
+    const code = `individual a { timeslice t0_t2 { } }`;
+    const n = nodes(code).find(n => n.name === 't0_t2');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('OccurrenceUsage');
+    expect(n!.portionKind).toBe('timeslice');
+  });
+
+  it('parses typed timeslice', () => {
+    const code = `individual a { timeslice t0_t2 : SomeType { } }`;
+    const n = nodes(code).find(n => n.name === 't0_t2');
+    expect(n).toBeDefined();
+    expect(n!.portionKind).toBe('timeslice');
+    expect(n!.qualifiedName).toBe('SomeType');
+  });
+});
+
+describe('Interaction definitions and usages', () => {
+  it('parses interaction def', () => {
+    const code = `interaction def Communicate;`;
+    const n = nodes(code).find(n => n.name === 'Communicate');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('InteractionDefinition');
+  });
+
+  it('parses interaction def with specialization', () => {
+    const code = `interaction def Chat :> Communicate;`;
+    const n = nodes(code).find(n => n.name === 'Chat');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('InteractionDefinition');
+    const dep = conns(code).filter(c => c.kind === 'dependency');
+    expect(dep.length).toBeGreaterThan(0);
+  });
+
+  it('parses interaction usage typed', () => {
+    const code = `interaction def Comm; part def P { interaction comm1 : Comm; }`;
+    const n = nodes(code).find(n => n.name === 'comm1');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('InteractionUsage');
+  });
+
+  it('parses interaction usage untyped', () => {
+    const code = `part def P { interaction chat; }`;
+    const n = nodes(code).find(n => n.name === 'chat');
+    expect(n).toBeDefined();
+    expect(n!.kind).toBe('InteractionUsage');
+  });
+});
