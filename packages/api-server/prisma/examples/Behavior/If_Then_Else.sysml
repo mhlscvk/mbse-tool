@@ -7,6 +7,7 @@ package IfThenElse {
 
   attribute def Status {
     attribute isNormal : Boolean;
+    attribute isEmergency : Boolean;
   }
 
   action handleEvent {

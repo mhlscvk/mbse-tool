@@ -430,6 +430,9 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   const definedNames = new Set<string>();
   // Track which stdlib packages are imported (for diagnostics info)
   const importedPackages = new Set<string>();
+  // Detect standard library files — suppress cross-reference diagnostics for them
+  // since they reference KerML foundation packages the parser doesn't model
+  const isStdlibFile = /\bstandard\s+library\s+package\b/.test(clean);
 
   // ── 0. Always register built-in primitives ───────────────────────────────
   function registerPackage(pkgName: string): void {
@@ -460,16 +463,18 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const pkgName = qualifiedPkg.includes('::') ? qualifiedPkg.split('::')[0] : qualifiedPkg;
     const pkg = STDLIB_PACKAGES[pkgName];
     if (!pkg) {
-      // Point at the package name token, not the whole import statement
-      const pkgOffset = importMatch.index + importMatch[0].indexOf(pkgName);
-      const { line, column } = lineCol(source, pkgOffset);
-      const suggestions = suggestSimilar(pkgName, Object.keys(STDLIB_PACKAGES).filter(k => k !== '_builtin'));
-      diagnostics.push({
-        severity: 'info',
-        message: `Package '${pkgName}' is not a recognized standard library package`,
-        line, column, endLine: line, endColumn: column + pkgName.length,
-        fixes: suggestions.map((s) => ({ title: `Change to '${s}'`, newText: s })),
-      });
+      if (!isStdlibFile) {
+        // Point at the package name token, not the whole import statement
+        const pkgOffset = importMatch.index + importMatch[0].indexOf(pkgName);
+        const { line, column } = lineCol(source, pkgOffset);
+        const suggestions = suggestSimilar(pkgName, Object.keys(STDLIB_PACKAGES).filter(k => k !== '_builtin'));
+        diagnostics.push({
+          severity: 'info',
+          message: `Package '${pkgName}' is not a recognized standard library package`,
+          line, column, endLine: line, endColumn: column + pkgName.length,
+          fixes: suggestions.map((s) => ({ title: `Change to '${s}'`, newText: s })),
+        });
+      }
       continue;
     }
     if (member === '*') {
@@ -487,15 +492,17 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
         });
       }
     } else {
-      const memberOffset = importMatch.index + importMatch[0].indexOf(member);
-      const { line, column } = lineCol(source, memberOffset);
-      const suggestions = suggestSimilar(member, Object.keys(pkg));
-      diagnostics.push({
-        severity: 'warning',
-        message: `'${member}' is not exported by package '${pkgName}'`,
-        line, column, endLine: line, endColumn: column + member.length,
-        fixes: suggestions.map((s) => ({ title: `Change to '${s}'`, newText: s })),
-      });
+      if (!isStdlibFile) {
+        const memberOffset = importMatch.index + importMatch[0].indexOf(member);
+        const { line, column } = lineCol(source, memberOffset);
+        const suggestions = suggestSimilar(member, Object.keys(pkg));
+        diagnostics.push({
+          severity: 'warning',
+          message: `'${member}' is not exported by package '${pkgName}'`,
+          line, column, endLine: line, endColumn: column + member.length,
+          fixes: suggestions.map((s) => ({ title: `Change to '${s}'`, newText: s })),
+        });
+      }
     }
   }
 
@@ -745,7 +752,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     // Specialization → inheritance connection
     if (specializes) {
       const specSimple = simpleName(specializes);
-      if (!resolveType(specializes)) {
+      if (!resolveType(specializes) && !isStdlibFile) {
         const specOffset = match.index + match[0].lastIndexOf(specializes);
         const { line, column } = lineCol(source, specOffset);
         const knownNames = [...nodeIndex.keys()].filter((k) => !k.startsWith('stdlib'));
@@ -1715,7 +1722,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
     // usage node ──[typereference]──► type definition (if known)
     const typeNode = resolveType(typeName);
-    if (!typeNode) {
+    if (!typeNode && !isStdlibFile) {
       // Point the diagnostic at the type name token specifically
       const typeOffset = match.index + match[0].lastIndexOf(typeName);
       const { line, column } = lineCol(source, typeOffset);
