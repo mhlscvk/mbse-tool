@@ -251,7 +251,7 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
 
           for (const call of event.calls) {
             send('tool_call', { id: call.id, name: call.name, args: call.args });
-            const result = await executeToolCall(userId, call.name, call.args);
+            const result = await executeToolCall(userId, call.name, call.args, req.userRole);
             send('tool_result', { id: call.id, name: call.name, result: result.result, isError: result.isError });
             collectedToolCalls.push({ name: call.name, args: call.args, result: result.result, isError: result.isError });
             conversation.push({

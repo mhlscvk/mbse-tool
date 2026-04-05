@@ -92,7 +92,7 @@ export const AI_TOOLS = [
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function executeToolCall(userId: string, toolName: string, args: Record<string, any>): Promise<{ result: string; isError: boolean }> {
+export async function executeToolCall(userId: string, toolName: string, args: Record<string, any>, userRole?: string): Promise<{ result: string; isError: boolean }> {
   try {
     switch (toolName) {
       case 'list_projects': {
@@ -129,21 +129,21 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       }
 
       case 'list_files': {
-        const access = await assertProjectAccess(args.projectId, userId);
+        const access = await assertProjectAccess(args.projectId, userId, userRole);
         if (!access.allowed) return { result: 'Error: Project not found or access denied', isError: true };
         const files = await fileOps.listFiles(args.projectId);
         return { result: JSON.stringify(files), isError: false };
       }
 
       case 'read_file': {
-        const file = await fileOps.readFileWithOwnerCheck(args.fileId, userId);
+        const file = await fileOps.readFileWithAccessCheck(args.fileId, userId, userRole);
         const lines = file.content.split('\n');
         const numbered = lines.map((l: string, i: number) => `${String(i + 1).padStart(4, ' ')} | ${l}`).join('\n');
         return { result: `File: ${file.name} (${lines.length} lines)\n\n${numbered}`, isError: false };
       }
 
       case 'create_file': {
-        const cAccess = await assertProjectAccess(args.projectId, userId);
+        const cAccess = await assertProjectAccess(args.projectId, userId, userRole);
         if (!cAccess.allowed) return { result: 'Error: Project not found or access denied', isError: true };
         if (cAccess.isSystem && !cAccess.isAdmin) return { result: 'Error: Cannot create files in system projects', isError: true };
         const file = await fileOps.createFile(args.projectId, args.name as string, args.content as string, userId, 'ai_chat');
@@ -151,7 +151,7 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       }
 
       case 'update_file': {
-        await fileOps.readFileWithOwnerCheck(args.fileId, userId);
+        await fileOps.readFileWithAccessCheck(args.fileId, userId, userRole);
         const updated = await fileOps.updateFileContent(args.fileId, args.content as string, userId, 'ai_chat');
         return { result: `File "${updated.name}" updated (${updated.size} bytes)`, isError: false };
       }
@@ -166,13 +166,13 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       }
 
       case 'delete_file': {
-        const df = await fileOps.readFileWithOwnerCheck(args.fileId, userId);
+        const df = await fileOps.readFileWithAccessCheck(args.fileId, userId, userRole);
         await fileOps.deleteFile(args.fileId, userId, 'ai_chat');
         return { result: `File "${df.name}" deleted`, isError: false };
       }
 
       case 'search_files': {
-        const sAccess = await assertProjectAccess(args.projectId, userId);
+        const sAccess = await assertProjectAccess(args.projectId, userId, userRole);
         if (!sAccess.allowed) return { result: 'Error: Project not found or access denied', isError: true };
         const matches = await fileOps.searchFiles(args.projectId, args.query as string);
         if (!matches.length) return { result: `No matches for "${args.query}"`, isError: false };
