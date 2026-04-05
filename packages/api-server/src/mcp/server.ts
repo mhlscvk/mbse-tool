@@ -12,7 +12,7 @@ import { mcpEvents, type FileChangeEvent } from './events.js';
  * Subscribes to the file change event bus so connected clients
  * receive real-time resource update notifications.
  */
-export function createMcpServer(userId: string): McpServer {
+export function createMcpServer(userId: string, userRole?: string): McpServer {
   const server = new McpServer({
     name: 'systemodel',
     version: '1.0.0',
@@ -24,7 +24,7 @@ export function createMcpServer(userId: string): McpServer {
     },
   });
 
-  registerTools(server, userId);
+  registerTools(server, userId, userRole);
   registerResources(server, userId);
   registerPrompts(server);
 

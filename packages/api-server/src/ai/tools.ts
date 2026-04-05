@@ -159,7 +159,7 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       case 'apply_edit': {
         const { error } = await fileOps.applyEdit(
           args.fileId, args.startLine, args.startColumn,
-          args.endLine, args.endColumn, args.newText, userId, 'ai_chat',
+          args.endLine, args.endColumn, args.newText, userId, 'ai_chat', userRole,
         );
         if (error) return { result: error, isError: true };
         return { result: 'Edit applied successfully', isError: false };

@@ -52,7 +52,7 @@ setInterval(() => {
 // Supports both JWT (Bearer <jwt>) and MCP tokens (Bearer mcp_...).
 // Returns userId or null.
 
-async function extractUserId(req: Request): Promise<string | null> {
+async function extractUser(req: Request): Promise<{ userId: string; userRole?: string } | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) return null;
 
@@ -60,7 +60,10 @@ async function extractUserId(req: Request): Promise<string | null> {
 
   // MCP access token (long-lived, stored in DB)
   if (token.startsWith('mcp_')) {
-    const record = await prisma.mcpToken.findUnique({ where: { token } });
+    const record = await prisma.mcpToken.findUnique({
+      where: { token },
+      include: { user: { select: { role: true } } },
+    });
     if (!record || record.revoked) return null;
     if (record.expiresAt && record.expiresAt < new Date()) return null;
 
@@ -70,7 +73,7 @@ async function extractUserId(req: Request): Promise<string | null> {
       data: { lastUsed: new Date() },
     }).catch((err) => { console.error('[MCP] lastUsed update failed:', err); });
 
-    return record.userId;
+    return { userId: record.userId, userRole: record.user.role };
   }
 
   // JWT (short-lived session token)
@@ -78,8 +81,8 @@ async function extractUserId(req: Request): Promise<string | null> {
   if (!secret) return null;
 
   try {
-    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as { userId: string };
-    return payload.userId;
+    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as { userId: string; role?: string };
+    return { userId: payload.userId, userRole: payload.role };
   } catch {
     return null;
   }
@@ -88,11 +91,12 @@ async function extractUserId(req: Request): Promise<string | null> {
 // ─── POST /mcp — handle MCP JSON-RPC requests ────────────────────────────────
 
 router.post('/', async (req: Request, res: Response) => {
-  const userId = await extractUserId(req);
-  if (!userId) {
+  const auth = await extractUser(req);
+  if (!auth) {
     res.status(401).json({ error: 'Unauthorized', message: 'Valid Bearer token required' });
     return;
   }
+  const { userId, userRole } = auth;
 
   // Check for existing session
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -139,7 +143,7 @@ router.post('/', async (req: Request, res: Response) => {
     sessionIdGenerator: () => randomUUID(),
   });
 
-  const server = createMcpServer(userId);
+  const server = createMcpServer(userId, userRole);
 
   // Connect server to transport — must complete before handling requests
   try {
@@ -172,7 +176,7 @@ router.post('/', async (req: Request, res: Response) => {
 // ─── GET /mcp — SSE endpoint for server-to-client notifications ───────────────
 
 router.get('/', async (req: Request, res: Response) => {
-  const userId = await extractUserId(req);
+  const auth = await extractUser(req); const userId = auth?.userId;
   if (!userId) {
     res.status(401).json({ error: 'Unauthorized', message: 'Valid Bearer token required' });
     return;
@@ -196,7 +200,7 @@ router.get('/', async (req: Request, res: Response) => {
 // ─── DELETE /mcp — terminate a session ────────────────────────────────────────
 
 router.delete('/', async (req: Request, res: Response) => {
-  const userId = await extractUserId(req);
+  const auth = await extractUser(req); const userId = auth?.userId;
   if (!userId) {
     res.status(401).json({ error: 'Unauthorized', message: 'Valid Bearer token required' });
     return;

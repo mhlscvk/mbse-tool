@@ -12,7 +12,7 @@ function mcpText(text: string, isError = false) {
  * Register all MCP tools on the given server.
  * `userId` is captured via closure so every tool operates in the user's scope.
  */
-export function registerTools(server: McpServer, userId: string): void {
+export function registerTools(server: McpServer, userId: string, userRole?: string): void {
 
   // ─── list_projects ──────────────────────────────────────────────────────────
   server.tool(
@@ -54,7 +54,7 @@ export function registerTools(server: McpServer, userId: string): void {
     { fileId: z.string().describe('The file ID') },
     async ({ fileId }) => {
       try {
-        const file = await fileOps.readFileWithOwnerCheck(fileId, userId);
+        const file = await fileOps.readFileWithAccessCheck(fileId, userId, userRole);
         const lines = file.content.split('\n');
         const numbered = lines
           .map((line: string, i: number) => `${String(i + 1).padStart(4, ' ')} | ${line}`)
@@ -97,7 +97,7 @@ export function registerTools(server: McpServer, userId: string): void {
     },
     async ({ fileId, content }) => {
       try {
-        await fileOps.readFileWithOwnerCheck(fileId, userId);
+        await fileOps.readFileWithAccessCheck(fileId, userId, userRole);
         const updated = await fileOps.updateFileContent(fileId, content, userId, 'mcp');
         return mcpText(`File "${updated.name}" updated (${updated.size} bytes)`);
       } catch (err) {
@@ -119,12 +119,12 @@ export function registerTools(server: McpServer, userId: string): void {
       newText: z.string().describe('Replacement text (empty string to delete)'),
     },
     async ({ fileId, startLine, startColumn, endLine, endColumn, newText }) => {
-      const { error } = await fileOps.applyEdit(fileId, startLine, startColumn, endLine, endColumn, newText, userId, 'mcp');
+      const { error } = await fileOps.applyEdit(fileId, startLine, startColumn, endLine, endColumn, newText, userId, 'mcp', userRole);
       if (error) return mcpText(error, true);
 
       // Show a few lines around the edit for context
       try {
-        const file = await fileOps.readFileWithOwnerCheck(fileId, userId);
+        const file = await fileOps.readFileWithAccessCheck(fileId, userId, userRole);
         const resultLines = file.content.split('\n');
         const previewStart = Math.max(0, startLine - 3);
         const previewEnd = Math.min(resultLines.length, startLine + newText.split('\n').length + 2);
@@ -145,7 +145,7 @@ export function registerTools(server: McpServer, userId: string): void {
     { fileId: z.string().describe('The file ID') },
     async ({ fileId }) => {
       try {
-        const file = await fileOps.readFileWithOwnerCheck(fileId, userId);
+        const file = await fileOps.readFileWithAccessCheck(fileId, userId, userRole);
         await fileOps.deleteFile(fileId, userId, 'mcp');
         return mcpText(`File "${file.name}" deleted`);
       } catch {

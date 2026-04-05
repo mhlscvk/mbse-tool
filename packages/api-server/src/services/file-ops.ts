@@ -135,12 +135,13 @@ export async function applyEdit(
   newText: string,
   userId: string,
   source?: 'mcp' | 'ai_chat' | 'rest',
+  userRole?: string,
 ) {
   // Verify access before the transaction (assertProjectAccess can't run inside $transaction)
   const { assertProjectAccess } = await import('../lib/auth-helpers.js');
   const check = await prisma.sysMLFile.findUnique({ where: { id: fileId }, include: { project: true } });
   if (!check) return { error: 'Error: File not found or access denied' };
-  const access = await assertProjectAccess(check.projectId, userId);
+  const access = await assertProjectAccess(check.projectId, userId, userRole);
   if (!access.allowed) return { error: 'Error: File not found or access denied' };
   if (access.isSystem && !access.isAdmin) return { error: 'Error: System files are read-only' };
 
