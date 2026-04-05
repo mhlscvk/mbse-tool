@@ -79,7 +79,7 @@ export function registerTools(server: McpServer, userId: string): void {
       const project = await prisma.project.findFirst({ where: { id: projectId, ownerId: userId } });
       if (!project) return mcpText('Error: Project not found or access denied', true);
       try {
-        const file = await fileOps.createFile(projectId, name, content, userId);
+        const file = await fileOps.createFile(projectId, name, content, userId, 'mcp');
         return mcpText(JSON.stringify({ id: file.id, name: file.name, size: file.size }, null, 2));
       } catch (err) {
         return mcpText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
@@ -98,7 +98,7 @@ export function registerTools(server: McpServer, userId: string): void {
     async ({ fileId, content }) => {
       try {
         await fileOps.readFileWithOwnerCheck(fileId, userId);
-        const updated = await fileOps.updateFileContent(fileId, content, userId);
+        const updated = await fileOps.updateFileContent(fileId, content, userId, 'mcp');
         return mcpText(`File "${updated.name}" updated (${updated.size} bytes)`);
       } catch (err) {
         return mcpText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
@@ -119,7 +119,7 @@ export function registerTools(server: McpServer, userId: string): void {
       newText: z.string().describe('Replacement text (empty string to delete)'),
     },
     async ({ fileId, startLine, startColumn, endLine, endColumn, newText }) => {
-      const { error } = await fileOps.applyEdit(fileId, startLine, startColumn, endLine, endColumn, newText, userId);
+      const { error } = await fileOps.applyEdit(fileId, startLine, startColumn, endLine, endColumn, newText, userId, 'mcp');
       if (error) return mcpText(error, true);
 
       // Show a few lines around the edit for context
@@ -146,7 +146,7 @@ export function registerTools(server: McpServer, userId: string): void {
     async ({ fileId }) => {
       try {
         const file = await fileOps.readFileWithOwnerCheck(fileId, userId);
-        await fileOps.deleteFile(fileId, userId);
+        await fileOps.deleteFile(fileId, userId, 'mcp');
         return mcpText(`File "${file.name}" deleted`);
       } catch {
         return mcpText('Error: File not found or access denied', true);

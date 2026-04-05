@@ -204,18 +204,8 @@ export default function LoginPage() {
   return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.bg }}>
       <div style={{ background: t.bgSecondary, padding: '40px 24px', borderRadius: 8, width: '100%', maxWidth: 360, margin: '0 16px', border: `1px solid ${t.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ marginBottom: 8 }}>
           <h1 style={{ color: '#A0522D', fontSize: 28, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic', margin: 0 }}>SysteModel</h1>
-          <button
-            onClick={t.toggle}
-            style={{
-              background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4,
-              color: t.textSecondary, cursor: 'pointer', fontSize: 14, padding: '2px 8px',
-            }}
-            title={t.mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            {t.mode === 'dark' ? '\u2600' : '\u263D'}
-          </button>
         </div>
         <p style={{ color: t.textSecondary, marginBottom: 32, fontSize: 13 }}>SysML v2 Modeling Platform</p>
 

@@ -22,14 +22,20 @@ vi.mock('../lib/id-generator.js', () => ({
   generateFileDisplayId: vi.fn(() => 'FIL-TEST1'),
 }));
 
+vi.mock('../lib/auth-helpers.js', () => ({
+  assertProjectAccess: vi.fn(),
+}));
+
 import { prisma } from '../db.js';
 import { mcpEvents } from '../mcp/events.js';
+import { assertProjectAccess } from '../lib/auth-helpers.js';
 import {
   sanitizeFileName,
   assertContentSize,
   listFiles,
   getFile,
   readFileWithOwnerCheck,
+  readFileWithAccessCheck,
   createFile,
   updateFileContent,
   renameFile,
@@ -41,6 +47,7 @@ import {
 
 const mock = prisma as any;
 const mockEvents = mcpEvents as any;
+const mockAccess = assertProjectAccess as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -123,24 +130,38 @@ describe('getFile', () => {
   });
 });
 
-// ── readFileWithOwnerCheck ──────────────────────────────────────────────────
+// ── readFileWithAccessCheck ────────────────────────────────────────────────
 
-describe('readFileWithOwnerCheck', () => {
-  it('returns file when owner matches', async () => {
-    const file = { id: 'f1', project: { ownerId: 'user1' } };
+describe('readFileWithAccessCheck', () => {
+  it('returns file when user has access', async () => {
+    const file = { id: 'f1', projectId: 'proj1', project: {} };
     mock.sysMLFile.findUnique.mockResolvedValue(file);
-    const result = await readFileWithOwnerCheck('f1', 'user1');
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
+    const result = await readFileWithAccessCheck('f1', 'user1');
     expect(result).toEqual(file);
   });
 
   it('throws NotFound when file is null', async () => {
     mock.sysMLFile.findUnique.mockResolvedValue(null);
-    await expect(readFileWithOwnerCheck('f1', 'user1')).rejects.toThrow('not found');
+    await expect(readFileWithAccessCheck('f1', 'user1')).rejects.toThrow('not found');
   });
 
-  it('throws NotFound when owner does not match', async () => {
-    mock.sysMLFile.findUnique.mockResolvedValue({ id: 'f1', project: { ownerId: 'other' } });
-    await expect(readFileWithOwnerCheck('f1', 'user1')).rejects.toThrow('not found');
+  it('throws NotFound when access denied', async () => {
+    mock.sysMLFile.findUnique.mockResolvedValue({ id: 'f1', projectId: 'proj1', project: {} });
+    mockAccess.mockResolvedValue({ allowed: false, isSystem: false, isAdmin: false });
+    await expect(readFileWithAccessCheck('f1', 'user1')).rejects.toThrow('not found');
+  });
+});
+
+// ── readFileWithOwnerCheck (deprecated, delegates to readFileWithAccessCheck)
+
+describe('readFileWithOwnerCheck', () => {
+  it('delegates to readFileWithAccessCheck', async () => {
+    const file = { id: 'f1', projectId: 'proj1', project: {} };
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
+    const result = await readFileWithOwnerCheck('f1', 'user1');
+    expect(result).toEqual(file);
   });
 });
 
@@ -241,7 +262,13 @@ describe('applyEdit', () => {
   const makeFile = (content: string) => ({
     id: 'f1',
     content,
+    projectId: 'proj1',
     project: { ownerId: 'user1' },
+  });
+
+  beforeEach(() => {
+    // applyEdit checks access before the transaction
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
   });
 
   it('applies edit in the middle of a file', async () => {
@@ -263,10 +290,18 @@ describe('applyEdit', () => {
     expect(mockEvents.emitFileChange).not.toHaveBeenCalled();
   });
 
-  it('returns error when owner does not match', async () => {
+  it('returns error when access denied', async () => {
     mock.sysMLFile.findUnique.mockResolvedValue(makeFile('abc'));
+    mockAccess.mockResolvedValue({ allowed: false, isSystem: false, isAdmin: false });
     const result = await applyEdit('f1', 1, 1, 1, 1, 'x', 'wrong-user');
     expect(result.error).toContain('not found');
+  });
+
+  it('returns error for system files by non-admin', async () => {
+    mock.sysMLFile.findUnique.mockResolvedValue(makeFile('abc'));
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: true, isAdmin: false });
+    const result = await applyEdit('f1', 1, 1, 1, 1, 'x', 'user1');
+    expect(result.error).toContain('read-only');
   });
 
   it('returns error for invalid line range — startLine < 1', async () => {
@@ -306,12 +341,8 @@ describe('applyEdit', () => {
   });
 
   it('returns error for empty file with non-zero columns', async () => {
-    // sc=0, ec=1 → passes sc check (0 <= 0) but ec=0 > lines[0].length=0 triggers endColumn error
-    // The "File is empty" guard only triggers when lines=[''] and sc>0 || ec>0 AFTER column range checks pass
     mock.sysMLFile.findUnique.mockResolvedValue(makeFile(''));
     const result = await applyEdit('f1', 1, 1, 1, 1, 'x', 'user1');
-    // sc=0, ec=0 → both pass range, then single empty line with (sc>0 || ec>0) is false → no error
-    // Actually for empty file: lines=[''], sc=0, ec=0 → 0<=0 ok, 0<=0 ok, same line 0>0 false, lines[0]==='' && (0>0||0>0) false → succeeds
     expect(result.error).toBeNull();
   });
 
@@ -353,5 +384,81 @@ describe('searchFiles', () => {
     mock.sysMLFile.findMany.mockResolvedValue([{ id: 'f1', name: 'm', content: longLine }]);
     const results = await searchFiles('proj1', 'x');
     expect(results[0].text).toHaveLength(200);
+  });
+});
+
+
+// ── Source parameter propagation ──────────────────────────────────────────
+
+describe('source parameter in events', () => {
+  it('createFile passes source to emitFileChange', async () => {
+    mock.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 't', size: 1 });
+    await createFile('proj1', 'test', 'abc', 'user1', 'mcp');
+    expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'mcp' }),
+    );
+  });
+
+  it('createFile omits source when not provided', async () => {
+    mock.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 't', size: 1 });
+    await createFile('proj1', 'test', 'abc', 'user1');
+    expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
+      expect.objectContaining({ source: undefined }),
+    );
+  });
+
+  it('updateFileContent passes source to emitFileChange', async () => {
+    mock.sysMLFile.update.mockResolvedValue({ id: 'f1', content: 'x', size: 1 });
+    await updateFileContent('f1', 'x', 'user1', 'ai_chat');
+    expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'ai_chat' }),
+    );
+  });
+
+  it('deleteFile passes source to emitFileChange', async () => {
+    mock.sysMLFile.findUnique.mockResolvedValue({ id: 'f1' });
+    mock.sysMLFile.delete.mockResolvedValue({});
+    await deleteFile('f1', 'user1', 'mcp');
+    expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'mcp' }),
+    );
+  });
+
+  it('applyEdit passes source to emitFileChange', async () => {
+    const file = { id: 'f1', content: 'abc', projectId: 'p1', project: { ownerId: 'user1' } };
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mock.sysMLFile.update.mockResolvedValue({});
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
+    const result = await applyEdit('f1', 1, 1, 1, 2, 'X', 'user1', 'mcp');
+    expect(result.error).toBeNull();
+    expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'mcp' }),
+    );
+  });
+});
+
+// ── readFileWithAccessCheck access control ────────────────────────────────
+
+describe('readFileWithAccessCheck access scenarios', () => {
+  it('allows startup member to read startup project file', async () => {
+    const file = { id: 'f1', projectId: 'proj1', project: {} };
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false, startupRole: 'STARTUP_USER' });
+    const result = await readFileWithAccessCheck('f1', 'member1');
+    expect(result).toEqual(file);
+  });
+
+  it('allows any user to read system project file', async () => {
+    const file = { id: 'f1', projectId: 'sys1', project: {} };
+    mock.sysMLFile.findUnique.mockResolvedValue(file);
+    mockAccess.mockResolvedValue({ allowed: true, isSystem: true, isAdmin: false });
+    const result = await readFileWithAccessCheck('f1', 'anyuser');
+    expect(result).toEqual(file);
+  });
+
+  it('rejects non-member from startup project', async () => {
+    mock.sysMLFile.findUnique.mockResolvedValue({ id: 'f1', projectId: 'proj1', project: {} });
+    mockAccess.mockResolvedValue({ allowed: false, isSystem: false, isAdmin: false });
+    await expect(readFileWithAccessCheck('f1', 'outsider')).rejects.toThrow('not found');
   });
 });

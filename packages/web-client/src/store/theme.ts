@@ -1,6 +1,3 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-
 export interface ThemeColors {
   // Backgrounds
   bg: string;
@@ -57,51 +54,6 @@ export interface ThemeColors {
   codeText: string;
 }
 
-const darkTheme: ThemeColors = {
-  bg: '#1e1e1e',
-  bgSecondary: '#2d2d30',
-  bgTertiary: '#252526',
-  bgHover: '#2a3a4a',
-  bgInput: '#1e1e1e',
-  bgSelected: '#2d2d30',
-  bgOverlay: 'rgba(0,0,0,0.5)',
-
-  border: '#3c3c3c',
-  borderLight: '#222',
-  borderFocus: '#007acc',
-
-  text: '#d4d4d4',
-  textSecondary: '#888',
-  textMuted: '#666',
-  textDim: '#555',
-
-  accent: '#0e639c',
-  accentHover: '#1177bb',
-  accentBg: '#094771',
-
-  btnBg: '#3c3c3c',
-  btnBgHover: '#4a4a4a',
-  btnBorder: '#555',
-  btnDisabled: '#3c3c3c',
-
-  error: '#f48771',
-  errorBg: '#3c1e1e',
-  success: '#4ec9b0',
-  successBg: '#1a3a1a',
-  info: '#569cd6',
-  warning: '#cca700',
-
-  statusBar: '#007acc',
-
-  monacoTheme: 'systemodel-dark',
-  googleBtnTheme: 'filled_black',
-
-  divider: '#3c3c3c',
-  shadow: '0 4px 12px rgba(0,0,0,0.5)',
-  codeBg: '#2d2d2d',
-  codeText: '#ce9178',
-};
-
 const lightTheme: ThemeColors = {
   bg: '#ffffff',
   bgSecondary: '#f3f3f3',
@@ -147,36 +99,6 @@ const lightTheme: ThemeColors = {
   codeText: '#a31515',
 };
 
-export const themes = { dark: darkTheme, light: lightTheme } as const;
-export type ThemeMode = keyof typeof themes;
-
-interface ThemeState {
-  mode: ThemeMode;
-  setMode: (mode: ThemeMode) => void;
-  toggle: () => void;
-}
-
-const VALID_MODES: ThemeMode[] = ['dark', 'light'];
-
-export const useThemeStore = create<ThemeState>()(
-  persist(
-    (set) => ({
-      mode: 'dark',
-      setMode: (mode) => set({ mode: VALID_MODES.includes(mode) ? mode : 'dark' }),
-      toggle: () => set((s) => ({ mode: s.mode === 'dark' ? 'light' : 'dark' })),
-    }),
-    {
-      name: 'systemodel-theme',
-      merge: (persisted, current) => {
-        const p = persisted as Partial<ThemeState> | undefined;
-        const mode = p?.mode && VALID_MODES.includes(p.mode) ? p.mode : current.mode;
-        return { ...current, mode };
-      },
-    },
-  ),
-);
-
-export function useTheme(): ThemeColors & { mode: ThemeMode; toggle: () => void } {
-  const { mode, toggle } = useThemeStore();
-  return { ...themes[mode], mode, toggle };
+export function useTheme(): ThemeColors {
+  return lightTheme;
 }

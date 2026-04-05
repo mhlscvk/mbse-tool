@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAiSettings } from '../../store/ai-settings.js';
-import { streamChat, fetchFreeTierStatus, fetchChatHistory, clearChatHistory, type ToolCallDisplay, type FreeTierStatus } from '../../services/ai-client.js';
+import { streamChat, fetchFreeTierStatus, fetchChatHistory, clearChatHistory, type ToolCallDisplay, type FreeTierStatus, type TokenUsageInfo } from '../../services/ai-client.js';
 import { api, type AiKeyInfo } from '../../services/api-client.js';
 import { useTheme } from '../../store/theme.js';
-import { useIsMobile } from '../../hooks/useIsMobile.js';
 
 interface AiAssistantProps {
   onClose: () => void;
@@ -12,6 +11,8 @@ interface AiAssistantProps {
   fileId?: string;
   fileContent?: string;
   fileName?: string;
+  /** Called after the AI successfully edits the current file */
+  onFileEdited?: () => void;
 }
 
 interface ChatMessage {
@@ -23,16 +24,45 @@ interface ChatMessage {
 const PROVIDER_LABELS = { anthropic: 'Claude', openai: 'GPT', gemini: 'Gemini' } as const;
 const PROVIDER_COLORS = { anthropic: '#d4a27a', openai: '#74aa9c', gemini: '#4285f4' } as const;
 
-export default function AiAssistant({ onClose, projectId, fileId, fileContent, fileName }: AiAssistantProps) {
+const FILE_EDIT_TOOLS = new Set(['apply_edit', 'update_file', 'create_file', 'delete_file']);
+
+export default function AiAssistant({ onClose, projectId, fileId, fileContent, fileName, onFileEdited }: AiAssistantProps) {
   const navigate = useNavigate();
   const { provider, setProvider } = useAiSettings();
   const t = useTheme();
-  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [freeStatus, setFreeStatus] = useState<FreeTierStatus | null>(null);
   const [storedKeys, setStoredKeys] = useState<AiKeyInfo[]>([]);
+
+  // Global token usage per provider, persisted in localStorage
+  // Key ties usage to the active provider (API key), not individual files
+  const tokenKeyForProvider = useCallback((prov: string) => `systemodel:tokens:${prov}`, []);
+
+  const loadTokenUsage = useCallback((prov: string): TokenUsageInfo => {
+    try {
+      const saved = localStorage.getItem(tokenKeyForProvider(prov));
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return { inputTokens: 0, outputTokens: 0 };
+  }, [tokenKeyForProvider]);
+
+  const [tokenUsage, setTokenUsage] = useState<TokenUsageInfo>(() => loadTokenUsage(provider));
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
+
+  const addTokenUsage = useCallback((delta: TokenUsageInfo) => {
+    setTokenUsage(prev => {
+      const next = {
+        inputTokens: prev.inputTokens + delta.inputTokens,
+        outputTokens: prev.outputTokens + delta.outputTokens,
+      };
+      try { localStorage.setItem(tokenKeyForProvider(providerRef.current), JSON.stringify(next)); } catch { /* full */ }
+      return next;
+    });
+  }, [tokenKeyForProvider]);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -43,6 +73,8 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
   const canChat = hasOwnKey || freeTierAvailable;
   const quotaExhausted = isFreeTier && freeStatus ? freeStatus.remaining <= 0 : false;
 
+  // Fetch API keys and free tier status on mount AND when fileId changes
+  // (re-fetch ensures keys are always recognized after navigation)
   useEffect(() => {
     let cancelled = false;
     fetchFreeTierStatus().then(s => { if (!cancelled) setFreeStatus(s); }).catch(() => {});
@@ -56,7 +88,12 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
     }).catch(() => {});
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fileId]);
+
+  // Reload persisted token usage when provider changes
+  useEffect(() => {
+    setTokenUsage(loadTokenUsage(provider));
+  }, [provider, loadTokenUsage]);
 
   // Load chat history on mount / fileId change
   useEffect(() => {
@@ -139,8 +176,18 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
             next[next.length - 1] = { ...last, toolCalls: calls };
             return next;
           });
+          // Refresh editor content after a successful file-editing tool call
+          if (!event.isError && FILE_EDIT_TOOLS.has(event.name)) {
+            onFileEdited?.();
+          }
+        } else if (event.type === 'usage') {
+          // Live update during multi-round tool use (shows running total for this request)
+          // Don't persist — wait for done event with final total
         } else if (event.type === 'done') {
-          // Refresh free tier status
+          // Add this request's total to the cumulative per-file usage
+          if (event.usage && (event.usage.inputTokens > 0 || event.usage.outputTokens > 0)) {
+            addTokenUsage(event.usage);
+          }
           if (isFreeTier) fetchFreeTierStatus().then(setFreeStatus);
         } else if (event.type === 'error') {
           setMessages(prev => {
@@ -163,7 +210,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
     } finally {
       setStreaming(false);
     }
-  }, [provider, setProvider, activeKey, messages, streaming, canChat, quotaExhausted, hasOwnKey, isFreeTier, projectId, fileId, fileContent, fileName]);
+  }, [provider, setProvider, activeKey, messages, streaming, canChat, quotaExhausted, hasOwnKey, isFreeTier, projectId, fileId, fileContent, fileName, onFileEdited, addTokenUsage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -177,9 +224,9 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
 
   return (
     <div style={{
-      width: isMobile ? '100%' : 320, flexShrink: 0,
+      width: 320, flexShrink: 0,
       display: 'flex', flexDirection: 'column',
-      background: t.bg, borderLeft: isMobile ? 'none' : `1px solid ${t.border}`,
+      background: t.bg, borderLeft: `1px solid ${t.border}`,
       overflow: 'hidden',
     }}>
       {/* Header */}
@@ -199,7 +246,10 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
         <div style={{ display: 'flex', gap: 4, color: t.textMuted }}>
           <button onClick={() => navigate('/settings?tab=ai-provider')} title="AI Settings" style={iconBtn}>&#9881;</button>
           {messages.length > 0 && (
-            <button onClick={() => { if (fileId) clearChatHistory(fileId); setMessages([]); }} title="Clear chat" style={iconBtn}>&#10227;</button>
+            <button onClick={() => {
+              if (fileId) clearChatHistory(fileId);
+              setMessages([]);
+            }} title="Clear chat" style={iconBtn}>&#10227;</button>
           )}
           <button onClick={onClose} title="Close" style={iconBtn}>&#10005;</button>
         </div>
@@ -228,6 +278,9 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
         </div>
       )}
 
+      {/* Token usage bar */}
+      {canChat && <TokenUsageBar usage={tokenUsage} t={t} streaming={streaming} />}
+
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {!canChat ? (
@@ -253,8 +306,8 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
               {msg.role === 'user' ? (
                 <div style={{
                   margin: '4px 10px', padding: '8px 10px',
-                  background: t.mode === 'dark' ? '#094771' : '#e1ecf4', borderRadius: 6,
-                  color: t.mode === 'dark' ? '#e0e8f0' : '#1a3050', fontSize: 12, lineHeight: 1.5,
+                  background: '#e1ecf4', borderRadius: 6,
+                  color: '#1a3050', fontSize: 12, lineHeight: 1.5,
                 }}>{msg.content}</div>
               ) : (
                 <div style={{ padding: '4px 0' }}>
@@ -301,7 +354,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
                 background: quotaExhausted ? t.bgTertiary : t.bgInput,
                 border: `1px solid ${t.border}`, borderRadius: 4,
                 color: quotaExhausted ? t.textDim : t.text, fontSize: 12,
-                padding: '7px 36px 7px 10px', resize: 'none',
+                caretColor: '#000', padding: '7px 36px 7px 10px', resize: 'none',
                 fontFamily: 'inherit', lineHeight: 1.4, outline: 'none',
               }}
               onFocus={e => { if (!quotaExhausted) e.target.style.borderColor = t.accent; }}
@@ -327,6 +380,51 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
   );
 }
 
+// ─── Token Usage Bar ────────────────────────────────────────────────────────
+
+function formatTokenCount(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function TokenUsageBar({ usage, t, streaming }: { usage: TokenUsageInfo; t: ReturnType<typeof useTheme>; streaming: boolean }) {
+  const total = usage.inputTokens + usage.outputTokens;
+  const hasUsage = total > 0;
+  // Context window estimate based on common model limits
+  const contextLimit = 200_000;
+  const pct = hasUsage ? Math.min(100, (total / contextLimit) * 100) : 0;
+  const barColor = pct > 80 ? t.error : pct > 50 ? '#ff9800' : t.accent;
+
+  return (
+    <div style={{
+      padding: '4px 10px', background: t.bgSecondary,
+      borderBottom: `1px solid ${t.border}`, flexShrink: 0,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+        <span style={{ fontSize: 10, color: t.textMuted }}>
+          {hasUsage
+            ? `Tokens: ${formatTokenCount(usage.inputTokens)} in + ${formatTokenCount(usage.outputTokens)} out`
+            : streaming ? 'Calculating tokens...' : 'Token usage'
+          }
+        </span>
+        <span style={{ fontSize: 10, color: t.textMuted }}>
+          {hasUsage ? `${formatTokenCount(total)} total` : '0'}
+        </span>
+      </div>
+      <div style={{
+        width: '100%', height: 3, background: t.bgTertiary,
+        borderRadius: 2, overflow: 'hidden',
+      }}>
+        <div style={{
+          width: hasUsage ? `${Math.max(1, pct)}%` : '0%',
+          height: '100%', borderRadius: 2, background: barColor,
+          transition: 'width 0.3s ease',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Tool Call Card ──────────────────────────────────────────────────────────
 
 function ToolCallCard({ call }: { call: ToolCallDisplay }) {
@@ -335,8 +433,8 @@ function ToolCallCard({ call }: { call: ToolCallDisplay }) {
   const isDone = call.result !== undefined;
   const isError = call.isError;
 
-  const borderColor = isError ? (t.mode === 'dark' ? '#5a2a2a' : '#e8c0c0') : isDone ? (t.mode === 'dark' ? '#2a4a2a' : '#c0e0c0') : (t.mode === 'dark' ? '#2a3a4a' : '#c0d0e0');
-  const bgColor = isError ? (t.mode === 'dark' ? '#1a0a0a' : '#fff0f0') : isDone ? (t.mode === 'dark' ? '#0a1a0a' : '#f0fff0') : (t.mode === 'dark' ? '#0a0a1a' : '#f0f0ff');
+  const borderColor = isError ? '#e8c0c0' : isDone ? '#c0e0c0' : '#c0d0e0';
+  const bgColor = isError ? '#fff0f0' : isDone ? '#f0fff0' : '#f0f0ff';
 
   return (
     <div style={{
@@ -402,7 +500,7 @@ function renderInline(text: string, t: ReturnType<typeof useTheme>): React.React
     if (part.startsWith('**') && part.endsWith('**'))
       return <strong key={i} style={{ color: t.text }}>{part.slice(2, -2)}</strong>;
     if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={i} style={{ background: t.bgTertiary, color: t.mode === 'dark' ? '#ce9178' : '#a31515', borderRadius: 2, padding: '0 3px', fontFamily: 'monospace' }}>{part.slice(1, -1)}</code>;
+      return <code key={i} style={{ background: t.bgTertiary, color: '#a31515', borderRadius: 2, padding: '0 3px', fontFamily: 'monospace' }}>{part.slice(1, -1)}</code>;
     return part;
   });
 }

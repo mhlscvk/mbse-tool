@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
-import { useThemeStore, themes } from '../../store/theme.js';
 import { parseSysmlElementRanges } from '../../utils/sysml-helpers.js';
+import type { DiffHunk } from '../../utils/line-diff.js';
 
 // ─── Register SysML v2 language ────────────────────────────────────────────
 
@@ -78,41 +78,6 @@ monaco.languages.setLanguageConfiguration('sysml', {
   },
 });
 
-monaco.editor.defineTheme('systemodel-dark', {
-  base: 'vs-dark',
-  inherit: true,
-  rules: [
-    { token: 'keyword', foreground: '569cd6', fontStyle: 'bold' },
-    { token: 'keyword.stdlib', foreground: 'dcdcaa', fontStyle: 'bold' },
-    { token: 'type.identifier', foreground: '4ec9b0' },
-    { token: 'comment', foreground: '6a9955', fontStyle: 'italic' },
-    { token: 'string', foreground: 'ce9178' },
-    { token: 'number', foreground: 'b5cea8' },
-    { token: 'delimiter', foreground: 'd4d4d4' },
-    { token: 'delimiter.bracket', foreground: 'ffd700' },
-    { token: 'identifier', foreground: 'd4d4d4' },
-  ],
-  colors: {
-    'editor.background': '#1e1e1e',
-    'editor.foreground': '#d4d4d4',
-    'editorLineNumber.foreground': '#858585',
-    'editorLineNumber.activeForeground': '#c6c6c6',
-    'editorCursor.foreground': '#d4d4d4',
-    'editorCursor.background': '#1e1e1e',
-    'editor.lineHighlightBackground': '#2a2a2a',
-    'editor.lineHighlightBorder': '#303030',
-    'editorIndentGuide.background1': '#404040',
-    'editor.selectionBackground': '#264f78',
-    'editor.selectionHighlightBackground': '#264f7860',
-    'editor.wordHighlightBackground': '#575757b8',
-    'editorBracketMatch.background': '#0064001a',
-    'editorBracketMatch.border': '#888888',
-    'editorGutter.background': '#1e1e1e',
-    'scrollbarSlider.background': '#4e4e4e80',
-    'scrollbarSlider.hoverBackground': '#6e6e6ea0',
-  },
-});
-
 monaco.editor.defineTheme('systemodel-light', {
   base: 'vs',
   inherit: true,
@@ -133,7 +98,6 @@ monaco.editor.defineTheme('systemodel-light', {
     'editorLineNumber.foreground': '#237893',
     'editorLineNumber.activeForeground': '#0b216f',
     'editorCursor.foreground': '#000000',
-    'editorCursor.background': '#ffffff',
     'editor.lineHighlightBackground': '#f5f5f5',
     'editor.lineHighlightBorder': '#e0e0e0',
     'editorIndentGuide.background1': '#d3d3d3',
@@ -149,6 +113,57 @@ monaco.editor.defineTheme('systemodel-light', {
     'minimap.background': '#f8f8f8',
   },
 });
+
+
+// ─── Cursor fix styles (injected at module load, before any editor exists) ──
+// This ensures the CSS rule is in the document BEFORE monaco.editor.create()
+// renders the first cursor element, eliminating the white-cursor flash.
+
+(() => {
+  if (document.getElementById('cursor-fix-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'cursor-fix-styles';
+  style.textContent = `
+    .monaco-editor .cursors-layer .cursor,
+    .monaco-editor .cursors-layer .cursor.cursor-primary,
+    .monaco-editor .cursors-layer .cursor.cursor-secondary {
+      background: #000 !important;
+      border-color: #000 !important;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+// ─── AI change decoration styles (injected once) ──────────────────────────
+
+(() => {
+  if (document.getElementById('ai-change-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'ai-change-styles';
+  style.textContent = `
+    .ai-change-added-line {
+      background: rgba(40, 167, 69, 0.18) !important;
+      border-left: 3px solid #28a745 !important;
+    }
+    .ai-change-modified-line {
+      background: rgba(255, 152, 0, 0.18) !important;
+      border-left: 3px solid #ff9800 !important;
+    }
+    .ai-change-gutter-added {
+      background: #28a745 !important;
+      width: 4px !important;
+      margin-left: 2px;
+      border-radius: 1px;
+    }
+    .ai-change-gutter-modified {
+      background: #ff9800 !important;
+      width: 4px !important;
+      margin-left: 2px;
+      border-radius: 1px;
+    }
+  `;
+  document.head.appendChild(style);
+})();
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
@@ -170,6 +185,8 @@ export interface EditorMarker {
 export interface MonacoEditorHandle {
   revealRange(startLine: number, startCol: number, endLine: number, endCol: number): void;
   applyFix(startLine: number, startCol: number, endLine: number, endCol: number, newText: string): void;
+  /** Replace full content using executeEdits (preserves undo stack) */
+  setContentWithUndo(newContent: string): void;
 }
 
 interface MonacoEditorProps {
@@ -187,6 +204,12 @@ interface MonacoEditorProps {
   myLockedElements?: Set<string>;
   /** Called to show only this element in the diagram */
   onShowOnly?: (elementName: string) => void;
+  /** AI change hunks to highlight */
+  aiChangeHunks?: DiffHunk[];
+  /** Called when user accepts a single hunk or all hunks */
+  onAcceptAiChange?: (hunkId: string | 'all') => void;
+  /** Called when user reverts a single hunk or all hunks */
+  onRevertAiChange?: (hunkId: string | 'all') => void;
 }
 
 const SEVERITY_MAP = {
@@ -196,7 +219,7 @@ const SEVERITY_MAP = {
 };
 
 const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function MonacoEditor(
-  { value, onChange, markers = [], readOnly = false, onReadOnlyEdit, onCheckOut, onCheckIn, myLockedElements, onShowOnly }: MonacoEditorProps,
+  { value, onChange, markers = [], readOnly = false, onReadOnlyEdit, onCheckOut, onCheckIn, myLockedElements, onShowOnly, aiChangeHunks, onAcceptAiChange, onRevertAiChange }: MonacoEditorProps,
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,8 +234,6 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
   onReadOnlyEditRef.current = onReadOnlyEdit;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const themeMode = useThemeStore((s) => s.mode);
-  const monacoTheme = themes[themeMode].monacoTheme;
 
   useImperativeHandle(ref, () => ({
     revealRange(startLine: number, startCol: number, endLine: number, endCol: number) {
@@ -230,6 +251,15 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
       editor.executeEdits('quick-fix', [{ range, text: newText }]);
       editor.focus();
     },
+    setContentWithUndo(newContent: string) {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const model = editor.getModel();
+      if (!model) return;
+      const fullRange = model.getFullModelRange();
+      editor.executeEdits('ai-edit', [{ range: fullRange, text: newContent }]);
+      valueRef.current = newContent;
+    },
   }));
 
   useEffect(() => {
@@ -238,7 +268,7 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
     const editor = monaco.editor.create(containerRef.current, {
       value,
       language: 'sysml',
-      theme: monacoTheme,
+      theme: 'systemodel-light',
       readOnly,
       fontSize: 14,
       lineNumbers: 'on',
@@ -248,12 +278,49 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
       automaticLayout: true,
       tabSize: 2,
       insertSpaces: true,
-      cursorBlinking: 'smooth',
+      cursorStyle: 'line',
+      cursorWidth: 2,
+      cursorBlinking: 'blink',
       smoothScrolling: true,
       folding: true,
     });
 
     editorRef.current = editor;
+
+    // ── Force cursor black (immediately, before setTheme) ───────────────
+    // Apply inline styles to cursor elements RIGHT AFTER create() — before
+    // the browser paints the next frame.  This eliminates the brief white
+    // cursor flash that occurs when Monaco's theme CSS hasn't loaded yet.
+    const editorDom = editor.getDomNode();
+    const forceCursorBlack = (el: HTMLElement) => {
+      el.style.setProperty('background', '#000', 'important');
+      el.style.setProperty('border-color', '#000', 'important');
+    };
+    // Immediate pass — fix any cursors that already exist
+    editorDom?.querySelectorAll<HTMLElement>('.cursors-layer .cursor').forEach(forceCursorBlack);
+
+    monaco.editor.setTheme('systemodel-light');
+
+    // MutationObserver keeps cursors black on every subsequent re-render
+    const cursorObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'childList') {
+          m.addedNodes.forEach((n) => {
+            if (n instanceof HTMLElement && n.classList.contains('cursor')) {
+              forceCursorBlack(n);
+            }
+          });
+        }
+        if (m.type === 'attributes' && m.target instanceof HTMLElement && m.target.classList.contains('cursor')) {
+          forceCursorBlack(m.target);
+        }
+      }
+    });
+    const layer = editorDom?.querySelector('.cursors-layer');
+    if (layer) {
+      layer.querySelectorAll<HTMLElement>('.cursor').forEach(forceCursorBlack);
+      cursorObserver.observe(layer, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    }
 
     // Track whether we're reverting an unauthorized edit (to avoid infinite loop)
     let isReverting = false;
@@ -318,6 +385,7 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
     (editor as unknown as { _getElementNameAtCursor: () => string | null })._getElementNameAtCursor = getElementNameAtCursor;
 
     return () => {
+      cursorObserver.disconnect();
       editor.dispose();
       editorRef.current = null;
     };
@@ -374,10 +442,6 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
     return () => disposable.dispose();
   }, []);
 
-  // Sync Monaco theme when it changes
-  useEffect(() => {
-    monaco.editor.setTheme(monacoTheme);
-  }, [monacoTheme]);
 
   // Register context menu actions — recreate when lock state changes to update labels
   const onCheckOutRef = useRef(onCheckOut);
@@ -386,6 +450,13 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
   onCheckOutRef.current = onCheckOut;
   onCheckInRef.current = onCheckIn;
   onShowOnlyRef.current = onShowOnly;
+
+  const onAcceptAiChangeRef = useRef(onAcceptAiChange);
+  const onRevertAiChangeRef = useRef(onRevertAiChange);
+  const aiChangeHunksRef = useRef(aiChangeHunks);
+  onAcceptAiChangeRef.current = onAcceptAiChange;
+  onRevertAiChangeRef.current = onRevertAiChange;
+  aiChangeHunksRef.current = aiChangeHunks;
 
   // Track which element is under cursor for dynamic labels
   const [cursorElementName, setCursorElementName] = useState<string | null>(null);
@@ -516,6 +587,106 @@ const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function 
       showOnlyAction.dispose();
     };
   }, [cursorElementName, cursorElementLocked]);
+
+  // ─── AI change highlighting & context menu ──────────────────────────────
+  const aiDecorationsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    if (!model) return;
+
+    const hunks = aiChangeHunks ?? [];
+
+    // Apply decorations for each hunk
+    const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
+    for (const hunk of hunks) {
+      if (hunk.newEndLine === 0) continue; // pure deletion — nothing to highlight in new content
+      const isAdded = hunk.type === 'added';
+      for (let line = hunk.newStartLine; line <= hunk.newEndLine; line++) {
+        newDecorations.push({
+          range: new monaco.Range(line, 1, line, Number.MAX_SAFE_INTEGER),
+          options: {
+            isWholeLine: true,
+            className: isAdded ? 'ai-change-added-line' : 'ai-change-modified-line',
+            linesDecorationsClassName: isAdded ? 'ai-change-gutter-added' : 'ai-change-gutter-modified',
+            overviewRuler: {
+              color: isAdded ? '#28a745' : '#ff9800',
+              position: monaco.editor.OverviewRulerLane.Left,
+            },
+          },
+        });
+      }
+    }
+
+    aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDecorations);
+  }, [aiChangeHunks]);
+
+  // AI change context menu actions
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const hunks = aiChangeHunks ?? [];
+    const hasHunks = hunks.length > 0;
+    if (!hasHunks) return;
+
+    const getHunkAtCursor = (): DiffHunk | null => {
+      const pos = editor.getPosition();
+      if (!pos) return null;
+      const line = pos.lineNumber;
+      const currentHunks = aiChangeHunksRef.current ?? [];
+      return currentHunks.find(h => h.newEndLine > 0 && line >= h.newStartLine && line <= h.newEndLine) ?? null;
+    };
+
+    const acceptAllAction = editor.addAction({
+      id: 'ai.acceptAll',
+      label: 'Accept All AI Changes',
+      contextMenuGroupId: '8_ai_changes',
+      contextMenuOrder: 1,
+      run: () => { onAcceptAiChangeRef.current?.('all'); },
+    });
+
+    const revertAllAction = editor.addAction({
+      id: 'ai.revertAll',
+      label: 'Revert All AI Changes',
+      contextMenuGroupId: '8_ai_changes',
+      contextMenuOrder: 2,
+      run: () => { onRevertAiChangeRef.current?.('all'); },
+    });
+
+    const acceptThisAction = editor.addAction({
+      id: 'ai.acceptThis',
+      label: 'Accept This Change',
+      contextMenuGroupId: '8_ai_changes',
+      contextMenuOrder: 3,
+      precondition: undefined,
+      run: () => {
+        const hunk = getHunkAtCursor();
+        if (hunk) onAcceptAiChangeRef.current?.(hunk.id);
+      },
+    });
+
+    const revertThisAction = editor.addAction({
+      id: 'ai.revertThis',
+      label: 'Revert This Change',
+      contextMenuGroupId: '8_ai_changes',
+      contextMenuOrder: 4,
+      precondition: undefined,
+      run: () => {
+        const hunk = getHunkAtCursor();
+        if (hunk) onRevertAiChangeRef.current?.(hunk.id);
+      },
+    });
+
+    return () => {
+      acceptAllAction.dispose();
+      revertAllAction.dispose();
+      acceptThisAction.dispose();
+      revertThisAction.dispose();
+    };
+  }, [aiChangeHunks]);
 
   // Sync readOnly state and detect edit attempts
   const readOnlyRef = useRef(readOnly);

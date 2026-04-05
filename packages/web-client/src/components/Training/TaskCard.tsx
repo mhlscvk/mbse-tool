@@ -104,7 +104,7 @@ export default function TaskCard({
           </div>
           {isCompleted && (
             <div style={{
-              fontSize: 9, color: '#4ec9b0', background: t.bg === '#1e1e1e' ? '#0a2e18' : '#e0f5e8',
+              fontSize: 9, color: '#0a6e37', background: '#e0f5e8',
               border: '1px solid #0a6e37', borderRadius: 3,
               padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5,
             }}>
@@ -185,10 +185,10 @@ export default function TaskCard({
         </button>
       ) : (
         <div style={{
-          background: t.bg === '#1e1e1e' ? '#1a2b1a' : '#f0f8f0',
-          border: `1px solid ${t.bg === '#1e1e1e' ? '#2e4a2e' : '#a0d0a0'}`,
+          background: '#f0f8f0',
+          border: '1px solid #a0d0a0',
           borderRadius: 4, padding: '7px 10px',
-          fontSize: 11, color: t.bg === '#1e1e1e' ? '#8ec98e' : '#2a6a2a', lineHeight: 1.5,
+          fontSize: 11, color: '#2a6a2a', lineHeight: 1.5,
         }}>
           <span style={{ opacity: 0.7 }}>Hint: </span>{task.hint}
         </div>

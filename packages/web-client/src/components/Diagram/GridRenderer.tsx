@@ -40,7 +40,6 @@ const REL_COLORS: Record<string, string> = {
 
 export default function GridRenderer({ model, onNodeSelect }: GridRendererProps) {
   const t = useTheme();
-  const isDark = t.mode === 'dark';
   const [activeTab, setActiveTab] = useState<RelKind | 'all'>('all');
 
   const { rowNodes, colNodes, matrix } = useMemo(() => {
@@ -82,10 +81,10 @@ export default function GridRenderer({ model, onNodeSelect }: GridRendererProps)
   const getName = (n: SNode) => n.children.find(c => c.id.endsWith('__label'))?.text ?? n.id.split('__').pop() ?? '';
   const getKind = (n: SNode) => n.children.find(c => c.id.endsWith('__kind'))?.text ?? '';
 
-  const bg = isDark ? '#1a1a2e' : '#ffffff';
-  const headerBg = isDark ? '#252540' : '#f0f0f8';
-  const cellBorder = isDark ? '#333' : '#ddd';
-  const hoverBg = isDark ? '#2a2a4a' : '#e8e8f0';
+  const bg = '#ffffff';
+  const headerBg = '#f0f0f8';
+  const cellBorder = '#ddd';
+  const hoverBg = '#e8e8f0';
 
   if (!model) {
     return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>No model data for Grid View</div>;
@@ -100,7 +99,7 @@ export default function GridRenderer({ model, onNodeSelect }: GridRendererProps)
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             style={{
-              background: activeTab === tab.key ? t.statusBar : (isDark ? '#2a2a3a' : '#e0e0e8'),
+              background: activeTab === tab.key ? t.statusBar : ('#e0e0e8'),
               color: activeTab === tab.key ? '#fff' : t.text,
               border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11,
               cursor: 'pointer', fontWeight: activeTab === tab.key ? 700 : 400,
@@ -166,7 +165,7 @@ export default function GridRenderer({ model, onNodeSelect }: GridRendererProps)
                         style={{
                           border: `1px solid ${cellBorder}`,
                           padding: '2px 4px', textAlign: 'center', minWidth: 28,
-                          background: rels.length > 0 ? (isDark ? '#2a2a3a' : '#f0f0ff') : 'transparent',
+                          background: rels.length > 0 ? ('#f0f0ff') : 'transparent',
                         }}
                         title={rels.join(', ')}
                       >

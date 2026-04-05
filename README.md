@@ -518,7 +518,7 @@ package VehicleSystem {
 
 ## Editor Features
 
-- **Dark / Light theme** — toggle via header button; persists in localStorage; adapts editor, diagram, element panel, and all UI
+- **Light theme** — clean light-theme UI across editor, diagram, element panel, and all views
 - **Syntax highlighting** for all SysML v2 keywords
 - **Real-time diagnostics** with Levenshtein-based fix suggestions
 - **Click any diagram node or edge** to jump to its source in the editor
@@ -594,6 +594,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - **Error sanitization** — internal error details (Prisma, stack traces, file paths) never leaked in any environment
 - **AI key encryption** — AES-256-GCM with per-key IV, stored encrypted in DB, never returned after initial save
 - **MCP session limits** — max 5 sessions/user, 500 total, 24h TTL with cleanup
+- **SSE token isolation** — SSE endpoints use purpose-limited 60-second JWTs (not full session tokens) to prevent token exposure in query strings
 - **Prisma transaction** on concurrent file edits (TOCTOU prevention)
 - **Trust proxy** — `app.set('trust proxy', 1)` in production so `req.ip` reflects real client IP behind Nginx, enabling correct rate-limit keying
 - **Graceful shutdown** — Prisma disconnect on SIGTERM/SIGINT
@@ -640,14 +641,15 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] AI Chat: hybrid free tier (Haiku) + own-key unlimited (Claude/GPT/Gemini), encrypted key storage
 - [x] MCP Server: 8 tools, 3 prompts, real-time subscriptions, Streamable HTTP transport
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
+- [x] MCP Desktop integration: Claude Desktop edits trigger real-time diff highlighting, undo/redo, accept/revert in web UI via SSE events with source tracking
 - [x] User auth: email/password + Google OAuth + email verification + forgot password (email reset link)
 - [x] Settings page with tabbed layout (Account / AI Provider / MCP / Admin), password change form
 - [x] Admin panel: sync Examples from disk (Settings > Admin)
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
-- [x] Dark / Light theme toggle with localStorage persistence, themed Monaco editor, and full SVG diagram adaptation
+- [x] Light theme with consistent cursor visibility (three-layer black cursor fix for Monaco editor)
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 826 vitest tests across 30 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, new features, auth middleware, error handling, CSRF, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, OMG vehicle model validation)
+- [x] Automated tests: 872 vitest tests across 33 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, OMG vehicle model validation)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 76 files across 9 subprojects including 39 OMG standard library files)
@@ -657,7 +659,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] Single-quoted names, alias declarations, visibility-prefixed imports, `ref` keyword
 - [x] Comment declarations (`comment`, `doc`, `/* */`), folded-corner note shape, `«annotate»` edges
 - [x] Legend toggle (show/hide via Relations tab checkbox)
-- [x] Training mode (20 levels, 125 tasks — part defs through conditional guards, light/dark theme support)
+- [x] Training mode (22 levels, 133 tasks — part defs through individual/snapshot/timeslice)
 - [x] OMG standard libraries integrated: Systems Library (16 files), Quantities & Units (9 files, ISQ/SI), 6 Domain Libraries (14 files)
 - [x] TypeScript types auto-generated from OMG JSON Schema (ptc/25-04-32): 175 metaclasses, 7 enum types
 - [x] Official OMG SimpleVehicleModel (ptc/25-04-31) used as parser validation fixture (557 nodes, 805 connections, 0 errors)

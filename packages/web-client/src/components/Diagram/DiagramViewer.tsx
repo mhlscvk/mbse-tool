@@ -367,28 +367,27 @@ export default function DiagramViewer({
   locks, currentUserId, onCheckOut, onCheckIn, onRequestLock,
 }: DiagramViewerProps) {
   const t = useTheme();
-  const isDark = t.mode === 'dark';
-  const NODE_COLORS = isDark ? NODE_COLORS_DARK : NODE_COLORS_LIGHT;
+  const NODE_COLORS = NODE_COLORS_LIGHT;
   // Themed SVG text/stroke colors
-  const svgText = isDark ? '#e8eef6' : '#1a1a2e';
-  const svgTextSub = isDark ? '#b0c8e8' : '#3a4a6a';
-  const svgTextDim = isDark ? '#888' : '#777';
-  const svgStroke = isDark ? '#4a8ab0' : '#8a8aaa';
-  const svgPkgStroke = isDark ? '#6a6a8a' : '#9a9ab0';
-  const svgPkgText = isDark ? '#d0d0e8' : '#2a2a4a';
-  const svgPkgLabel = isDark ? '#9a9ac0' : '#5a5a8a';
-  const svgCtrlFill = isDark ? '#ccc' : '#555';
-  const svgCtrlStroke = isDark ? '#888' : '#999';
-  const svgPortText = isDark ? '#c0b0e0' : '#5a3a8a';
-  const svgPortStroke = isDark ? '#7a5a9a' : '#9a7aba';
-  const svgCommentText = isDark ? '#e8e0c0' : '#4a4020';
-  const svgCommentBody = isDark ? '#c0b880' : '#6a6040';
-  const svgCommentLabel = isDark ? '#c0b060' : '#7a6a30';
-  const svgCommentStroke = isDark ? '#8a7a40' : '#b0a060';
-  const svgCommentFill = isDark ? '#3a3520' : '#f0e8c0';
-  const svgCommentFold = isDark ? '#2a2810' : '#e0d8b0';
-  const svgAttrText = isDark ? '#b0c8e0' : '#3a5a7a';
-  const svgLegendText = isDark ? '#ccc' : '#333';
+  const svgText = '#1a1a2e';
+  const svgTextSub = '#3a4a6a';
+  const svgTextDim = '#777';
+  const svgStroke = '#8a8aaa';
+  const svgPkgStroke = '#9a9ab0';
+  const svgPkgText = '#2a2a4a';
+  const svgPkgLabel = '#5a5a8a';
+  const svgCtrlFill = '#555';
+  const svgCtrlStroke = '#999';
+  const svgPortText = '#5a3a8a';
+  const svgPortStroke = '#9a7aba';
+  const svgCommentText = '#4a4020';
+  const svgCommentBody = '#6a6040';
+  const svgCommentLabel = '#7a6a30';
+  const svgCommentStroke = '#b0a060';
+  const svgCommentFill = '#f0e8c0';
+  const svgCommentFold = '#e0d8b0';
+  const svgAttrText = '#3a5a7a';
+  const svgLegendText = '#333';
   // IV is always nested per SysML v2 spec (Section 9.2.20, 8.2.3.11):
   // "Default compartment for a part" — nested features as nested nodes with boundary ports
   const effectiveViewMode: 'nested' | 'tree' = viewMode;
@@ -2089,7 +2088,7 @@ export default function DiagramViewer({
                   onMouseEnter={() => setHoveredNodeId(node.id)}
                   onMouseLeave={() => setHoveredNodeId(null)}
                   style={{ cursor: 'pointer' }}>
-                  <rect width={w} height={h} fill={isDark ? '#aaa' : '#666'} stroke={borderColor} strokeWidth={1.5} rx={2} />
+                  <rect width={w} height={h} fill={'#666'} stroke={borderColor} strokeWidth={1.5} rx={2} />
                   <text x={w / 2} y={h + 14} fill={svgTextDim} fontSize={9} textAnchor="middle">{nameLabel?.text}</text>
                 </g>
               );
@@ -2612,49 +2611,49 @@ export default function DiagramViewer({
           if (viewType === 'general' || viewType === 'interconnection') {
             nodeItems.push({ label: 'Part def', fill: NODE_COLORS.partdefinition, stroke: svgStroke, rx: 0, textColor: svgTextSub });
             nodeItems.push({ label: 'Part usage', fill: NODE_COLORS.partusage, stroke: svgStroke, rx: 4, textColor: svgTextSub });
-            nodeItems.push({ label: 'Attribute def', fill: NODE_COLORS.attributedefinition, stroke: isDark ? '#4a8a4a' : '#8aaa8a', rx: 0, textColor: isDark ? '#a8d8a8' : '#3a6a3a' });
-            nodeItems.push({ label: 'Connection def', fill: NODE_COLORS.connectiondefinition, stroke: isDark ? '#8a6a4a' : '#aa8a6a', rx: 0, textColor: isDark ? '#d8b888' : '#6a4a2a' });
+            nodeItems.push({ label: 'Attribute def', fill: NODE_COLORS.attributedefinition, stroke: '#8aaa8a', rx: 0, textColor: '#3a6a3a' });
+            nodeItems.push({ label: 'Connection def', fill: NODE_COLORS.connectiondefinition, stroke: '#aa8a6a', rx: 0, textColor: '#6a4a2a' });
             nodeItems.push({ label: 'Port def', fill: NODE_COLORS.portdefinition, stroke: svgPortStroke, rx: 0, textColor: svgPortText });
             nodeItems.push({ label: 'Port usage', fill: NODE_COLORS.portusage, stroke: svgPortStroke, rx: 0, textColor: svgPortText, icon: 'port' });
-            nodeItems.push({ label: 'Item def', fill: NODE_COLORS.itemdefinition, stroke: isDark ? '#8a6a30' : '#aa8a50', rx: 0, textColor: isDark ? '#d8b878' : '#6a4a20' });
-            nodeItems.push({ label: 'Interface def', fill: NODE_COLORS.interfacedefinition, stroke: isDark ? '#6a4a8a' : '#8a6aaa', rx: 0, textColor: isDark ? '#c0a0e0' : '#5a3a8a' });
-            nodeItems.push({ label: 'Enum def', fill: NODE_COLORS.enumdefinition, stroke: isDark ? '#4a8a6a' : '#6aaa8a', rx: 0, textColor: isDark ? '#a8d8c0' : '#2a5a40' });
-            nodeItems.push({ label: 'Requirement def', fill: NODE_COLORS.requirementdefinition, stroke: isDark ? '#8a4a4a' : '#aa6a6a', rx: 0, textColor: isDark ? '#f0a0a0' : '#6a2a2a' });
-            nodeItems.push({ label: 'Requirement usage', fill: NODE_COLORS.requirementusage, stroke: isDark ? '#8a4a4a' : '#aa6a6a', rx: 4, textColor: isDark ? '#f0a0a0' : '#6a2a2a' });
-            nodeItems.push({ label: 'Constraint def', fill: NODE_COLORS.constraintdefinition, stroke: isDark ? '#8a5a3a' : '#aa7a5a', rx: 0, textColor: isDark ? '#e0b898' : '#6a3a1a' });
-            nodeItems.push({ label: 'Use case def', fill: NODE_COLORS.usecasedefinition, stroke: isDark ? '#4a5a8a' : '#6a7aaa', rx: 10, textColor: isDark ? '#a0b8e8' : '#3a4a7a' });
-            nodeItems.push({ label: 'Calculation def', fill: NODE_COLORS.calcdefinition, stroke: isDark ? '#3a7a8a' : '#5a9aaa', rx: 0, textColor: isDark ? '#90d0e0' : '#2a5a6a' });
-            nodeItems.push({ label: 'Allocation def', fill: NODE_COLORS.allocationdefinition, stroke: isDark ? '#8a7030' : '#aa9050', rx: 0, textColor: isDark ? '#d8c070' : '#6a5010' });
-            nodeItems.push({ label: 'View def', fill: NODE_COLORS.viewdefinition, stroke: isDark ? '#4a8a8a' : '#6aaaaa', rx: 0, textColor: isDark ? '#a0d8d8' : '#2a6a6a' });
-            nodeItems.push({ label: 'Viewpoint def', fill: NODE_COLORS.viewpointdefinition, stroke: isDark ? '#5a5a8a' : '#7a7aaa', rx: 0, textColor: isDark ? '#b0b0e0' : '#4a4a7a' });
-            nodeItems.push({ label: 'Metadata def', fill: NODE_COLORS.metadatadefinition, stroke: isDark ? '#6a4a6a' : '#8a6a8a', rx: 0, textColor: isDark ? '#c0a0c0' : '#5a3a5a' });
+            nodeItems.push({ label: 'Item def', fill: NODE_COLORS.itemdefinition, stroke: '#aa8a50', rx: 0, textColor: '#6a4a20' });
+            nodeItems.push({ label: 'Interface def', fill: NODE_COLORS.interfacedefinition, stroke: '#8a6aaa', rx: 0, textColor: '#5a3a8a' });
+            nodeItems.push({ label: 'Enum def', fill: NODE_COLORS.enumdefinition, stroke: '#6aaa8a', rx: 0, textColor: '#2a5a40' });
+            nodeItems.push({ label: 'Requirement def', fill: NODE_COLORS.requirementdefinition, stroke: '#aa6a6a', rx: 0, textColor: '#6a2a2a' });
+            nodeItems.push({ label: 'Requirement usage', fill: NODE_COLORS.requirementusage, stroke: '#aa6a6a', rx: 4, textColor: '#6a2a2a' });
+            nodeItems.push({ label: 'Constraint def', fill: NODE_COLORS.constraintdefinition, stroke: '#aa7a5a', rx: 0, textColor: '#6a3a1a' });
+            nodeItems.push({ label: 'Use case def', fill: NODE_COLORS.usecasedefinition, stroke: '#6a7aaa', rx: 10, textColor: '#3a4a7a' });
+            nodeItems.push({ label: 'Calculation def', fill: NODE_COLORS.calcdefinition, stroke: '#5a9aaa', rx: 0, textColor: '#2a5a6a' });
+            nodeItems.push({ label: 'Allocation def', fill: NODE_COLORS.allocationdefinition, stroke: '#aa9050', rx: 0, textColor: '#6a5010' });
+            nodeItems.push({ label: 'View def', fill: NODE_COLORS.viewdefinition, stroke: '#6aaaaa', rx: 0, textColor: '#2a6a6a' });
+            nodeItems.push({ label: 'Viewpoint def', fill: NODE_COLORS.viewpointdefinition, stroke: '#7a7aaa', rx: 0, textColor: '#4a4a7a' });
+            nodeItems.push({ label: 'Metadata def', fill: NODE_COLORS.metadatadefinition, stroke: '#8a6a8a', rx: 0, textColor: '#5a3a5a' });
             nodeItems.push({ label: 'Comment', fill: NODE_COLORS.comment, stroke: svgCommentStroke, rx: 0, textColor: svgCommentLabel });
           }
 
           if (viewType === 'action-flow') {
-            nodeItems.push({ label: 'Action def', fill: NODE_COLORS.actiondefinition, stroke: isDark ? '#3a8a8a' : '#5aaaaa', rx: 0, textColor: isDark ? '#90d0d0' : '#2a6a6a' });
-            nodeItems.push({ label: 'Action usage', fill: NODE_COLORS.actionusage, stroke: isDark ? '#3a8a8a' : '#5aaaaa', rx: 4, textColor: isDark ? '#90d0d0' : '#2a6a6a' });
-            nodeItems.push({ label: 'Send action', fill: NODE_COLORS.sendactionusage, stroke: isDark ? '#3a7a9a' : '#5a9aba', rx: 4, textColor: isDark ? '#80c0e0' : '#2a5a7a' });
-            nodeItems.push({ label: 'Accept action', fill: NODE_COLORS.acceptactionusage, stroke: isDark ? '#3a7a9a' : '#5a9aba', rx: 4, textColor: isDark ? '#80c0e0' : '#2a5a7a' });
-            nodeItems.push({ label: 'If action', fill: NODE_COLORS.ifactionusage, stroke: isDark ? '#3a8090' : '#5aa0b0', rx: 4, textColor: isDark ? '#80c8d8' : '#2a6070' });
-            nodeItems.push({ label: 'For loop', fill: NODE_COLORS.forloopactionusage, stroke: isDark ? '#3a9090' : '#5ab0b0', rx: 4, textColor: isDark ? '#80d0d0' : '#2a7070' });
-            nodeItems.push({ label: 'Action in', fill: NODE_COLORS.actionin, stroke: isDark ? '#3a8a58' : '#5aaa78', rx: 2, textColor: isDark ? '#80d0a0' : '#2a6a40' });
-            nodeItems.push({ label: 'Action out', fill: NODE_COLORS.actionout, stroke: isDark ? '#8a3a3a' : '#aa5a5a', rx: 2, textColor: isDark ? '#e09090' : '#7a2a2a' });
-            nodeItems.push({ label: 'Fork node', fill: NODE_COLORS.forknode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-fork' });
-            nodeItems.push({ label: 'Join node', fill: NODE_COLORS.joinnode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-join' });
-            nodeItems.push({ label: 'Decision node', fill: NODE_COLORS.decisionnode, stroke: isDark ? '#8a8a5a' : '#aaaaaa', rx: 0, textColor: isDark ? '#d0d0a0' : '#5a5a3a', icon: 'ctrl-decision' });
-            nodeItems.push({ label: 'Merge node', fill: NODE_COLORS.mergenode, stroke: isDark ? '#8a8a5a' : '#aaaaaa', rx: 0, textColor: isDark ? '#d0d0a0' : '#5a5a3a', icon: 'ctrl-merge' });
-            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-start' });
-            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-done' });
+            nodeItems.push({ label: 'Action def', fill: NODE_COLORS.actiondefinition, stroke: '#5aaaaa', rx: 0, textColor: '#2a6a6a' });
+            nodeItems.push({ label: 'Action usage', fill: NODE_COLORS.actionusage, stroke: '#5aaaaa', rx: 4, textColor: '#2a6a6a' });
+            nodeItems.push({ label: 'Send action', fill: NODE_COLORS.sendactionusage, stroke: '#5a9aba', rx: 4, textColor: '#2a5a7a' });
+            nodeItems.push({ label: 'Accept action', fill: NODE_COLORS.acceptactionusage, stroke: '#5a9aba', rx: 4, textColor: '#2a5a7a' });
+            nodeItems.push({ label: 'If action', fill: NODE_COLORS.ifactionusage, stroke: '#5aa0b0', rx: 4, textColor: '#2a6070' });
+            nodeItems.push({ label: 'For loop', fill: NODE_COLORS.forloopactionusage, stroke: '#5ab0b0', rx: 4, textColor: '#2a7070' });
+            nodeItems.push({ label: 'Action in', fill: NODE_COLORS.actionin, stroke: '#5aaa78', rx: 2, textColor: '#2a6a40' });
+            nodeItems.push({ label: 'Action out', fill: NODE_COLORS.actionout, stroke: '#aa5a5a', rx: 2, textColor: '#7a2a2a' });
+            nodeItems.push({ label: 'Fork node', fill: NODE_COLORS.forknode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-fork' });
+            nodeItems.push({ label: 'Join node', fill: NODE_COLORS.joinnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-join' });
+            nodeItems.push({ label: 'Decision node', fill: NODE_COLORS.decisionnode, stroke: '#aaaaaa', rx: 0, textColor: '#5a5a3a', icon: 'ctrl-decision' });
+            nodeItems.push({ label: 'Merge node', fill: NODE_COLORS.mergenode, stroke: '#aaaaaa', rx: 0, textColor: '#5a5a3a', icon: 'ctrl-merge' });
+            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-start' });
+            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-done' });
           }
 
           if (viewType === 'state-transition') {
-            nodeItems.push({ label: 'State def', fill: NODE_COLORS.statedefinition, stroke: isDark ? '#8a8a3a' : '#aaaa5a', rx: 0, textColor: isDark ? '#d8d880' : '#5a5a20' });
-            nodeItems.push({ label: 'State usage', fill: NODE_COLORS.stateusage, stroke: isDark ? '#8a8a3a' : '#aaaa5a', rx: 10, textColor: isDark ? '#d8d880' : '#5a5a20' });
-            nodeItems.push({ label: 'Entry/Do/Exit', fill: NODE_COLORS.entryactionusage, stroke: isDark ? '#3a8a70' : '#5aaa90', rx: 4, textColor: isDark ? '#80d0b8' : '#2a6a50' });
-            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-start' });
-            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-done' });
-            nodeItems.push({ label: 'Terminate', fill: NODE_COLORS.terminatenode, stroke: isDark ? '#888' : '#999', rx: 0, textColor: isDark ? '#ccc' : '#555', icon: 'ctrl-terminate' });
+            nodeItems.push({ label: 'State def', fill: NODE_COLORS.statedefinition, stroke: '#aaaa5a', rx: 0, textColor: '#5a5a20' });
+            nodeItems.push({ label: 'State usage', fill: NODE_COLORS.stateusage, stroke: '#aaaa5a', rx: 10, textColor: '#5a5a20' });
+            nodeItems.push({ label: 'Entry/Do/Exit', fill: NODE_COLORS.entryactionusage, stroke: '#5aaa90', rx: 4, textColor: '#2a6a50' });
+            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-start' });
+            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-done' });
+            nodeItems.push({ label: 'Terminate', fill: NODE_COLORS.terminatenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-terminate' });
           }
 
           // ── Edge legend items (per view type) ──
@@ -2704,7 +2703,7 @@ export default function DiagramViewer({
           return (
             <g transform="translate(10,10)">
               {/* Background */}
-              <rect x={-6} y={-4} width={170} height={totalH} rx={4} fill={isDark ? 'rgba(30,30,30,0.85)' : 'rgba(245,245,245,0.9)'} stroke={isDark ? '#444' : '#ccc'} strokeWidth={0.5} />
+              <rect x={-6} y={-4} width={170} height={totalH} rx={4} fill={'rgba(245,245,245,0.9)'} stroke={'#ccc'} strokeWidth={0.5} />
               {/* View type label */}
               <text x={0} y={10} fill={svgCtrlFill} fontSize={10} fontWeight={600}>{viewLabel}</text>
               {/* Node shapes */}
@@ -2721,14 +2720,14 @@ export default function DiagramViewer({
                   </> : item.icon === 'ctrl-decision' || item.icon === 'ctrl-merge' ? <>
                     <polygon points="7,1 14,6 7,11 0,6" fill={item.fill} stroke={item.stroke} strokeWidth={1} />
                   </> : item.icon === 'ctrl-start' ? <>
-                    <circle cx={6} cy={6} r={5} fill={isDark ? '#e0e0e0' : '#333'} />
+                    <circle cx={6} cy={6} r={5} fill={'#333'} />
                   </> : item.icon === 'ctrl-done' ? <>
-                    <circle cx={6} cy={6} r={5} fill="none" stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
-                    <circle cx={6} cy={6} r={3} fill={isDark ? '#e0e0e0' : '#333'} />
+                    <circle cx={6} cy={6} r={5} fill="none" stroke={'#333'} strokeWidth={1.5} />
+                    <circle cx={6} cy={6} r={3} fill={'#333'} />
                   </> : item.icon === 'ctrl-terminate' ? <>
-                    <circle cx={6} cy={6} r={5} fill="none" stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
-                    <line x1={2} y1={2} x2={10} y2={10} stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
-                    <line x1={10} y1={2} x2={2} y2={10} stroke={isDark ? '#e0e0e0' : '#333'} strokeWidth={1.5} />
+                    <circle cx={6} cy={6} r={5} fill="none" stroke={'#333'} strokeWidth={1.5} />
+                    <line x1={2} y1={2} x2={10} y2={10} stroke={'#333'} strokeWidth={1.5} />
+                    <line x1={10} y1={2} x2={2} y2={10} stroke={'#333'} strokeWidth={1.5} />
                   </> : <>
                     <rect width={12} height={10} rx={item.rx} fill={item.fill} stroke={item.stroke} strokeWidth={1} y={1} />
                   </>}
@@ -2736,7 +2735,7 @@ export default function DiagramViewer({
                 </g>
               ))}
               {/* Divider */}
-              <line x1={0} y1={edgeStart - 3} x2={150} y2={edgeStart - 3} stroke={isDark ? '#444' : '#ccc'} strokeWidth={0.5} />
+              <line x1={0} y1={edgeStart - 3} x2={150} y2={edgeStart - 3} stroke={'#ccc'} strokeWidth={0.5} />
               {/* Edge styles */}
               {uniqueEdges.map(({ label, color, dash }, i) => (
                 <g key={label} transform={`translate(0,${edgeStart + i * ROW})`}>

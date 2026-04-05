@@ -10,6 +10,8 @@ export interface ChatMessage {
   content: string;
   toolCallId?: string;
   toolName?: string;
+  /** Present on assistant messages that included tool calls */
+  toolCalls?: ToolCall[];
 }
 
 export interface ToolCall {
@@ -18,10 +20,15 @@ export interface ToolCall {
   args: Record<string, unknown>;
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export type StreamEvent =
   | { type: 'text_delta'; text: string }
   | { type: 'tool_calls'; calls: ToolCall[] }
-  | { type: 'done'; stopReason: string };
+  | { type: 'done'; stopReason: string; usage?: TokenUsage };
 
 export interface AiProvider {
   streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent>;
@@ -64,13 +71,32 @@ class AnthropicProvider implements AiProvider {
   async *streamChat(system: string, messages: ChatMessage[]): AsyncGenerator<StreamEvent> {
     // Convert to Anthropic format
     const anthropicMsgs: Anthropic.Messages.MessageParam[] = [];
-    for (const m of messages) {
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
       if (m.role === 'user') {
         anthropicMsgs.push({ role: 'user', content: m.content });
       } else if (m.role === 'assistant') {
-        anthropicMsgs.push({ role: 'assistant', content: m.content });
+        // If this assistant message had tool calls, include tool_use blocks
+        if (m.toolCalls && m.toolCalls.length > 0) {
+          const content: Anthropic.Messages.ContentBlockParam[] = [];
+          if (m.content) content.push({ type: 'text', text: m.content });
+          for (const tc of m.toolCalls) {
+            content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.args });
+          }
+          anthropicMsgs.push({ role: 'assistant', content });
+        } else {
+          anthropicMsgs.push({ role: 'assistant', content: m.content });
+        }
       } else if (m.role === 'tool_result') {
-        anthropicMsgs.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.toolCallId!, content: m.content }] });
+        // Group consecutive tool_results into a single user message
+        const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
+        let j = i;
+        while (j < messages.length && messages[j].role === 'tool_result') {
+          toolResults.push({ type: 'tool_result', tool_use_id: messages[j].toolCallId!, content: messages[j].content });
+          j++;
+        }
+        anthropicMsgs.push({ role: 'user', content: toolResults });
+        i = j - 1; // advance past grouped tool_results
       }
     }
 
@@ -127,11 +153,14 @@ class AnthropicProvider implements AiProvider {
 
     const finalMessage = await stream.finalMessage();
     const stopReason = finalMessage.stop_reason ?? 'end_turn';
+    const usage: TokenUsage | undefined = finalMessage.usage
+      ? { inputTokens: finalMessage.usage.input_tokens, outputTokens: finalMessage.usage.output_tokens }
+      : undefined;
 
     if (toolCalls.length > 0) {
       yield { type: 'tool_calls', calls: toolCalls };
     }
-    yield { type: 'done', stopReason };
+    yield { type: 'done', stopReason, usage };
   }
 }
 
@@ -154,7 +183,20 @@ class OpenAIProvider implements AiProvider {
       if (m.role === 'user') {
         openaiMsgs.push({ role: 'user', content: m.content });
       } else if (m.role === 'assistant') {
-        openaiMsgs.push({ role: 'assistant', content: m.content });
+        if (m.toolCalls && m.toolCalls.length > 0) {
+          // Include tool_calls so subsequent tool messages match
+          openaiMsgs.push({
+            role: 'assistant',
+            content: m.content || null,
+            tool_calls: m.toolCalls.map(tc => ({
+              id: tc.id,
+              type: 'function' as const,
+              function: { name: tc.name, arguments: JSON.stringify(tc.args) },
+            })),
+          });
+        } else {
+          openaiMsgs.push({ role: 'assistant', content: m.content });
+        }
       } else if (m.role === 'tool_result') {
         openaiMsgs.push({ role: 'tool', tool_call_id: m.toolCallId!, content: m.content });
       }
@@ -166,11 +208,17 @@ class OpenAIProvider implements AiProvider {
       tools: OPENAI_TOOLS,
       messages: openaiMsgs,
       stream: true,
+      stream_options: { include_usage: true },
     });
 
     const toolCallMap = new Map<number, { id: string; name: string; argsJson: string }>();
+    let usage: TokenUsage | undefined;
 
     for await (const chunk of stream) {
+      // Usage comes in the final chunk with null choices
+      if (chunk.usage) {
+        usage = { inputTokens: chunk.usage.prompt_tokens, outputTokens: chunk.usage.completion_tokens };
+      }
       const delta = chunk.choices?.[0]?.delta;
       if (!delta) continue;
 
@@ -207,7 +255,7 @@ class OpenAIProvider implements AiProvider {
           }
           if (calls.length > 0) yield { type: 'tool_calls', calls };
         }
-        yield { type: 'done', stopReason: finishReason };
+        yield { type: 'done', stopReason: finishReason, usage };
       }
     }
   }
@@ -230,7 +278,16 @@ class GeminiProvider implements AiProvider {
       if (m.role === 'user') {
         contents.push({ role: 'user', parts: [{ text: m.content }] });
       } else if (m.role === 'assistant') {
-        contents.push({ role: 'model', parts: [{ text: m.content }] });
+        if (m.toolCalls && m.toolCalls.length > 0) {
+          const parts: Part[] = [];
+          if (m.content) parts.push({ text: m.content });
+          for (const tc of m.toolCalls) {
+            parts.push({ functionCall: { name: tc.name, args: tc.args } } as Part);
+          }
+          contents.push({ role: 'model', parts });
+        } else {
+          contents.push({ role: 'model', parts: [{ text: m.content }] });
+        }
       } else if (m.role === 'tool_result') {
         contents.push({
           role: 'function' as Content['role'],
@@ -272,10 +329,20 @@ class GeminiProvider implements AiProvider {
       }
     }
 
+    // Gemini usage metadata
+    let usage: TokenUsage | undefined;
+    try {
+      const resp = await result.response;
+      const meta = resp.usageMetadata;
+      if (meta) {
+        usage = { inputTokens: meta.promptTokenCount ?? 0, outputTokens: meta.candidatesTokenCount ?? 0 };
+      }
+    } catch { /* usage not available */ }
+
     if (toolCalls.length > 0) {
       yield { type: 'tool_calls', calls: toolCalls };
     }
-    yield { type: 'done', stopReason: toolCalls.length > 0 ? 'tool_use' : 'end' };
+    yield { type: 'done', stopReason: toolCalls.length > 0 ? 'tool_use' : 'end', usage };
   }
 }
 

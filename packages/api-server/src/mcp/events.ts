@@ -4,6 +4,8 @@ export interface FileChangeEvent {
   fileId: string;
   userId: string;
   action: 'created' | 'updated' | 'deleted';
+  /** Where the change originated — used to route notifications correctly */
+  source?: 'mcp' | 'ai_chat' | 'rest';
 }
 
 /**

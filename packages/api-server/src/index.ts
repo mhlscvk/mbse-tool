@@ -151,10 +151,12 @@ app.use('/api/auth', authRoutes);
 
 // API routes with general rate limiting
 app.use('/api/projects', apiLimiter);
-// File routes need larger payload for SysML content
+// File routes BEFORE project routes — the SSE endpoint at /:fileId/events
+// needs to run before projectRoutes' requireAuth middleware (EventSource
+// can't send Authorization headers, so SSE auth uses a query param JWT).
 app.use('/api/projects/:projectId/files', express.json({ limit: '10mb' }));
-app.use('/api/projects', projectRoutes);
 app.use('/api/projects/:projectId/files', fileRoutes);
+app.use('/api/projects', projectRoutes);
 app.use('/api/mcp-tokens', apiLimiter, mcpTokenRoutes);
 app.use('/api/ai', aiChatLimiter, express.json({ limit: '2mb' }), aiChatRoutes);
 app.use('/api/ai/keys', apiLimiter, aiKeysRoutes);
@@ -171,6 +173,8 @@ app.use('/mcp', cors({
   origin: (origin, callback) => {
     // Desktop apps (Claude, Cursor) send no Origin header — allow those
     if (!origin) return callback(null, true);
+    // In dev, allow any origin (MCP Inspector, etc.)
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
     // Browser requests must come from allowed origins
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
     callback(new Error('CORS not allowed'));

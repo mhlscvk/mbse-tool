@@ -600,8 +600,8 @@ export default function ElementPanel({
     const allVisible = allIds.every(id => !hiddenNodeIds.has(id));
     const allHidden = allIds.every(id => hiddenNodeIds.has(id));
     const isDiagramSelected = diagramSelectedNodeId === node.id;
-    const defaultBg = isPkg ? (t.mode === 'dark' ? (depth === 0 ? '#28283a' : '#24243a') : (depth === 0 ? '#e8e8f0' : '#eeeef4')) : 'transparent';
-    const rowBg = isDiagramSelected ? (t.mode === 'dark' ? '#2a2a10' : '#fffde0') : defaultBg;
+    const defaultBg = isPkg ? ((depth === 0 ? '#e8e8f0' : '#eeeef4')) : 'transparent';
+    const rowBg = isDiagramSelected ? ('#fffde0') : defaultBg;
 
     return (
       <div key={node.id}>
@@ -749,7 +749,7 @@ export default function ElementPanel({
             const visible = !hiddenNodeIds.has(node.id);
             const path = containmentPaths.get(node.id) ?? '';
             const isDiagSel = diagramSelectedNodeId === node.id;
-            const treeBg = isDiagSel ? (t.mode === 'dark' ? '#2a2a10' : '#fffde0') : 'transparent';
+            const treeBg = isDiagSel ? ('#fffde0') : 'transparent';
 
             return (
               <div
@@ -931,7 +931,7 @@ export default function ElementPanel({
                 flex: 1, border: `1px solid ${t.btnBorder}`, cursor: 'pointer',
                 borderRadius: 3, padding: '2px 6px', fontSize: 10,
                 background: viewMode === mode ? t.statusBar : 'transparent',
-                color: viewMode === mode ? (t.mode === 'dark' ? '#fff' : '#fff') : t.textSecondary,
+                color: viewMode === mode ? ('#fff') : t.textSecondary,
                 fontWeight: viewMode === mode ? 600 : 400,
               }}
             >{mode === 'nested' ? 'Nested' : 'By Kind'}</button>
@@ -1004,7 +1004,7 @@ export default function ElementPanel({
                     ).map(edge => {
                       const visible = !hiddenEdgeIds.has(edge.id);
                       const edgeDiagSel = diagramSelectedEdgeId === edge.id;
-                      const edgeBg = edgeDiagSel ? (t.mode === 'dark' ? '#2a2a10' : '#fffde0') : visible ? 'transparent' : t.bg;
+                      const edgeBg = edgeDiagSel ? ('#fffde0') : visible ? 'transparent' : t.bg;
                       return (
                         <div
                           key={edge.id}
@@ -1097,7 +1097,7 @@ export default function ElementPanel({
                       style={{
                         padding: '6px 8px',
                         borderBottom: `1px solid ${t.borderLight}`,
-                        background: isActive ? (t.mode === 'dark' ? '#1a3050' : '#e0f0ff') : 'transparent',
+                        background: isActive ? ('#e0f0ff') : 'transparent',
                         cursor: 'pointer',
                       }}
                       onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = t.bgHover; }}

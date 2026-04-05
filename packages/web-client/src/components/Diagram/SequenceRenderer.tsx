@@ -71,7 +71,6 @@ const FRAME_PAD = 20;
 
 export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fitTrigger }: SequenceRendererProps) {
   const t = useTheme();
-  const isDark = t.mode === 'dark';
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const dragging = useRef(false);
@@ -388,26 +387,26 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
 
   // ── Colors ─────────────────────────────────────────────────────────────────
 
-  const textColor = isDark ? '#e8eef6' : '#1a1a2e';
-  const dimText = isDark ? '#888' : '#999';
-  const lineColor = isDark ? '#555' : '#bbb';
-  const syncColor = isDark ? '#4ec9b0' : '#2a8a70';
-  const asyncColor = isDark ? '#9cdcfe' : '#3a6a9a';
-  const returnColor = isDark ? '#888' : '#999';
-  const flowColor = isDark ? '#c586c0' : '#7a3a9a';
-  const headerBg = isDark ? '#1c3f6e' : '#c8daf0';
-  const headerStroke = isDark ? '#4a8ab0' : '#8a8aaa';
-  const actBarFill = isDark ? '#2a5a8a' : '#a0c8e8';
-  const actBarStroke = isDark ? '#4a8ab0' : '#6a8aaa';
-  const frameBg = isDark ? 'rgba(30,30,30,0.3)' : 'rgba(245,245,245,0.3)';
-  const frameStroke = isDark ? '#555' : '#bbb';
-  const fragBg = isDark ? 'rgba(40,40,50,0.5)' : 'rgba(230,230,240,0.5)';
-  const fragStroke = isDark ? '#6a6a8a' : '#9a9ab0';
-  const fragLabel = isDark ? '#c0c0e0' : '#4a4a7a';
-  const highlightColor = isDark ? '#f0c040' : '#d0a020';
-  const groupBg = isDark ? 'rgba(40,50,70,0.3)' : 'rgba(200,215,240,0.3)';
-  const groupStroke = isDark ? '#4a6a8a' : '#8aaaba';
-  const groupText = isDark ? '#8ab0d0' : '#4a6a8a';
+  const textColor = '#1a1a2e';
+  const dimText = '#999';
+  const lineColor = '#bbb';
+  const syncColor = '#2a8a70';
+  const asyncColor = '#3a6a9a';
+  const returnColor = '#999';
+  const flowColor = '#7a3a9a';
+  const headerBg = '#c8daf0';
+  const headerStroke = '#8a8aaa';
+  const actBarFill = '#a0c8e8';
+  const actBarStroke = '#6a8aaa';
+  const frameBg = 'rgba(245,245,245,0.3)';
+  const frameStroke = '#bbb';
+  const fragBg = 'rgba(230,230,240,0.5)';
+  const fragStroke = '#9a9ab0';
+  const fragLabel = '#4a4a7a';
+  const highlightColor = '#d0a020';
+  const groupBg = 'rgba(200,215,240,0.3)';
+  const groupStroke = '#8aaaba';
+  const groupText = '#4a6a8a';
 
   // Compute lifeline header Y (shifted down if groups exist)
   const hasGroups = groups.length > 0;
@@ -472,7 +471,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
           {/* Pentagon label */}
           <path
             d={`M ${FRAME_PAD / 2} ${FRAME_PAD / 2} h ${title.length * 6.5 + 20} v 20 l -10 10 h ${-(title.length * 6.5 + 10)} z`}
-            fill={isDark ? '#2a2a3a' : '#e0e0ee'} stroke={frameStroke} strokeWidth={1}
+            fill={'#e0e0ee'} stroke={frameStroke} strokeWidth={1}
           />
           <text x={FRAME_PAD / 2 + 8} y={FRAME_PAD / 2 + 16} fill={textColor} fontSize={11} fontWeight={600}>{title}</text>
         </>}
@@ -489,7 +488,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
               {/* Pentagon operator label */}
               <path
                 d={`M ${minX} ${frag.topY} h ${frag.operator.length * 7 + 16} v 14 l -8 8 h ${-(frag.operator.length * 7 + 8)} z`}
-                fill={isDark ? '#2a2a4a' : '#d0d0e8'} stroke={fragStroke} strokeWidth={1}
+                fill={'#d0d0e8'} stroke={fragStroke} strokeWidth={1}
               />
               <text x={minX + 6} y={frag.topY + 14} fill={fragLabel} fontSize={10} fontWeight={700}>{frag.operator}</text>
               {/* Guard text */}
@@ -620,7 +619,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
                 x={ll.x} y={llHeaderY}
                 width={LL_WIDTH} height={LL_HEADER_H}
                 rx={4}
-                fill={highlighted ? (isDark ? '#2a4a7a' : '#b0c8e8') : headerBg}
+                fill={highlighted ? ('#b0c8e8') : headerBg}
                 stroke={highlighted ? highlightColor : headerStroke}
                 strokeWidth={highlighted ? 2 : 1.5}
               />
@@ -660,7 +659,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
       <div
         style={{
           position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000,
-          background: isDark ? '#2a2a2a' : '#fff', border: `1px solid ${isDark ? '#555' : '#ccc'}`,
+          background: '#fff', border: `1px solid ${'#ccc'}`,
           borderRadius: 4, padding: '4px 0', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
           minWidth: 140,
         }}
@@ -671,7 +670,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
             padding: '6px 12px', fontSize: 12, cursor: 'pointer',
             color: textColor, display: 'flex', alignItems: 'center', gap: 6,
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isDark ? '#3a3a3a' : '#e8e8e8'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#e8e8e8'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           onClick={() => {
             if (ctxMenu.isEdge) {

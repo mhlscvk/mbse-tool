@@ -52,7 +52,6 @@ const KIND_COLORS: Record<string, string> = {
 
 export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }: BrowserRendererProps) {
   const t = useTheme();
-  const isDark = t.mode === 'dark';
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
 
@@ -116,7 +115,7 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
     const isCollapsed = collapsed.has(node.id);
     const isSelected = selectedNodeId === node.id;
     const icon = KIND_ICONS[node.cssClass] ?? '•';
-    const color = KIND_COLORS[node.cssClass] ?? (isDark ? '#888' : '#666');
+    const color = KIND_COLORS[node.cssClass] ?? ('#666');
 
     return (
       <div key={node.id}>
@@ -126,16 +125,16 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
             display: 'flex', alignItems: 'center', gap: 4,
             padding: '2px 6px', paddingLeft: 6 + depth * 16,
             cursor: 'pointer',
-            background: isSelected ? (isDark ? '#2a3a5a' : '#d0d8f0') : 'transparent',
+            background: isSelected ? ('#d0d8f0') : 'transparent',
             borderRadius: 2,
           }}
-          onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = isDark ? '#252540' : '#f0f0f8'; }}
+          onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f0f0f8'; }}
           onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
         >
           {/* Expand/collapse toggle */}
           <span
             onClick={e => { e.stopPropagation(); if (hasChildren) toggleCollapse(node.id); }}
-            style={{ width: 14, textAlign: 'center', fontSize: 10, color: isDark ? '#888' : '#999', userSelect: 'none' }}
+            style={{ width: 14, textAlign: 'center', fontSize: 10, color: '#999', userSelect: 'none' }}
           >
             {hasChildren ? (isCollapsed ? '▶' : '▼') : ' '}
           </span>
@@ -152,7 +151,7 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
             {node.name}
           </span>
           {/* Kind label */}
-          <span style={{ fontSize: 9, color: isDark ? '#666' : '#aaa', flexShrink: 0 }}>
+          <span style={{ fontSize: 9, color: '#aaa', flexShrink: 0 }}>
             {node.kind}
           </span>
         </div>
@@ -166,9 +165,9 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: isDark ? '#1a1a2e' : '#fff' }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#fff' }}>
       {/* Search */}
-      <div style={{ padding: '6px 8px', borderBottom: `1px solid ${isDark ? '#333' : '#ddd'}` }}>
+      <div style={{ padding: '6px 8px', borderBottom: `1px solid ${'#ddd'}` }}>
         <input
           type="text"
           value={filter}
@@ -176,8 +175,8 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
           placeholder="Filter elements..."
           style={{
             width: '100%', padding: '4px 8px', fontSize: 11,
-            background: isDark ? '#252540' : '#f8f8ff',
-            color: t.text, border: `1px solid ${isDark ? '#444' : '#ccc'}`,
+            background: '#f8f8ff',
+            color: t.text, border: `1px solid ${'#ccc'}`,
             borderRadius: 3, outline: 'none',
           }}
         />

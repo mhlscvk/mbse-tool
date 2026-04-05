@@ -233,6 +233,9 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
 
     // Tool call loop (free tier gets fewer rounds to limit token consumption)
     const maxRounds = isFreeTier ? MAX_FREE_TIER_TOOL_ROUNDS : MAX_TOOL_ROUNDS;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
     for (let round = 0; round < maxRounds; round++) {
       let assistantText = '';
 
@@ -242,9 +245,9 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
           fullAssistantText += event.text;
           send('text', { chunk: event.text });
         } else if (event.type === 'tool_calls') {
-          if (assistantText) {
-            conversation.push({ role: 'assistant', content: assistantText });
-          }
+          // Push assistant message with both text and tool_use info so the
+          // next API call can match tool_result IDs to tool_use IDs
+          conversation.push({ role: 'assistant', content: assistantText, toolCalls: event.calls });
 
           for (const call of event.calls) {
             send('tool_call', { id: call.id, name: call.name, args: call.args });
@@ -259,12 +262,18 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
             });
           }
         } else if (event.type === 'done') {
+          if (event.usage) {
+            totalInputTokens += event.usage.inputTokens;
+            totalOutputTokens += event.usage.outputTokens;
+            send('usage', { inputTokens: totalInputTokens, outputTokens: totalOutputTokens });
+          }
+
           if (event.stopReason === 'tool_use' || event.stopReason === 'tool_calls') {
             continue;
           }
 
           await saveHistory();
-          send('done', { isFreeTier });
+          send('done', { isFreeTier, usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } });
           res.end();
           return;
         }
@@ -272,7 +281,7 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
 
       if (conversation[conversation.length - 1]?.role !== 'tool_result') {
         await saveHistory();
-        send('done', { isFreeTier });
+        send('done', { isFreeTier, usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } });
         res.end();
         return;
       }
@@ -280,7 +289,7 @@ router.post('/chat', requireAuth, async (req: AuthRequest, res) => {
 
     send('text', { chunk: '\n\n(Maximum tool call rounds reached)' });
     await saveHistory();
-    send('done', { isFreeTier });
+    send('done', { isFreeTier, usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } });
   } catch (err) {
     let msg = 'AI request failed';
     if (err instanceof Error) {

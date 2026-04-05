@@ -13,8 +13,8 @@ import { useLocalStorage } from '../hooks/useLocalStorage.js';
 import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
 import { useRecentFilesStore } from '../store/recent-files.js';
-import { useIsMobile } from '../hooks/useIsMobile.js';
 import type { SysMLFile, SModelRoot, SNode, SEdge, DiagramDiagnostic, ViewType, ElementLock } from '@systemodel/shared-types';
+import { computeDiffHunks, type DiffHunk } from '../utils/line-diff.js';
 
 const AUTOSAVE_DEBOUNCE_MS = 1500;
 const MIN_PANE_PCT = 15; // minimum pane width as % of container
@@ -32,6 +32,56 @@ export default function EditorPage() {
   const [readOnly, setReadOnly] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const monacoRef = useRef<MonacoEditorHandle>(null);
+
+  // ─── Content history (undo/redo, max 10 snapshots, persisted) ───────────
+  const MAX_HISTORY = 10;
+  const historyKey = `systemodel:history:${fileId ?? ''}`;
+  const redoKey = `systemodel:redo:${fileId ?? ''}`;
+  const historyRef = useRef<string[]>([]);
+  const redoStackRef = useRef<string[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const persistStacks = useCallback(() => {
+    try {
+      sessionStorage.setItem(historyKey, JSON.stringify(historyRef.current));
+      sessionStorage.setItem(redoKey, JSON.stringify(redoStackRef.current));
+    } catch { /* storage full — non-critical */ }
+  }, [historyKey, redoKey]);
+
+  const pushHistory = useCallback((snapshot: string) => {
+    const h = historyRef.current;
+    if (h.length > 0 && h[h.length - 1] === snapshot) return;
+    h.push(snapshot);
+    if (h.length > MAX_HISTORY) h.shift();
+    redoStackRef.current = [];
+    setCanUndo(h.length > 0);
+    setCanRedo(false);
+    persistStacks();
+  }, [persistStacks]);
+
+  // AI change tracking — persist preAiContent in sessionStorage so it survives refresh
+  const preAiStorageKey = `systemodel:ai-pre:${fileId ?? ''}`;
+  const preAiContentRef = useRef<string | null>(null);
+  const [aiChangeHunks, setAiChangeHunks] = useState<DiffHunk[]>([]);
+
+  // Reset AI tracking and restore history when navigating to a different file
+  useEffect(() => {
+    preAiContentRef.current = fileId ? sessionStorage.getItem(`systemodel:ai-pre:${fileId}`) : null;
+    setAiChangeHunks([]);
+    // Restore persisted history for this file
+    try {
+      const savedH = sessionStorage.getItem(`systemodel:history:${fileId}`);
+      const savedR = sessionStorage.getItem(`systemodel:redo:${fileId}`);
+      historyRef.current = savedH ? JSON.parse(savedH) : [];
+      redoStackRef.current = savedR ? JSON.parse(savedR) : [];
+    } catch {
+      historyRef.current = [];
+      redoStackRef.current = [];
+    }
+    setCanUndo(historyRef.current.length > 0);
+    setCanRedo(redoStackRef.current.length > 0);
+  }, [fileId]);
 
   // Diagnostics / debug
   const [diagnostics, setDiagnostics] = useState<DiagramDiagnostic[]>([]);
@@ -280,10 +330,6 @@ export default function EditorPage() {
   const fileSwitcherRef = useRef<HTMLDivElement>(null);
   const addRecentEntry = useRecentFilesStore((s) => s.addEntry);
 
-  const isMobile = useIsMobile();
-  // Mobile tab: which pane is shown
-  const [mobileTab, setMobileTab] = useState<'editor' | 'diagram' | 'ai'>('diagram');
-
   // Editor open/close
   const [editorOpen, setEditorOpen] = useLocalStorage(`${lsPrefix}:editorOpen`, true);
   const lastSplitPct = useRef(50); // remember split before closing
@@ -369,6 +415,16 @@ export default function EditorPage() {
         setFile(f);
         setContent(f.content);
         diagramClient.sendText(`file://${fileId}`, f.content, viewType, showInherited);
+        // Restore AI change highlighting if preAiContent was persisted
+        const savedPreAi = sessionStorage.getItem(`systemodel:ai-pre:${fileId}`);
+        if (savedPreAi && savedPreAi !== f.content) {
+          preAiContentRef.current = savedPreAi;
+          setAiChangeHunks(computeDiffHunks(savedPreAi, f.content));
+        } else if (savedPreAi) {
+          // Content matches pre-AI — no changes to review
+          sessionStorage.removeItem(`systemodel:ai-pre:${fileId}`);
+          preAiContentRef.current = null;
+        }
       })
       .catch((e) => setError(e.message));
     // Fetch sibling files for file switcher
@@ -488,6 +544,194 @@ export default function EditorPage() {
     return () => document.removeEventListener('mousedown', handle);
   }, [fileSwitcherOpen]);
 
+  // Re-fetch file content after AI edits the file on the server
+  // Stable ref for content — used by handleAiFileEdited to avoid re-creating
+  // the callback (and tearing down the SSE EventSource) on every keystroke.
+  const contentRef = useRef(content);
+  contentRef.current = content;
+
+  const handleAiFileEdited = useCallback(async () => {
+    if (!projectId || !fileId) return;
+    try {
+      const f = await api.files.get(projectId, fileId);
+      const currentContent = contentRef.current;
+      // Push current content to undo history before AI edit
+      pushHistory(currentContent);
+      // Save pre-edit content for revert (only on the first AI edit in a sequence)
+      if (preAiContentRef.current === null) {
+        preAiContentRef.current = currentContent;
+        sessionStorage.setItem(preAiStorageKey, currentContent);
+      }
+      const hunks = computeDiffHunks(preAiContentRef.current, f.content);
+      setAiChangeHunks(hunks);
+      setFile(f);
+      setContent(f.content);
+      // Use executeEdits to preserve undo stack (Ctrl+Z works)
+      monacoRef.current?.setContentWithUndo(f.content);
+      diagramClient.sendText(`file://${fileId}`, f.content, viewType, showInherited);
+    } catch {
+      // Silently ignore — file may have been deleted
+    }
+  }, [projectId, fileId, viewType, showInherited, preAiStorageKey, pushHistory]);
+
+  const clearAiTracking = useCallback(() => {
+    preAiContentRef.current = null;
+    sessionStorage.removeItem(preAiStorageKey);
+    setAiChangeHunks([]);
+  }, [preAiStorageKey]);
+
+  // ─── Subscribe to MCP edit events (Claude Desktop, Cursor, etc.) ──────
+  // Mints a short-lived SSE token (60s) instead of exposing the full session
+  // JWT in the query string.  Reconnects with a fresh token on expiry.
+  useEffect(() => {
+    if (!projectId || !fileId) return;
+    let es: EventSource | null = null;
+    let cancelled = false;
+
+    const connect = async () => {
+      const authToken = useAuthStore.getState().token;
+      if (!authToken || cancelled) return;
+
+      // Mint a purpose-limited 60s SSE token
+      try {
+        const resp = await fetch(`/api/projects/${projectId}/files/${fileId}/sse-token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        });
+        if (!resp.ok || cancelled) return;
+        const { token: sseToken } = await resp.json();
+
+        es = new EventSource(`/api/projects/${projectId}/files/${fileId}/events?token=${encodeURIComponent(sseToken)}`);
+        es.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.action === 'updated') handleAiFileEdited();
+          } catch { /* malformed event */ }
+        };
+        es.onerror = () => {
+          // Token likely expired (60s) — reconnect with a fresh one
+          es?.close();
+          if (!cancelled) setTimeout(connect, 1000);
+        };
+      } catch { /* fetch failed — retry later */
+        if (!cancelled) setTimeout(connect, 5000);
+      }
+    };
+
+    connect();
+    return () => { cancelled = true; es?.close(); };
+  }, [projectId, fileId, handleAiFileEdited]);
+
+  const handleAcceptAiChange = useCallback((hunkId: string | 'all') => {
+    if (hunkId === 'all') {
+      clearAiTracking();
+    } else {
+      setAiChangeHunks(prev => {
+        const next = prev.filter(h => h.id !== hunkId);
+        if (next.length === 0) clearAiTracking();
+        return next;
+      });
+    }
+  }, [clearAiTracking]);
+
+  const handleRevertAiChange = useCallback((hunkId: string | 'all') => {
+    const preContent = preAiContentRef.current;
+    if (!preContent) return;
+
+    if (hunkId === 'all') {
+      // Revert all — restore original content
+      clearAiTracking();
+      setContent(preContent);
+      monacoRef.current?.setContentWithUndo(preContent);
+      diagramClient.sendText(`file://${fileId}`, preContent, viewType, showInherited);
+      if (projectId && fileId) {
+        api.files.update(projectId, fileId, preContent).catch(() => {});
+      }
+    } else {
+      // Revert individual hunk — splice old lines back in
+      const hunk = aiChangeHunks.find(h => h.id === hunkId);
+      if (!hunk) return;
+
+      const lines = content.split('\n');
+      if (hunk.newEndLine > 0) {
+        lines.splice(hunk.newStartLine - 1, hunk.newEndLine - hunk.newStartLine + 1, ...hunk.oldLines);
+      } else {
+        lines.splice(hunk.newStartLine - 1, 0, ...hunk.oldLines);
+      }
+      const newContent = lines.join('\n');
+
+      // Recompute hunks against original pre-AI content
+      const newHunks = computeDiffHunks(preContent, newContent);
+      if (newHunks.length === 0) {
+        clearAiTracking();
+      } else {
+        setAiChangeHunks(newHunks);
+      }
+      setContent(newContent);
+      monacoRef.current?.setContentWithUndo(newContent);
+      diagramClient.sendText(`file://${fileId}`, newContent, viewType, showInherited);
+      if (projectId && fileId) {
+        api.files.update(projectId, fileId, newContent).catch(() => {});
+      }
+    }
+  }, [content, aiChangeHunks, projectId, fileId, viewType, showInherited, clearAiTracking]);
+
+  // ─── Undo / Redo handlers (must be after clearAiTracking) ──────────────
+  const handleUndo = useCallback(() => {
+    const h = historyRef.current;
+    if (h.length === 0) return;
+    const prev = h.pop()!;
+    redoStackRef.current.push(content);
+    setCanUndo(h.length > 0);
+    setCanRedo(true);
+    persistStacks();
+    setContent(prev);
+    monacoRef.current?.setContentWithUndo(prev);
+    diagramClient.sendText(`file://${fileId}`, prev, viewType, showInherited);
+    if (projectId && fileId) {
+      api.files.update(projectId, fileId, prev).catch(() => {});
+    }
+    const preContent = preAiContentRef.current;
+    if (preContent) {
+      if (prev === preContent) {
+        clearAiTracking();
+      } else {
+        const newHunks = computeDiffHunks(preContent, prev);
+        setAiChangeHunks(newHunks.length > 0 ? newHunks : []);
+        if (newHunks.length === 0) clearAiTracking();
+      }
+    }
+  }, [content, projectId, fileId, viewType, showInherited, clearAiTracking, persistStacks]);
+
+  const handleRedo = useCallback(() => {
+    const r = redoStackRef.current;
+    if (r.length === 0) return;
+    const next = r.pop()!;
+    historyRef.current.push(content);
+    setCanUndo(true);
+    setCanRedo(r.length > 0);
+    persistStacks();
+    setContent(next);
+    monacoRef.current?.setContentWithUndo(next);
+    diagramClient.sendText(`file://${fileId}`, next, viewType, showInherited);
+    if (projectId && fileId) {
+      api.files.update(projectId, fileId, next).catch(() => {});
+    }
+    const preContent = preAiContentRef.current;
+    if (preContent) {
+      if (next === preContent) {
+        clearAiTracking();
+      } else {
+        const newHunks = computeDiffHunks(preContent, next);
+        setAiChangeHunks(newHunks.length > 0 ? newHunks : []);
+        if (newHunks.length === 0) clearAiTracking();
+      }
+    }
+  }, [content, projectId, fileId, viewType, showInherited, clearAiTracking, persistStacks]);
+
+  const aiChangeHunksRef = useRef(aiChangeHunks);
+  aiChangeHunksRef.current = aiChangeHunks;
+
   const handleChange = useCallback((value: string) => {
     // Allow edits when user has checked-out elements (MonacoEditor handles per-element restriction)
     const hasLocks = myLockedElements.size > 0;
@@ -496,10 +740,28 @@ export default function EditorPage() {
     // Send text to diagram-service for server-side parsing → BDD generation
     diagramClient.sendText(`file://${fileId}`, value, viewType, showInherited);
 
-    // Debounced autosave
+    // If user edits while AI changes are pending (e.g. Ctrl+Z undo), recompute hunks
+    const preContent = preAiContentRef.current;
+    if (preContent) {
+      if (value === preContent) {
+        // User undid all AI changes
+        clearAiTracking();
+      } else {
+        const newHunks = computeDiffHunks(preContent, value);
+        setAiChangeHunks(newHunks.length > 0 ? newHunks : []);
+        if (newHunks.length === 0) clearAiTracking();
+      }
+    }
+
+    // Suppress autosave while AI changes are pending review (AI tools already saved to server)
+    if (aiChangeHunksRef.current.length > 0) return;
+
+    // Debounced autosave — push snapshot before saving
     clearTimeout(saveTimer.current);
+    const prevContent = content;
     saveTimer.current = setTimeout(async () => {
       if (!projectId || !fileId) return;
+      pushHistory(prevContent);
       setSaving(true);
       try {
         await api.files.update(projectId, fileId, value);
@@ -509,7 +771,7 @@ export default function EditorPage() {
         setSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [projectId, fileId, readOnly, viewType, showInherited, myLockedElements]);
+  }, [projectId, fileId, readOnly, viewType, showInherited, myLockedElements, clearAiTracking, content, pushHistory]);
 
   const handleSave = async () => {
     const hasLocks = myLockedElements.size > 0;
@@ -637,126 +899,8 @@ export default function EditorPage() {
           </div>
         );
       })()}
-      {/* ── Mobile tab bar ────────────────────────────────────────── */}
-      {isMobile && (
-        <div style={{
-          display: 'flex', flexShrink: 0,
-          borderBottom: `1px solid ${t.border}`, background: t.bgSecondary,
-        }}>
-          {(['diagram', 'editor', 'ai'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setMobileTab(tab)}
-              style={{
-                flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer',
-                fontSize: 12, fontWeight: mobileTab === tab ? 600 : 400,
-                background: mobileTab === tab ? t.bg : t.bgSecondary,
-                color: mobileTab === tab ? t.text : t.textSecondary,
-                borderBottom: mobileTab === tab ? `2px solid ${t.accent}` : '2px solid transparent',
-              }}
-            >
-              {tab === 'diagram' ? 'Diagram' : tab === 'editor' ? 'Editor' : 'AI'}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── Mobile layout ──────────────────────────────────────────── */}
-      {isMobile ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Editor tab */}
-          {mobileTab === 'editor' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <MonacoEditor
-                ref={monacoRef}
-                value={content}
-                onChange={handleChange}
-                readOnly={readOnly}
-                onReadOnlyEdit={isStartupProject ? showCheckoutWarning : undefined}
-                onCheckOut={handleCheckOut}
-                onCheckIn={handleCheckIn}
-                myLockedElements={myLockedElements}
-                onShowOnly={handleShowOnlyByName}
-                markers={diagnostics.map((d): EditorMarker => ({
-                  severity: d.severity, message: d.message,
-                  line: d.line, column: d.column,
-                  endLine: d.endLine, endColumn: d.endColumn,
-                  fixes: d.fixes as EditorMarkerFix[] | undefined,
-                }))}
-              />
-            </div>
-          )}
-          {/* Diagram tab */}
-          {mobileTab === 'diagram' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <DiagramViewer
-                model={diagram}
-                hiddenNodeIds={hiddenNodeIds}
-                hiddenEdgeIds={hiddenEdgeIds}
-                storageKey={lsPrefix}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                onShowOnly={handleShowOnly}
-                onResetView={handleResetView}
-                onNodeSelect={(range) => {
-                  monacoRef.current?.revealRange(
-                    range.start.line + 1, range.start.character + 1,
-                    range.end.line + 1,   range.end.character + 1,
-                  );
-                  setMobileTab('editor');
-                }}
-                onEdgeSelect={(range) => {
-                  monacoRef.current?.revealRange(
-                    range.start.line + 1, range.start.character + 1,
-                    range.end.line + 1,   range.end.character + 1,
-                  );
-                  setMobileTab('editor');
-                }}
-                onEdgeGoToCode={handleEdgeGoToCode}
-                onHideNode={(id) => setHiddenNodeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
-                onHideEdge={(id) => setHiddenEdgeIds((prev) => { const n = new Set(prev); n.add(id); return n; })}
-                onHideNodes={(ids) => setHiddenNodeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
-                onHideEdges={(ids) => setHiddenEdgeIds((prev) => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; })}
-                selectedNodeId={diagramSelectedNodeId}
-                selectedEdgeId={diagramSelectedEdgeId}
-                onSelectedNodeChange={setDiagramSelectedNodeId}
-                onSelectedEdgeChange={setDiagramSelectedEdgeId}
-                showLegend={showLegend}
-                onToggleLegend={() => setShowLegend(!showLegend)}
-                viewType={viewType}
-                onViewTypeChange={(vt) => {
-                  setViewType(vt);
-                  if (fileId) diagramClient.sendText(`file://${fileId}`, content, vt, showInherited);
-                }}
-                showInherited={showInherited}
-                onShowInheritedChange={(v) => {
-                  setShowInherited(v);
-                  if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
-                }}
-                locks={locks}
-                currentUserId={currentUserId}
-                onCheckOut={handleCheckOut}
-                onCheckIn={handleCheckIn}
-                onRequestLock={handleRequestLock}
-              />
-            </div>
-          )}
-          {/* AI tab */}
-          {mobileTab === 'ai' && (
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              <AiAssistant
-                onClose={() => setMobileTab('diagram')}
-                projectId={projectId}
-                fileId={fileId}
-                fileContent={content}
-                fileName={file?.name}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        /* ── Desktop layout (unchanged) ──────────────────────────── */
-        <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* ── Main layout ─────────────────────────────────────────── */}
+      <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Editor pane */}
           <div style={{
             width: editorOpen ? `${splitPct}%` : 0,
@@ -777,6 +921,9 @@ export default function EditorPage() {
                 onCheckIn={handleCheckIn}
                 myLockedElements={myLockedElements}
                 onShowOnly={handleShowOnlyByName}
+                aiChangeHunks={aiChangeHunks}
+                onAcceptAiChange={handleAcceptAiChange}
+                onRevertAiChange={handleRevertAiChange}
                 markers={diagnostics.map((d): EditorMarker => ({
                   severity: d.severity,
                   message: d.message,
@@ -811,7 +958,7 @@ export default function EditorPage() {
                   diagnostics.map((d, i) => (
                     <div key={i} style={{
                       padding: '4px 12px 6px', borderBottom: `1px solid ${t.borderLight}`,
-                      background: d.severity === 'error' ? t.errorBg : d.severity === 'warning' ? (t.mode === 'dark' ? '#2a2210' : '#fff8e1') : 'transparent',
+                      background: d.severity === 'error' ? t.errorBg : d.severity === 'warning' ? '#fff8e1' : 'transparent',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                         <span style={{ color: d.severity === 'error' ? t.error : d.severity === 'warning' ? t.warning : t.info, flexShrink: 0, fontSize: 14 }}>
@@ -1029,28 +1176,51 @@ export default function EditorPage() {
                   fileId={fileId}
                   fileContent={content}
                   fileName={file?.name}
+                  onFileEdited={handleAiFileEdited}
                 />
               )}
             </div>
           </div>
         </div>
-      )}
 
       {/* ── Status bar ───────────────────────────────────────────── */}
       <div style={{
         height: 24, background: t.statusBar, display: 'flex', alignItems: 'center',
-        padding: '0 12px', gap: isMobile ? 6 : 12, fontSize: isMobile ? 10 : 12, color: '#fff', flexShrink: 0,
+        padding: '0 12px', gap: 12, fontSize: 12, color: '#fff', flexShrink: 0,
       }}>
         <span>SysML v2</span>
         <span style={{ opacity: 0.5 }}>|</span>
         <span>{saving ? 'Saving...' : 'Saved'}</span>
+        <span style={{ opacity: 0.5 }}>|</span>
+        <button
+          onClick={handleUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          style={{
+            background: 'none', border: 'none', color: canUndo ? '#fff' : '#555',
+            cursor: canUndo ? 'pointer' : 'default', fontSize: 16,
+            padding: '0 3px', display: 'flex', alignItems: 'center',
+            fontWeight: 700, opacity: canUndo ? 1 : 0.4,
+          }}
+        >{'\u21B6'}</button>
+        <button
+          onClick={handleRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y)"
+          style={{
+            background: 'none', border: 'none', color: canRedo ? '#fff' : '#555',
+            cursor: canRedo ? 'pointer' : 'default', fontSize: 16,
+            padding: '0 3px', display: 'flex', alignItems: 'center',
+            fontWeight: 700, opacity: canRedo ? 1 : 0.4,
+          }}
+        >{'\u21B7'}</button>
         <span style={{ opacity: 0.5 }}>|</span>
         {/* Error / warning badge — click to toggle debug panel */}
         <button
           onClick={() => setDebugOpen(v => !v)}
           style={{
             background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
-            display: 'flex', alignItems: 'center', gap: 6, padding: 0, fontSize: isMobile ? 10 : 12,
+            display: 'flex', alignItems: 'center', gap: 6, padding: 0, fontSize: 12,
           }}
           title="Toggle Problems panel"
         >

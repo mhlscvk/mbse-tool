@@ -5,7 +5,6 @@ import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo, type 
 import type { AiKeyInfo } from '../services/api-client.js';
 import { useTheme, type ThemeColors } from '../store/theme.js';
 import { useAuthStore } from '../store/auth.js';
-import { useIsMobile } from '../hooks/useIsMobile.js';
 import type { Startup, StartupMember, StartupRole } from '@systemodel/shared-types';
 
 // ─── MCP client config templates ─────────────────────────────────────────────
@@ -88,14 +87,13 @@ export default function SettingsPage() {
     ] : []),
   ];
 
-  const isMobile = useIsMobile();
   const initialTab = tabs.some(tab => tab.id === searchParams.get('tab')) ? searchParams.get('tab') as SettingsTab : 'account';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header title="Settings" />
-      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px 12px' : '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${t.border}`, marginBottom: 24, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {tabs.map(tab => (
@@ -105,7 +103,7 @@ export default function SettingsPage() {
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: activeTab === tab.id ? `2px solid ${t.accent}` : '2px solid transparent',
-                padding: isMobile ? '8px 12px' : '10px 20px', fontSize: isMobile ? 12 : 13, cursor: 'pointer',
+                padding: '10px 20px', fontSize: 13, cursor: 'pointer',
                 color: activeTab === tab.id ? t.text : t.textSecondary,
                 fontWeight: activeTab === tab.id ? 600 : 400,
                 whiteSpace: 'nowrap', flexShrink: 0,

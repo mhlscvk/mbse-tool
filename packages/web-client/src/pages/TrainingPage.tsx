@@ -628,14 +628,14 @@ export default function TrainingPage() {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8,
         borderTop: '1px solid',
         background: lastResult
-          ? lastResult.severity === 'success' ? (t.mode === 'dark' ? '#0a2e18' : '#e8f8f0')
-          : lastResult.severity === 'hint'    ? (t.mode === 'dark' ? '#252200' : '#f8f5e0')
-          : (t.mode === 'dark' ? '#2a0e0e' : '#f8e8e8')
+          ? lastResult.severity === 'success' ? '#e8f8f0'
+          : lastResult.severity === 'hint'    ? '#f8f5e0'
+          : '#f8e8e8'
           : t.bgSecondary,
         borderColor: lastResult
-          ? lastResult.severity === 'success' ? (t.mode === 'dark' ? '#0a6e37' : '#60b060')
-          : lastResult.severity === 'hint'    ? (t.mode === 'dark' ? '#8a8a00' : '#b0a040')
-          : (t.mode === 'dark' ? '#a02020' : '#e07070')
+          ? lastResult.severity === 'success' ? '#60b060'
+          : lastResult.severity === 'hint'    ? '#b0a040'
+          : '#e07070'
           : t.border,
         transition: 'background 0.25s, border-color 0.25s',
       }}>

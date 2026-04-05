@@ -11,6 +11,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    cors: {
+      origin: '*',
+      allowedHeaders: ['Content-Type', 'Authorization', 'mcp-session-id'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3003',

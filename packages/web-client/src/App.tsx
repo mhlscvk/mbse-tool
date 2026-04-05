@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.js';
-import { useThemeStore } from './store/theme.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 import BugReportButton from './components/BugReportButton.js';
 import LoginPage from './pages/LoginPage.js';
@@ -21,11 +20,6 @@ function AuthenticatedBugButton() {
 }
 
 export default function App() {
-  const themeMode = useThemeStore((s) => s.mode);
-  useEffect(() => {
-    document.body.classList.toggle('theme-light', themeMode === 'light');
-  }, [themeMode]);
-
   return (
     <ErrorBoundary>
       <BrowserRouter>

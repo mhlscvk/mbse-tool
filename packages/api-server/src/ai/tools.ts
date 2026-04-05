@@ -1,5 +1,6 @@
 import * as fileOps from '../services/file-ops.js';
 import { prisma } from '../db.js';
+import { assertProjectAccess } from '../lib/auth-helpers.js';
 
 /** Canonical tool definitions — provider-agnostic JSON Schema format */
 export const AI_TOOLS = [
@@ -95,17 +96,41 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
   try {
     switch (toolName) {
       case 'list_projects': {
-        const projects = await prisma.project.findMany({
+        // Include user-owned, system, and startup projects the user has access to
+        const ownProjects = await prisma.project.findMany({
           where: { ownerId: userId },
           orderBy: { updatedAt: 'desc' },
           include: { _count: { select: { files: true } } },
         });
-        return { result: JSON.stringify(projects.map((p: { id: string; name: string; description: string | null; _count: { files: number } }) => ({ id: p.id, name: p.name, description: p.description, fileCount: p._count.files }))), isError: false };
+        const systemProjects = await prisma.project.findMany({
+          where: { isSystem: true },
+          orderBy: { updatedAt: 'desc' },
+          include: { _count: { select: { files: true } } },
+        });
+        const startupMemberships = await prisma.startupMember.findMany({
+          where: { userId },
+          select: { startupId: true },
+        });
+        const startupProjects = startupMemberships.length > 0
+          ? await prisma.project.findMany({
+              where: { startupId: { in: startupMemberships.map(m => m.startupId) }, projectType: 'STARTUP' },
+              orderBy: { updatedAt: 'desc' },
+              include: { _count: { select: { files: true } } },
+            })
+          : [];
+        // Deduplicate by id
+        const seen = new Set<string>();
+        const all = [...ownProjects, ...systemProjects, ...startupProjects].filter(p => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+        return { result: JSON.stringify(all.map((p: { id: string; name: string; description: string | null; _count: { files: number } }) => ({ id: p.id, name: p.name, description: p.description, fileCount: p._count.files }))), isError: false };
       }
 
       case 'list_files': {
-        const project = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
-        if (!project) return { result: 'Error: Project not found or access denied', isError: true };
+        const access = await assertProjectAccess(args.projectId, userId);
+        if (!access.allowed) return { result: 'Error: Project not found or access denied', isError: true };
         const files = await fileOps.listFiles(args.projectId);
         return { result: JSON.stringify(files), isError: false };
       }
@@ -118,22 +143,23 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
       }
 
       case 'create_file': {
-        const proj = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
-        if (!proj) return { result: 'Error: Project not found or access denied', isError: true };
-        const file = await fileOps.createFile(args.projectId, args.name as string, args.content as string, userId);
+        const cAccess = await assertProjectAccess(args.projectId, userId);
+        if (!cAccess.allowed) return { result: 'Error: Project not found or access denied', isError: true };
+        if (cAccess.isSystem && !cAccess.isAdmin) return { result: 'Error: Cannot create files in system projects', isError: true };
+        const file = await fileOps.createFile(args.projectId, args.name as string, args.content as string, userId, 'ai_chat');
         return { result: JSON.stringify({ id: file.id, name: file.name, size: file.size }), isError: false };
       }
 
       case 'update_file': {
         await fileOps.readFileWithOwnerCheck(args.fileId, userId);
-        const updated = await fileOps.updateFileContent(args.fileId, args.content as string, userId);
+        const updated = await fileOps.updateFileContent(args.fileId, args.content as string, userId, 'ai_chat');
         return { result: `File "${updated.name}" updated (${updated.size} bytes)`, isError: false };
       }
 
       case 'apply_edit': {
         const { error } = await fileOps.applyEdit(
           args.fileId, args.startLine, args.startColumn,
-          args.endLine, args.endColumn, args.newText, userId,
+          args.endLine, args.endColumn, args.newText, userId, 'ai_chat',
         );
         if (error) return { result: error, isError: true };
         return { result: 'Edit applied successfully', isError: false };
@@ -141,13 +167,13 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
 
       case 'delete_file': {
         const df = await fileOps.readFileWithOwnerCheck(args.fileId, userId);
-        await fileOps.deleteFile(args.fileId, userId);
+        await fileOps.deleteFile(args.fileId, userId, 'ai_chat');
         return { result: `File "${df.name}" deleted`, isError: false };
       }
 
       case 'search_files': {
-        const sp = await prisma.project.findFirst({ where: { id: args.projectId, ownerId: userId } });
-        if (!sp) return { result: 'Error: Project not found or access denied', isError: true };
+        const sAccess = await assertProjectAccess(args.projectId, userId);
+        if (!sAccess.allowed) return { result: 'Error: Project not found or access denied', isError: true };
         const matches = await fileOps.searchFiles(args.projectId, args.query as string);
         if (!matches.length) return { result: `No matches for "${args.query}"`, isError: false };
         return { result: matches.map(m => `${m.fileName}:${m.line} — ${m.text}`).join('\n'), isError: false };

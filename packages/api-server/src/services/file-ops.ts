@@ -42,13 +42,27 @@ export async function getFile(fileId: string, projectId: string) {
   return file;
 }
 
-export async function readFileWithOwnerCheck(fileId: string, userId: string) {
+/**
+ * Read a file after verifying the user has access to its project.
+ * Supports all project types: USER (owner), STARTUP (member), SYSTEM (all).
+ * Pass userRole when available for admin access.
+ */
+export async function readFileWithAccessCheck(fileId: string, userId: string, userRole?: string) {
   const file = await prisma.sysMLFile.findUnique({
     where: { id: fileId },
-    include: { project: { select: { ownerId: true } } },
+    include: { project: true },
   });
-  if (!file || file.project.ownerId !== userId) throw NotFound('File');
+  if (!file) throw NotFound('File');
+
+  const { assertProjectAccess } = await import('../lib/auth-helpers.js');
+  const access = await assertProjectAccess(file.projectId, userId, userRole);
+  if (!access.allowed) throw NotFound('File');
   return file;
+}
+
+/** @deprecated Use readFileWithAccessCheck — this only checks project ownership, not startup membership */
+export async function readFileWithOwnerCheck(fileId: string, userId: string) {
+  return readFileWithAccessCheck(fileId, userId);
 }
 
 export async function createFile(
@@ -56,6 +70,7 @@ export async function createFile(
   name: string,
   content: string,
   userId: string,
+  source?: 'mcp' | 'ai_chat' | 'rest',
 ) {
   const safeName = sanitizeFileName(name);
   const size = assertContentSize(content);
@@ -63,7 +78,7 @@ export async function createFile(
   const file = await prisma.sysMLFile.create({
     data: { name: safeName, content, size, projectId, displayId },
   });
-  mcpEvents.emitFileChange({ fileId: file.id, userId, action: 'created' });
+  mcpEvents.emitFileChange({ fileId: file.id, userId, action: 'created', source });
   return file;
 }
 
@@ -71,13 +86,14 @@ export async function updateFileContent(
   fileId: string,
   content: string,
   userId: string,
+  source?: 'mcp' | 'ai_chat' | 'rest',
 ) {
   const size = assertContentSize(content);
   const updated = await prisma.sysMLFile.update({
     where: { id: fileId },
     data: { content, size },
   });
-  mcpEvents.emitFileChange({ fileId, userId, action: 'updated' });
+  mcpEvents.emitFileChange({ fileId, userId, action: 'updated', source });
   return updated;
 }
 
@@ -89,11 +105,11 @@ export async function renameFile(fileId: string, name: string) {
   });
 }
 
-export async function deleteFile(fileId: string, userId: string) {
+export async function deleteFile(fileId: string, userId: string, source?: 'mcp' | 'ai_chat' | 'rest') {
   const file = await prisma.sysMLFile.findUnique({ where: { id: fileId } });
   if (!file) throw NotFound('File');
   await prisma.sysMLFile.delete({ where: { id: fileId } });
-  mcpEvents.emitFileChange({ fileId, userId, action: 'deleted' });
+  mcpEvents.emitFileChange({ fileId, userId, action: 'deleted', source });
   return file;
 }
 
@@ -118,13 +134,22 @@ export async function applyEdit(
   endColumn: number,
   newText: string,
   userId: string,
+  source?: 'mcp' | 'ai_chat' | 'rest',
 ) {
+  // Verify access before the transaction (assertProjectAccess can't run inside $transaction)
+  const { assertProjectAccess } = await import('../lib/auth-helpers.js');
+  const check = await prisma.sysMLFile.findUnique({ where: { id: fileId }, include: { project: true } });
+  if (!check) return { error: 'Error: File not found or access denied' };
+  const access = await assertProjectAccess(check.projectId, userId);
+  if (!access.allowed) return { error: 'Error: File not found or access denied' };
+  if (access.isSystem && !access.isAdmin) return { error: 'Error: System files are read-only' };
+
   const result = await prisma.$transaction(async (tx) => {
     const file = await tx.sysMLFile.findUnique({
       where: { id: fileId },
       include: { project: { select: { ownerId: true } } },
     });
-    if (!file || file.project.ownerId !== userId) return 'Error: File not found or access denied';
+    if (!file) return 'Error: File not found';
 
     const lines = file.content.split('\n');
     if (startLine < 1 || endLine > lines.length || startLine > endLine) {
@@ -150,7 +175,7 @@ export async function applyEdit(
 
   if (result) return { error: result };
 
-  mcpEvents.emitFileChange({ fileId, userId, action: 'updated' });
+  mcpEvents.emitFileChange({ fileId, userId, action: 'updated', source });
   return { error: null };
 }
 

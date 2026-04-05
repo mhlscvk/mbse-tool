@@ -9,11 +9,17 @@ export interface ToolCallDisplay {
   isError?: boolean;
 }
 
+export interface TokenUsageInfo {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export type ChatStreamEvent =
   | { type: 'text'; chunk: string }
   | { type: 'tool_call'; id: string; name: string; args: Record<string, unknown> }
   | { type: 'tool_result'; id: string; name: string; result: string; isError: boolean }
-  | { type: 'done' }
+  | { type: 'usage'; inputTokens: number; outputTokens: number }
+  | { type: 'done'; usage?: TokenUsageInfo }
   | { type: 'error'; message: string };
 
 export interface FreeTierStatus {
@@ -128,7 +134,8 @@ export async function* streamChat(params: {
           if (currentEvent === 'text') yield { type: 'text', chunk: data.chunk };
           else if (currentEvent === 'tool_call') yield { type: 'tool_call', id: data.id, name: data.name, args: data.args };
           else if (currentEvent === 'tool_result') yield { type: 'tool_result', id: data.id, name: data.name, result: data.result, isError: data.isError };
-          else if (currentEvent === 'done') { yield { type: 'done' }; return; }
+          else if (currentEvent === 'usage') yield { type: 'usage', inputTokens: data.inputTokens, outputTokens: data.outputTokens };
+          else if (currentEvent === 'done') { yield { type: 'done', usage: data.usage }; return; }
           else if (currentEvent === 'error') yield { type: 'error', message: data.message };
         } catch { /* skip malformed */ }
       }

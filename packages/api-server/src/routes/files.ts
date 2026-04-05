@@ -7,10 +7,80 @@ import { prisma } from '../db.js';
 import * as fileOps from '../services/file-ops.js';
 import { fileName, fileContent } from '../config/schemas.js';
 import { syncFileToDisk, removeFileFromDisk, renameFileOnDisk } from '../services/examples-sync.js';
+import { mcpEvents, type FileChangeEvent } from '../mcp/events.js';
 
 const router: IRouter = Router({ mergeParams: true });
 
+// ─── SSE: real-time MCP edit notifications for the web client ────────────────
+// Uses a short-lived, purpose-limited SSE token (not the full session JWT)
+// to avoid exposing the session token in query strings / logs.
+
+router.get('/:fileId/events', async (req: AuthRequest, res) => {
+  const sseToken = req.query.token as string;
+  if (!sseToken) { res.status(401).json({ error: 'Unauthorized' }); return; }
+
+  const jwt = await import('jsonwebtoken');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) { res.status(500).json({ error: 'Server misconfigured' }); return; }
+  let userId: string;
+  let userRole: string | undefined;
+  try {
+    const payload = jwt.default.verify(sseToken, secret, { algorithms: ['HS256'] }) as { userId: string; role?: string; purpose?: string };
+    // Accept both SSE-specific tokens and regular JWTs (backward compat)
+    if (payload.purpose && payload.purpose !== 'sse') { res.status(401).json({ error: 'Invalid token' }); return; }
+    userId = payload.userId;
+    userRole = payload.role;
+  } catch {
+    res.status(401).json({ error: 'Invalid token' }); return;
+  }
+
+  const { projectId, fileId } = req.params;
+  try {
+    const access = await assertProjectAccess(projectId, userId, userRole);
+    if (!access.allowed) { res.status(404).json({ error: 'File not found' }); return; }
+  } catch {
+    res.status(404).json({ error: 'File not found' }); return;
+  }
+  const file = await prisma.sysMLFile.findFirst({ where: { id: fileId, projectId } });
+  if (!file) { res.status(404).json({ error: 'File not found' }); return; }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const keepalive = setInterval(() => { res.write(': keepalive\n\n'); }, 30_000);
+
+  const handler = (event: FileChangeEvent) => {
+    if (event.fileId !== fileId) return;
+    if (event.source !== 'mcp') return;
+    res.write(`data: ${JSON.stringify({ fileId: event.fileId, action: event.action })}\n\n`);
+  };
+
+  mcpEvents.onFileChange(handler);
+  req.on('close', () => {
+    clearInterval(keepalive);
+    mcpEvents.offFileChange(handler);
+  });
+});
+
 router.use(requireAuth);
+
+// Mint a short-lived SSE token (60s) — prevents full JWT from leaking in query strings
+router.post('/:fileId/sse-token', asyncHandler(async (req: AuthRequest, res) => {
+  const access = await assertProjectAccess(req.params.projectId, req.userId!, req.userRole);
+  if (!access.allowed) throw NotFound('Project');
+  const file = await prisma.sysMLFile.findFirst({ where: { id: req.params.fileId, projectId: req.params.projectId } });
+  if (!file) throw NotFound('File');
+  const jwt = await import('jsonwebtoken');
+  const secret = process.env.JWT_SECRET!;
+  const sseToken = jwt.default.sign(
+    { userId: req.userId, role: req.userRole, purpose: 'sse' },
+    secret,
+    { algorithm: 'HS256', expiresIn: '60s' },
+  );
+  res.json({ token: sseToken });
+}));
 
 const fileCreateSchema = z.object({ name: fileName, content: fileContent });
 const fileUpdateSchema = z.object({ content: fileContent });
