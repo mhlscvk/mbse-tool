@@ -11,6 +11,8 @@ import SequenceRenderer from './SequenceRenderer.js';
 import GridRenderer from './GridRenderer.js';
 import BrowserRenderer from './BrowserRenderer.js';
 import GeometryRenderer from './GeometryRenderer.js';
+import { placeEdgeLabels, pathDirectionAt, lineDirection, bezierDirection } from './edgeLabelPlacement.js';
+import type { EdgeLabelInput } from './edgeLabelPlacement.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const elk = new (ELKModule as any)();
@@ -700,6 +702,7 @@ export default function DiagramViewer({
               'elk.direction': isDownLayout ? 'DOWN' : 'RIGHT',
               'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? String(vcfg.behavioralNodeSpacing) : '24',
               'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? String(vcfg.behavioralLayerSpacing) : '30',
+              ...(isBehavioural ? { 'elk.spacing.edgeNode': '20' } : {}),
               'elk.edgeRouting': 'ORTHOGONAL',
               'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
               'elk.nodeSize.constraints': 'MINIMUM_SIZE',
@@ -1345,40 +1348,39 @@ export default function DiagramViewer({
     return `M ${srcPt.x} ${srcPt.y} Q ${mx} ${my} ${tgtPt.x} ${tgtPt.y}`;
   };
 
-  const edgeCenter = (edge: SEdge) => {
-    // Helper: find best label position on a set of path points
-    const bestLabelOnPath = (points: { x: number; y: number }[]) => {
-      const segments: Array<{ idx: number; len: number; mx: number; my: number }> = [];
+  /**
+   * Compute a point along an edge path at parametric position t (0=source, 1=target).
+   * Default t=0.5 returns the midpoint. Used for spreading overlapping labels.
+   */
+  const edgeLabelPoint = (edge: SEdge, t = 0.5) => {
+    // Helper: find point at fraction t of total path length, avoiding nodes
+    const pointOnPath = (points: { x: number; y: number }[]) => {
+      // Compute cumulative lengths
+      const cumLen = [0];
       for (let i = 1; i < points.length; i++) {
-        const sl = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-        segments.push({
-          idx: i - 1, len: sl,
-          mx: (points[i - 1].x + points[i].x) / 2,
-          my: (points[i - 1].y + points[i].y) / 2,
-        });
+        cumLen.push(cumLen[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
       }
-      // Check which segments' midpoints are NOT inside any visible node
-      const isInsideNode = (px: number, py: number) => {
-        for (const n of nodes) {
-          if (n.id === edge.sourceId || n.id === edge.targetId) continue;
-          const np = nodePos(n.id);
-          const ns = nodeSz(n.id);
-          if (px >= np.x - 5 && px <= np.x + ns.w + 5 && py >= np.y - 5 && py <= np.y + ns.h + 5) return true;
+      const totalLen = cumLen[cumLen.length - 1];
+      if (totalLen === 0) return { x: points[0].x, y: points[0].y };
+
+      // Find the point at t along the total length
+      const targetLen = t * totalLen;
+      for (let i = 1; i < points.length; i++) {
+        if (cumLen[i] >= targetLen) {
+          const segLen = cumLen[i] - cumLen[i - 1];
+          const segT = segLen > 0 ? (targetLen - cumLen[i - 1]) / segLen : 0;
+          return {
+            x: points[i - 1].x + segT * (points[i].x - points[i - 1].x),
+            y: points[i - 1].y + segT * (points[i].y - points[i - 1].y),
+          };
         }
-        return false;
-      };
-      // First: try longest non-overlapping segment
-      const free = segments.filter(s => !isInsideNode(s.mx, s.my)).sort((a, b) => b.len - a.len);
-      if (free.length > 0) return { x: free[0].mx, y: free[0].my };
-      // Fallback: use longest segment regardless
-      segments.sort((a, b) => b.len - a.len);
-      return { x: segments[0].mx, y: segments[0].my };
+      }
+      return { x: points[points.length - 1].x, y: points[points.length - 1].y };
     };
 
     // Use ELK-computed route if available (works for internal container edges)
     const elkRoute = elkEdgeRoutes.get(edge.id);
     if (elkRoute) {
-      // Parse SVG path "M x y L x y L x y ..." into points
       const points: { x: number; y: number }[] = [];
       const parts = elkRoute.split(/\s+/);
       for (let i = 0; i < parts.length; i++) {
@@ -1387,35 +1389,39 @@ export default function DiagramViewer({
           i += 2;
         }
       }
-      if (points.length >= 2) return bestLabelOnPath(points);
+      if (points.length >= 2) return pointOnPath(points);
     }
 
     // Use orthogonal-routed path if available (nested mode)
     const routed = routedEdgePaths.get(edge.id);
     if (routed && routed.length >= 2) {
-      return bestLabelOnPath(routed);
+      return pointOnPath(routed);
     }
 
+    // Straight or curved edge — interpolate between source and target
     const src = nodeCenter(edge.sourceId);
     const tgt = nodeCenter(edge.targetId);
     const offset = edgeCurveOffset.get(edge.id) ?? 0;
     if (offset === 0) {
-      return { x: (src.x + tgt.x) / 2, y: (src.y + tgt.y) / 2 };
+      return { x: src.x + t * (tgt.x - src.x), y: src.y + t * (tgt.y - src.y) };
     }
-    // For curved edges, the label sits at the quadratic bezier midpoint (t=0.5)
-    // Q bezier at t=0.5: P = 0.25*P0 + 0.5*CP + 0.25*P2
+    // Quadratic bezier at parameter t: P = (1-t)^2*P0 + 2(1-t)t*CP + t^2*P2
     const dx = tgt.x - src.x;
     const dy = tgt.y - src.y;
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const px = -dy / len;
     const py = dx / len;
-    const mx = (src.x + tgt.x) / 2 + px * offset;
-    const my = (src.y + tgt.y) / 2 + py * offset;
+    const cpx = (src.x + tgt.x) / 2 + px * offset;
+    const cpy = (src.y + tgt.y) / 2 + py * offset;
+    const u = 1 - t;
     return {
-      x: 0.25 * src.x + 0.5 * mx + 0.25 * tgt.x,
-      y: 0.25 * src.y + 0.5 * my + 0.25 * tgt.y,
+      x: u * u * src.x + 2 * u * t * cpx + t * t * tgt.x,
+      y: u * u * src.y + 2 * u * t * cpy + t * t * tgt.y,
     };
   };
+
+  // Backward-compatible alias
+  const edgeCenter = (edge: SEdge) => edgeLabelPoint(edge, 0.5);
 
   const clearSelection = useCallback(() => {
     if (multiSelectedNodeIds.size > 0) setMultiSelectedNodeIds(new Set());
@@ -1668,6 +1674,73 @@ export default function DiagramViewer({
     }
     return true;
   });
+
+  // ── Candidate-based edge label placement with collision avoidance ────
+  // For each edge: compute anchor, tangent/normal, then greedily place
+  // labels using perpendicular offset candidates. Avoids other labels AND nodes.
+  const labelPositions = useMemo(() => {
+    // Label-vs-label collision avoidance only. No node obstacles —
+    // labels must stay close to their edge lines.
+
+    // Build label inputs: anchor + direction per edge
+    const inputs: EdgeLabelInput[] = [];
+    for (const edge of renderEdges) {
+      const label = edge.children[0];
+      if (!label?.text) continue;
+
+      const anchor = edgeLabelPoint(edge, 0.5);
+      if (!anchor) continue;
+
+      // Compute tangent & normal at midpoint, depending on edge path type
+      let dir: { tangent: { x: number; y: number }; normal: { x: number; y: number } };
+
+      const elkRoute = elkEdgeRoutes.get(edge.id);
+      const routed = routedEdgePaths.get(edge.id);
+
+      if (elkRoute) {
+        // Parse ELK path into points
+        const points: { x: number; y: number }[] = [];
+        const parts = elkRoute.split(/\s+/);
+        for (let i = 0; i < parts.length; i++) {
+          if ((parts[i] === 'M' || parts[i] === 'L') && i + 2 < parts.length) {
+            points.push({ x: parseFloat(parts[i + 1]), y: parseFloat(parts[i + 2]) });
+            i += 2;
+          }
+        }
+        dir = points.length >= 2
+          ? pathDirectionAt(points, 0.5)
+          : { tangent: { x: 1, y: 0 }, normal: { x: 0, y: -1 } };
+      } else if (routed && routed.length >= 2) {
+        dir = pathDirectionAt(routed, 0.5);
+      } else {
+        const src = nodeCenter(edge.sourceId);
+        const tgt = nodeCenter(edge.targetId);
+        const offset = edgeCurveOffset.get(edge.id) ?? 0;
+        if (offset === 0) {
+          dir = lineDirection(src, tgt);
+        } else {
+          const dx = tgt.x - src.x;
+          const dy = tgt.y - src.y;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          const px = -dy / len;
+          const py = dx / len;
+          const cpx = (src.x + tgt.x) / 2 + px * offset;
+          const cpy = (src.y + tgt.y) / 2 + py * offset;
+          dir = bezierDirection(src, { x: cpx, y: cpy }, tgt, 0.5);
+        }
+      }
+
+      inputs.push({ id: edge.id, text: label.text, anchor, ...dir });
+    }
+
+    // Run greedy candidate-based placement
+    const placed = placeEdgeLabels(inputs);
+    const positions = new Map<string, { x: number; y: number }>();
+    for (const p of placed) positions.set(p.id, { x: p.x, y: p.y });
+    return positions;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderEdges, elkEdgeRoutes, routedEdgePaths, edgeCurveOffset, positionsKey]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -2571,24 +2644,14 @@ export default function DiagramViewer({
                 />
                 {label && label.text && c && (() => {
                   const labelW = label.text.length * 6.4 + 8;
-                  // Place label at the edge midpoint, offset upward to sit above the line
-                  const lx = c.x;
-                  const ly = c.y - 8;
+                  // Use collision-resolved position (along-path displaced) if available
+                  const resolvedPos = labelPositions.get(edge.id);
+                  const lx = resolvedPos?.x ?? c.x;
+                  const ly = resolvedPos?.y ?? (c.y - 4);
                   return (
-                    <>
-                      <rect
-                        x={lx - labelW / 2}
-                        y={ly - 11}
-                        width={labelW}
-                        height={14}
-                        rx={2}
-                        fill={t.bg}
-                        fillOpacity={0.9}
-                      />
-                      <text x={lx} y={ly} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
-                        {label.text}
-                      </text>
-                    </>
+                    <text x={lx} y={ly} fill={style.labelColor} fontSize={10} textAnchor="middle" fontStyle="italic">
+                      {label.text}
+                    </text>
                   );
                 })()}
               </g>

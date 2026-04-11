@@ -581,7 +581,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - **JWT HS256** with explicit algorithm enforcement to prevent algorithm confusion attacks
 - **Timing-safe login** — bcrypt always runs even for non-existent users
 - **Email enumeration prevention** — /register returns identical response for existing/new accounts
-- **File name sanitization** — path separators and null bytes stripped, length limited to 255
+- **File name enforcement** — `.sysml` extension enforced server-side (all extensions stripped, `.sysml` appended), path separators and null bytes stripped, length limited to 255
 - **Email normalization** — lowercase + trim before lookup
 - **Input validation** — Zod schemas on all routes; validation errors return 400 (not 500)
 - **Content size limits** — 100KB default JSON body, 10MB for file content, 2MB for AI requests
@@ -599,6 +599,8 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - **Trust proxy** — `app.set('trust proxy', 1)` in production so `req.ip` reflects real client IP behind Nginx, enabling correct rate-limit keying
 - **Graceful shutdown** — Prisma disconnect on SIGTERM/SIGINT
 - **IDOR protection** — all resource endpoints enforce ownership checks; 404 returned for unauthorized access (no information leakage)
+- **Admin project visibility** — admins no longer see other users' personal projects in the normal project listing; cross-user visibility is restricted to read-only admin endpoints (Settings > Admin)
+- **SysML file naming** — `.sysml` extension enforced server-side on create and rename; root package declaration auto-updated on rename
 
 ### Security Checklist for Production
 
@@ -621,7 +623,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] PerformActionUsage (`«perform»`) and ExhibitStateUsage (`«exhibit»`) as nested child nodes with compartment display
 - [x] Entry/do/exit as compartment text in GV + graphical nodes (`<<entry action>>`, `<<do action>>`, `<<exit action>>`) in STV
 - [x] ELK-computed orthogonal edge routing for transitions inside state machine containers (all view modes)
-- [x] Edge label placement on non-overlapping segments (avoids node collision)
+- [x] Edge label placement with candidate-based collision avoidance (perpendicular offsets, node obstacle detection, deterministic greedy placement)
 - [x] STV start circle replaced by entry action node when entry action exists
 - [x] Scoped containment — each action/state container gets its own start/terminate/control nodes
 - [x] Boolean guard validation — `if` conditions checked for Boolean type with diagnostics
@@ -643,13 +645,13 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] MCP Desktop integration: Claude Desktop edits trigger real-time diff highlighting, undo/redo, accept/revert in web UI via SSE events with source tracking
 - [x] User auth: email/password + Google OAuth + email verification + forgot password (email reset link)
-- [x] Settings page with tabbed layout (Account / AI Provider / MCP / Admin), password change form
-- [x] Admin panel: sync Examples from disk (Settings > Admin)
+- [x] Settings page with tabbed layout (Account / AI Provider / MCP / Enterprises / Admin / Bug Reports), password change form
+- [x] Admin panel: sync Examples from disk, read-only cross-user visibility (all users, personal projects, file content viewer) in Settings > Admin
 - [x] Security hardening: helmet, CSP, HSTS, rate limiting, HTTPS, Zod validation, WebSocket CSRF/limits, error sanitization
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Light theme with consistent cursor visibility (three-layer black cursor fix for Monaco editor)
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 872 vitest tests across 33 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, OMG vehicle model validation)
+- [x] Automated tests: 958 vitest tests across 36 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, admin routes, edge label placement, label overlap resolution, OMG vehicle model validation)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 76 files across 9 subprojects including 39 OMG standard library files)
@@ -669,6 +671,9 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] Port usages as boundary squares on parts in IV + AFV (in=green inward, out=orange outward, inout/none=horizontal line)
 - [x] Action parameters (in/out/inout items) as boundary squares on action usages in AFV only
 - [x] Port/action definitions render as nested containers (not boundary squares)
+- [x] File naming enforcement: `.sysml` extension auto-appended, wrong extensions stripped, root package name auto-updated on rename
+- [x] Admin read-only cross-user visibility: Settings > Admin shows all users, their personal projects, and file contents (view-only, no edit/delete)
+- [x] Pre-commit hook runs all test suites (api-server, diagram-service, web-client) before allowing commit
 - [x] Orphan node removal in AFV and STV (iterative control node chain pruning)
 - [x] Use case, analysis case, verification case usage parsing and rendering
 - [x] Inherited features display with `^` prefix (toggle via "Inherited" button), multi-level and diamond inheritance, redefined exclusion

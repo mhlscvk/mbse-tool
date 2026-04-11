@@ -2,8 +2,9 @@
 
 echo "Running tests before commit..."
 
-# Run tests for packages that have them
+# Run tests for all packages that have them
 pnpm --filter @systemodel/api-server test || exit 1
 pnpm --filter @systemodel/diagram-service test || exit 1
+pnpm --filter @systemodel/web-client test || exit 1
 
 echo "All tests passed."

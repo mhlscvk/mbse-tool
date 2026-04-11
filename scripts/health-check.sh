@@ -56,10 +56,10 @@ const procs=JSON.parse(d);
 const online=procs.filter(p=>p.pm2_env.status==='online').length;
 console.log(online);
 ")
-if [ "$PM2_COUNT" = "2" ]; then
-  echo "OK (2 online)"
+if [ "$PM2_COUNT" = "3" ]; then
+  echo "OK (3 online)"
 else
-  echo "FAIL ($PM2_COUNT online, expected 2)"
+  echo "FAIL ($PM2_COUNT online, expected 3)"
   FAIL=1
 fi
 

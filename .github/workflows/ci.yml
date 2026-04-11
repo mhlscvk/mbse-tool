@@ -55,6 +55,6 @@ jobs:
       - name: Build all packages
         run: |
           pnpm --filter @systemodel/shared-types build
-          cd packages/api-server && npx tsc --noEmitOnError false > /dev/null 2>&1 || true; cd ../..
+          cd packages/api-server && npx tsc || true; cd ../..
           pnpm --filter @systemodel/diagram-service build
           pnpm --filter @systemodel/web-client build

@@ -72,4 +72,57 @@ router.post('/sync-examples', asyncHandler(async (_req: AuthRequest, res) => {
   res.json({ data: { message: `Examples synced: ${dirs.length} subprojects, ${totalFiles} files` } });
 }));
 
+// GET /api/admin/users — list all users (read-only, no passwords)
+router.get('/users', asyncHandler(async (_req: AuthRequest, res) => {
+  const users = await prisma.user.findMany({
+    select: { id: true, email: true, name: true, role: true, emailVerified: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ data: users });
+}));
+
+// GET /api/admin/users/:userId/projects — list a specific user's personal projects (read-only)
+router.get('/users/:userId/projects', asyncHandler(async (req: AuthRequest, res) => {
+  const { userId } = req.params;
+
+  // Verify the target user exists
+  const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true } });
+  if (!targetUser) throw BadRequest('User not found');
+
+  const projects = await prisma.project.findMany({
+    where: { ownerId: userId, projectType: 'USER' },
+    orderBy: { name: 'asc' },
+    select: { id: true, displayId: true, name: true, description: true, projectType: true, createdAt: true, updatedAt: true, _count: { select: { files: true, children: true } } },
+  });
+  res.json({ data: { user: targetUser, projects } });
+}));
+
+// GET /api/admin/projects/:projectId/files — list files in any project (read-only)
+router.get('/projects/:projectId/files', asyncHandler(async (req: AuthRequest, res) => {
+  const { projectId } = req.params;
+
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, ownerId: true } });
+  if (!project) throw BadRequest('Project not found');
+
+  const files = await prisma.sysMLFile.findMany({
+    where: { projectId },
+    orderBy: { name: 'asc' },
+    select: { id: true, displayId: true, name: true, size: true, createdAt: true, updatedAt: true },
+  });
+  res.json({ data: files });
+}));
+
+// GET /api/admin/files/:fileId — read a single file's content (read-only)
+router.get('/files/:fileId', asyncHandler(async (req: AuthRequest, res) => {
+  const { fileId } = req.params;
+
+  const file = await prisma.sysMLFile.findUnique({
+    where: { id: fileId },
+    select: { id: true, displayId: true, name: true, content: true, size: true, createdAt: true, updatedAt: true, projectId: true },
+  });
+  if (!file) throw BadRequest('File not found');
+
+  res.json({ data: file });
+}));
+
 export default router;

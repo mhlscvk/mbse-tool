@@ -117,11 +117,19 @@ export default function ProjectsPage() {
 
   const createFile = async () => {
     if (!selectedProject) return;
-    const name = prompt('File name (e.g. vehicle.sysml):');
-    if (!name) return;
+    const baseName = prompt('File name (extension .sysml will be added automatically):');
+    if (!baseName || !baseName.trim()) return;
+    // Strip any extension the user typed — backend enforces .sysml anyway
+    let name = baseName.trim().replace(/\.sysml$/i, '');
+    const dotIdx = name.lastIndexOf('.');
+    if (dotIdx > 0) name = name.slice(0, dotIdx);
+    name = name.replace(/^\.+/, '');
+    if (!name) { setError('Invalid file name'); return; }
+    const fullName = name + '.sysml';
     try {
-      const content = `package ${name.replace('.sysml', '')} {\n  // SysML v2 model\n}\n`;
-      const file = await api.files.create(selectedProject.id, name, content);
+      const pkgName = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name) ? name : `'${name}'`;
+      const content = `package ${pkgName} {\n  // SysML v2 model\n}\n`;
+      const file = await api.files.create(selectedProject.id, fullName, content);
       setFiles((prev) => [...prev, file]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create file');
@@ -290,10 +298,19 @@ export default function ProjectsPage() {
 
   const renameFile = async (file: SysMLFile) => {
     if (!selectedProject) return;
-    const newName = prompt('Rename file:', file.name);
-    if (!newName || newName === file.name) return;
+    // Show current base name (without .sysml) for editing
+    const currentBase = file.name.replace(/\.sysml$/i, '');
+    const newBase = prompt('Rename file (.sysml will be added automatically):', currentBase);
+    if (!newBase || !newBase.trim()) return;
+    let name = newBase.trim().replace(/\.sysml$/i, '');
+    const dotIdx = name.lastIndexOf('.');
+    if (dotIdx > 0) name = name.slice(0, dotIdx);
+    name = name.replace(/^\.+/, '');
+    if (!name) { setError('Invalid file name'); return; }
+    const fullName = name + '.sysml';
+    if (fullName === file.name) return;
     try {
-      const updated = await api.files.rename(selectedProject.id, file.id, newName.trim());
+      const updated = await api.files.rename(selectedProject.id, file.id, fullName);
       setFiles((prev) => prev.map((f) => (f.id === file.id ? updated : f)));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename file');

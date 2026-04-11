@@ -155,8 +155,10 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 ## Security Highlights
 
 - CSRF via Content-Type enforcement (exempts /mcp, allows DELETE with no body)
-- Rate limiting: 5 tiers (auth, register, api, aiChat, mcp)
+- Rate limiting: 6 tiers (auth, register, api, aiChat, mcp, bugReport)
+- File naming: `.sysml` extension enforced server-side via `normalizeSysMLFileName()`, all extensions stripped and `.sysml` appended
 - File size: 10MB max, file names sanitized, search bounded (100 files, 50 results, 200-char lines)
+- Admin visibility: admins no longer see other users' personal projects in normal listing (fixed data leak); cross-user visibility only via Settings → Admin
 - MCP sessions: max 5/user, 500 total, 24h TTL
 - Error middleware: never leaks internal details (Prisma, stack traces)
 - Element locks: TOCTOU prevention via unique constraint catch (P2002), file-to-project validation
@@ -169,11 +171,11 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 
 ## Testing
 
-**Total: 872 tests** (all passing, 0 skipped)
+**Total: 958 tests** (all passing, 0 skipped)
 
-- `api-server`: 223 tests across 14 suites
+- `api-server`: 272 tests across 15 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
-  - `ai/tools.test.ts` (12): tool execution, access control, size limits, name sanitization
+  - `ai/tools.test.ts` (19): tool execution, access control, size limits, name sanitization, .sysml enforcement
   - `ai/providers.test.ts` (5): tool schema validation
   - `middleware/auth.test.ts` (12): JWT validation, expired tokens, role checks
   - `middleware/error.test.ts` (4): Zod errors, AppError, info leakage prevention
@@ -183,15 +185,21 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
   - `services/element-lock-ops.test.ts` (18): check-out/check-in, force check-in, TOCTOU (P2002), file-project validation, element name sanitization, audit logging
   - `services/notification-ops.test.ts` (15): create/list/read notifications, self-notification prevention, cooldown dedup, project access check, unread count
   - `routes/startups-invitations.test.ts` (10): invitation CRUD, email-based invitations, role assignment, duplicate prevention, revocation
-  - `services/file-ops.test.ts` (42): file CRUD, sanitization, content size limits, applyEdit line/column validation, search, MCP events
+  - `services/file-ops.test.ts` (66): file CRUD, .sysml normalization (16 cases), sanitization, SysML package helpers (extractBaseName, isValidSysMLIdentifier, formatSysMLPackageName, generateRootPackage, updateRootPackageName), content size limits, applyEdit, search, MCP events
   - `lib/auth-helpers.test.ts` (16): isAdmin, assertProjectAccess (system/USER/STARTUP), assertWriteAccess
-- `web-client`: 58 tests across 5 suites (theme store, recent files, sysml helpers, cursor fix, line diff)
+  - `routes/admin.test.ts` (9): admin user listing, user project listing, scope verification, authorization guards
+  - `mcp/events.test.ts` (6): file change event emission
+- `web-client`: 95 tests across 7 suites
+  - Theme store (4), recent files (13), sysml helpers (22), cursor fix (6), line diff (13)
+  - `edgeLabelPlacement.test.ts` (23): candidate-based placement, collision avoidance, obstacles, direction helpers
+  - `resolveEdgeLabelOverlaps.test.ts` (14): overlap detection, group resolution, determinism
 - `diagram-service`: 591 tests across 14 suites (parser, transformer, view filters, WebSocket, OMG vehicle model validation, P0-P3 types, occurrence subtypes, etc.)
 
 Run tests:
 ```bash
 pnpm --filter @systemodel/api-server test
 pnpm --filter @systemodel/diagram-service test
+pnpm --filter @systemodel/web-client test
 ```
 
 ## Frontend
@@ -258,3 +266,16 @@ PM2 manages services. Always use `pm2 start ecosystem.config.cjs` (not `pm2 rest
 - `POST /api/notifications` — Send lock request
 - `PATCH /api/notifications/:id/read` — Mark as read
 - `POST /api/notifications/mark-all-read` — Mark all as read
+
+### Admin (read-only cross-user visibility)
+- `POST /api/admin/sync-examples` — Re-import system examples from disk
+- `GET /api/admin/users` — List all users (safe fields only, no passwords)
+- `GET /api/admin/users/:userId/projects` — List user's personal projects
+- `GET /api/admin/projects/:projectId/files` — List files in any project
+- `GET /api/admin/files/:fileId` — Read a single file's content
+
+### File Naming
+- All files enforced to end with `.sysml` via `normalizeSysMLFileName()` in `services/file-ops.ts`
+- Backend strips all extensions, appends `.sysml` — never trusts frontend
+- On rename, root `package` declaration in file content is updated to match new name
+- SysML identifiers with spaces/special chars are auto-quoted: `package 'Cruise Control' {}`

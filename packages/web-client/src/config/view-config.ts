@@ -8,8 +8,8 @@ const GENERAL: ViewConfig = {
   retargetFlowsToPins: false,
   hideDirectedFromDefCompartments: false,
   defKindsForCompartmentHiding: new Set(),
-  behavioralNodeSpacing: 24,
-  behavioralLayerSpacing: 32,
+  behavioralNodeSpacing: 50,
+  behavioralLayerSpacing: 60,
   compactPinContainers: false,
   suppressPinToPinFlowLabels: false,
 };
@@ -50,8 +50,8 @@ const STATE_TRANSITION: ViewConfig = {
   retargetFlowsToPins: false,
   hideDirectedFromDefCompartments: true,
   defKindsForCompartmentHiding: new Set(['StateDefinition']),
-  behavioralNodeSpacing: 24,
-  behavioralLayerSpacing: 32,
+  behavioralNodeSpacing: 50,
+  behavioralLayerSpacing: 60,
   compactPinContainers: true,
   suppressPinToPinFlowLabels: false,
 };

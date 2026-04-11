@@ -13,10 +13,98 @@ import { generateFileDisplayId } from '../lib/id-generator.js';
 
 // ── Pure business logic — no Express, no MCP SDK ─────────────────────────────
 
+/**
+ * Normalize a file name to always end with exactly one `.sysml` extension.
+ * - Trims whitespace
+ * - Strips any existing extension(s)
+ * - Appends `.sysml` (lowercase)
+ * - Handles edge cases: multiple dots, uppercase variants, double extensions
+ */
+export function normalizeSysMLFileName(name: string): string {
+  let base = name.trim();
+  // Strip dangerous chars first
+  base = base.replace(/[\\/\0]/g, '');
+  if (!base) return '';
+
+  // Repeatedly strip extensions until only the base name remains
+  // This handles: "file.sysml.txt" → "file.sysml" → "file"
+  //               "file.SYSML" → "file"
+  //               "file.txt" → "file"
+  let prev = '';
+  while (prev !== base) {
+    prev = base;
+    base = base.replace(/\.sysml$/i, '');
+    // Strip any other extension (last .xxx)
+    const dotIdx = base.lastIndexOf('.');
+    if (dotIdx > 0 && dotIdx < base.length - 1) {
+      base = base.slice(0, dotIdx);
+    }
+  }
+  // Remove leading dots (hidden file names like ".file")
+  base = base.replace(/^\.+/, '');
+
+  if (!base) return '';
+  return base + '.sysml';
+}
+
 export function sanitizeFileName(name: string): string {
-  const safe = name.replace(/[\\/\0]/g, '').slice(0, MAX_FILE_NAME_LENGTH);
-  if (!safe) throw BadRequest('Invalid file name');
-  return safe;
+  const normalized = normalizeSysMLFileName(name);
+  if (!normalized) throw BadRequest('Invalid file name');
+  // Ensure truncation preserves .sysml extension
+  if (normalized.length <= MAX_FILE_NAME_LENGTH) return normalized;
+  const base = normalized.slice(0, MAX_FILE_NAME_LENGTH - 6); // leave room for .sysml
+  return base + '.sysml';
+}
+
+/** Extract the base name from a .sysml filename (strip extension) */
+export function extractBaseName(fileName: string): string {
+  return fileName.replace(/\.sysml$/i, '').trim() || 'untitled';
+}
+
+/** Check if a name is a valid SysML v2 identifier (no quoting needed) */
+export function isValidSysMLIdentifier(name: string): boolean {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+}
+
+/** Format a name for use in a SysML package declaration (quote if needed) */
+export function formatSysMLPackageName(name: string): string {
+  const base = name.trim() || 'untitled';
+  return isValidSysMLIdentifier(base) ? base : `'${base}'`;
+}
+
+/** Generate a root package block for initial file content */
+export function generateRootPackage(fileName: string): string {
+  const base = extractBaseName(fileName);
+  const pkgName = formatSysMLPackageName(base);
+  return `package ${pkgName} {\n  // SysML v2 model\n}\n`;
+}
+
+/**
+ * Update the root package name in file content when a file is renamed.
+ * Only updates if the content starts with `package <oldName>` pattern.
+ * Returns null if no safe update can be made.
+ */
+export function updateRootPackageName(content: string, oldFileName: string, newFileName: string): string | null {
+  const oldBase = extractBaseName(oldFileName);
+  const newBase = extractBaseName(newFileName);
+  if (oldBase === newBase) return null; // no change needed
+
+  const oldPkg = formatSysMLPackageName(oldBase);
+  const newPkg = formatSysMLPackageName(newBase);
+
+  // Match root package declaration at the start of the file (with optional leading whitespace/comments)
+  const rootPkgPattern = new RegExp(
+    `^(\\s*(?:\\/\\/[^\\n]*\\n\\s*)*)package\\s+${escapeRegExp(oldPkg)}\\s*\\{`,
+    'm',
+  );
+
+  if (!rootPkgPattern.test(content)) return null; // can't safely update
+
+  return content.replace(rootPkgPattern, `$1package ${newPkg} {`);
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function assertContentSize(content: string): number {
@@ -99,10 +187,19 @@ export async function updateFileContent(
 
 export async function renameFile(fileId: string, name: string) {
   const safeName = sanitizeFileName(name);
-  return prisma.sysMLFile.update({
-    where: { id: fileId },
-    data: { name: safeName },
-  });
+
+  // Try to update root package name in file content to match new name
+  const existing = await prisma.sysMLFile.findUnique({ where: { id: fileId }, select: { name: true, content: true } });
+  const data: { name: string; content?: string; size?: number } = { name: safeName };
+  if (existing?.content) {
+    const updated = updateRootPackageName(existing.content, existing.name, safeName);
+    if (updated !== null) {
+      data.content = updated;
+      data.size = Buffer.byteLength(updated, 'utf8');
+    }
+  }
+
+  return prisma.sysMLFile.update({ where: { id: fileId }, data });
 }
 
 export async function deleteFile(fileId: string, userId: string, source?: 'mcp' | 'ai_chat' | 'rest') {

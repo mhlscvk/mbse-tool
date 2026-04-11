@@ -76,15 +76,15 @@ router.get('/', asyncHandler(async (req: AuthRequest, res) => {
   });
   const startupIds = memberships.map(m => m.startupId);
 
-  const whereClause = admin
-    ? {} // Site admins see all projects
-    : {
-        OR: [
-          { ownerId: req.userId, projectType: 'USER' as const },
-          { isSystem: true },
-          ...(startupIds.length > 0 ? [{ startupId: { in: startupIds }, projectType: 'STARTUP' as const }] : []),
-        ],
-      };
+  // Admins see the same scoped projects as regular users in the normal listing.
+  // Cross-user visibility is only available via /api/admin/users/:id/projects.
+  const whereClause = {
+    OR: [
+      { ownerId: req.userId, projectType: 'USER' as const },
+      { isSystem: true },
+      ...(startupIds.length > 0 ? [{ startupId: { in: startupIds }, projectType: 'STARTUP' as const }] : []),
+    ],
+  };
 
   const projects = await prisma.project.findMany({
     where: whereClause,

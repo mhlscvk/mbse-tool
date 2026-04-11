@@ -30,7 +30,13 @@ import { prisma } from '../db.js';
 import { mcpEvents } from '../mcp/events.js';
 import { assertProjectAccess } from '../lib/auth-helpers.js';
 import {
+  normalizeSysMLFileName,
   sanitizeFileName,
+  extractBaseName,
+  isValidSysMLIdentifier,
+  formatSysMLPackageName,
+  generateRootPackage,
+  updateRootPackageName,
   assertContentSize,
   listFiles,
   getFile,
@@ -57,18 +63,94 @@ beforeEach(() => {
 
 // ── sanitizeFileName ────────────────────────────────────────────────────────
 
+// ── normalizeSysMLFileName ──────────────────────────────────────────────────
+
+describe('normalizeSysMLFileName', () => {
+  it('appends .sysml to plain name', () => {
+    expect(normalizeSysMLFileName('vehicle')).toBe('vehicle.sysml');
+  });
+
+  it('preserves case of base name', () => {
+    expect(normalizeSysMLFileName('Vehicle')).toBe('Vehicle.sysml');
+  });
+
+  it('keeps name with correct .sysml extension as-is', () => {
+    expect(normalizeSysMLFileName('vehicle.sysml')).toBe('vehicle.sysml');
+  });
+
+  it('normalizes uppercase .SYSML to lowercase', () => {
+    expect(normalizeSysMLFileName('vehicle.SYSML')).toBe('vehicle.sysml');
+  });
+
+  it('normalizes mixed case .SysML', () => {
+    expect(normalizeSysMLFileName('model.SysML')).toBe('model.sysml');
+  });
+
+  it('replaces wrong extension .txt with .sysml', () => {
+    expect(normalizeSysMLFileName('vehicle.txt')).toBe('vehicle.sysml');
+  });
+
+  it('replaces double extension .sysml.txt', () => {
+    expect(normalizeSysMLFileName('vehicle.sysml.txt')).toBe('vehicle.sysml');
+  });
+
+  it('trims leading and trailing spaces', () => {
+    expect(normalizeSysMLFileName('  vehicle  ')).toBe('vehicle.sysml');
+  });
+
+  it('strips all extensions from multi-dot names', () => {
+    expect(normalizeSysMLFileName('my.model.v2')).toBe('my.sysml');
+  });
+
+  it('strips leading dots (hidden files)', () => {
+    expect(normalizeSysMLFileName('.hidden')).toBe('hidden.sysml');
+  });
+
+  it('strips leading dots with extension', () => {
+    expect(normalizeSysMLFileName('.config.txt')).toBe('config.sysml');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(normalizeSysMLFileName('')).toBe('');
+  });
+
+  it('returns empty string for whitespace-only input', () => {
+    expect(normalizeSysMLFileName('   ')).toBe('');
+  });
+
+  it('returns empty string for only dots', () => {
+    expect(normalizeSysMLFileName('...')).toBe('');
+  });
+
+  it('strips dangerous characters', () => {
+    expect(normalizeSysMLFileName('path\\to/file\0name')).toBe('pathtofilename.sysml');
+  });
+
+  it('handles name that is just .sysml', () => {
+    expect(normalizeSysMLFileName('.sysml')).toBe('');
+  });
+});
+
+// ── sanitizeFileName (now normalizes to .sysml) ────────────────────────────
+
 describe('sanitizeFileName', () => {
-  it('returns a valid name unchanged', () => {
+  it('normalizes a plain name to .sysml', () => {
+    expect(sanitizeFileName('model')).toBe('model.sysml');
+  });
+
+  it('keeps valid .sysml name', () => {
     expect(sanitizeFileName('model.sysml')).toBe('model.sysml');
   });
 
-  it('strips backslashes, forward slashes, and null bytes', () => {
-    expect(sanitizeFileName('path\\to/file\0name')).toBe('pathtofilename');
+  it('strips dangerous chars and adds .sysml', () => {
+    expect(sanitizeFileName('path\\to/file\0name')).toBe('pathtofilename.sysml');
   });
 
   it('truncates to 255 characters', () => {
     const long = 'a'.repeat(300);
-    expect(sanitizeFileName(long)).toHaveLength(255);
+    const result = sanitizeFileName(long);
+    expect(result.length).toBeLessThanOrEqual(255);
+    expect(result.endsWith('.sysml')).toBe(true);
   });
 
   it('throws BadRequest for empty string', () => {
@@ -77,6 +159,81 @@ describe('sanitizeFileName', () => {
 
   it('throws BadRequest when name becomes empty after sanitization', () => {
     expect(() => sanitizeFileName('//\\\0')).toThrow('Invalid file name');
+  });
+});
+
+// ── SysML package name helpers ──────────────────────────────────────────────
+
+describe('extractBaseName', () => {
+  it('strips .sysml extension', () => expect(extractBaseName('vehicle.sysml')).toBe('vehicle'));
+  it('returns untitled for empty', () => expect(extractBaseName('')).toBe('untitled'));
+  it('preserves case', () => expect(extractBaseName('Vehicle.sysml')).toBe('Vehicle'));
+});
+
+describe('isValidSysMLIdentifier', () => {
+  it('accepts simple name', () => expect(isValidSysMLIdentifier('vehicle')).toBe(true));
+  it('accepts name with digits', () => expect(isValidSysMLIdentifier('Vehicle123')).toBe(true));
+  it('accepts underscore start', () => expect(isValidSysMLIdentifier('_private')).toBe(true));
+  it('rejects name starting with digit', () => expect(isValidSysMLIdentifier('123vehicle')).toBe(false));
+  it('rejects name with spaces', () => expect(isValidSysMLIdentifier('vehicle control')).toBe(false));
+  it('rejects name with hyphens', () => expect(isValidSysMLIdentifier('vehicle-control')).toBe(false));
+});
+
+describe('formatSysMLPackageName', () => {
+  it('no quotes for simple identifier', () => expect(formatSysMLPackageName('vehicle')).toBe('vehicle'));
+  it('quotes name with spaces', () => expect(formatSysMLPackageName('vehicle control')).toBe("'vehicle control'"));
+  it('quotes name starting with digit', () => expect(formatSysMLPackageName('123vehicle')).toBe("'123vehicle'"));
+  it('quotes name with hyphens', () => expect(formatSysMLPackageName('vehicle-control')).toBe("'vehicle-control'"));
+  it('falls back to untitled for empty', () => expect(formatSysMLPackageName('')).toBe('untitled'));
+});
+
+describe('generateRootPackage', () => {
+  it('generates unquoted package for simple name', () => {
+    expect(generateRootPackage('vehicle.sysml')).toBe('package vehicle {\n  // SysML v2 model\n}\n');
+  });
+  it('generates quoted package for name with spaces', () => {
+    expect(generateRootPackage('Cruise Control.sysml')).toBe("package 'Cruise Control' {\n  // SysML v2 model\n}\n");
+  });
+  it('preserves case', () => {
+    expect(generateRootPackage('Vehicle.sysml')).toContain('package Vehicle {');
+  });
+});
+
+describe('updateRootPackageName', () => {
+  it('updates root package when names match', () => {
+    const content = 'package vehicle {\n  part def A;\n}\n';
+    const result = updateRootPackageName(content, 'vehicle.sysml', 'car.sysml');
+    expect(result).toBe('package car {\n  part def A;\n}\n');
+  });
+
+  it('updates quoted package name', () => {
+    const content = "package 'vehicle control' {\n  part def A;\n}\n";
+    const result = updateRootPackageName(content, 'vehicle control.sysml', 'cruise control.sysml');
+    expect(result).toBe("package 'cruise control' {\n  part def A;\n}\n");
+  });
+
+  it('returns null when old name does not match', () => {
+    const content = 'package other {\n  part def A;\n}\n';
+    const result = updateRootPackageName(content, 'vehicle.sysml', 'car.sysml');
+    expect(result).toBeNull();
+  });
+
+  it('returns null when names are the same', () => {
+    const content = 'package vehicle {\n}\n';
+    const result = updateRootPackageName(content, 'vehicle.sysml', 'vehicle.sysml');
+    expect(result).toBeNull();
+  });
+
+  it('does not modify non-root package declarations', () => {
+    const content = 'package vehicle {\n  package inner {\n  }\n}\n';
+    const result = updateRootPackageName(content, 'vehicle.sysml', 'car.sysml');
+    expect(result).toContain('package inner {');
+  });
+
+  it('handles leading comments before package', () => {
+    const content = '// SysML model\npackage vehicle {\n}\n';
+    const result = updateRootPackageName(content, 'vehicle.sysml', 'car.sysml');
+    expect(result).toBe('// SysML model\npackage car {\n}\n');
   });
 });
 
@@ -168,13 +325,13 @@ describe('readFileWithOwnerCheck', () => {
 // ── createFile ──────────────────────────────────────────────────────────────
 
 describe('createFile', () => {
-  it('creates file with sanitized name and emits event', async () => {
-    const created = { id: 'f1', name: 'test', content: 'abc', size: 3 };
+  it('creates file with normalized .sysml name and emits event', async () => {
+    const created = { id: 'f1', name: 'test.sysml', content: 'abc', size: 3 };
     mock.sysMLFile.create.mockResolvedValue(created);
     const result = await createFile('proj1', 'test', 'abc', 'user1');
     expect(result).toEqual(created);
     expect(mock.sysMLFile.create).toHaveBeenCalledWith({
-      data: { name: 'test', content: 'abc', size: 3, projectId: 'proj1', displayId: 'FIL-TEST1' },
+      data: { name: 'test.sysml', content: 'abc', size: 3, projectId: 'proj1', displayId: 'FIL-TEST1' },
     });
     expect(mockEvents.emitFileChange).toHaveBeenCalledWith({ fileId: 'f1', userId: 'user1', action: 'created' });
   });
@@ -210,13 +367,13 @@ describe('updateFileContent', () => {
 
 describe('renameFile', () => {
   it('renames file after sanitization', async () => {
-    const updated = { id: 'f1', name: 'newName' };
+    const updated = { id: 'f1', name: 'newName.sysml' };
     mock.sysMLFile.update.mockResolvedValue(updated);
     const result = await renameFile('f1', 'newName');
     expect(result).toEqual(updated);
     expect(mock.sysMLFile.update).toHaveBeenCalledWith({
       where: { id: 'f1' },
-      data: { name: 'newName' },
+      data: { name: 'newName.sysml' },
     });
   });
 

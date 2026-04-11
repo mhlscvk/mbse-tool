@@ -114,15 +114,17 @@ describe('executeToolCall', () => {
 
   it('create_file sanitizes dangerous file names', async () => {
     mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
-    mockPrisma.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 'testfile.sysml', size: 10 });
+    mockPrisma.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 'etcpasswd.sysml', size: 10 });
 
+    // Name with slashes: slashes stripped, then normalized to .sysml
     await executeToolCall('user1', 'create_file', {
-      projectId: 'p1', name: '../../../etc/passwd', content: 'part def A;',
+      projectId: 'p1', name: 'path/to\\evil', content: 'part def A;',
     });
 
     const createCall = mockPrisma.sysMLFile.create.mock.calls[0][0];
     expect(createCall.data.name).not.toContain('/');
     expect(createCall.data.name).not.toContain('\\');
+    expect(createCall.data.name).toMatch(/\.sysml$/);
   });
 
   it('update_file rejects content over 10MB', async () => {

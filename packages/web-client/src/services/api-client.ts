@@ -128,6 +128,14 @@ export const api = {
   admin: {
     syncExamples: () =>
       request<{ message: string }>('/admin/sync-examples', { method: 'POST' }),
+    listUsers: () =>
+      request<import('@systemodel/shared-types').User[]>('/admin/users'),
+    listUserProjects: (userId: string) =>
+      request<{ user: { id: string; name: string; email: string }; projects: Array<{ id: string; displayId: string; name: string; description?: string; projectType: string; createdAt: string; updatedAt: string; _count: { files: number; children: number } }> }>(`/admin/users/${userId}/projects`),
+    listProjectFiles: (projectId: string) =>
+      request<Array<{ id: string; displayId: string; name: string; size: number; createdAt: string; updatedAt: string }>>(`/admin/projects/${projectId}/files`),
+    readFile: (fileId: string) =>
+      request<{ id: string; displayId: string; name: string; content: string; size: number; projectId: string }>(`/admin/files/${fileId}`),
   },
   bugReports: {
     create: (description: string, pageUrl: string, screenshot?: string) =>

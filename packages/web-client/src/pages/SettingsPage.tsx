@@ -5,7 +5,7 @@ import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo, type 
 import type { AiKeyInfo } from '../services/api-client.js';
 import { useTheme, type ThemeColors } from '../store/theme.js';
 import { useAuthStore } from '../store/auth.js';
-import type { Startup, StartupMember, StartupRole } from '@systemodel/shared-types';
+import type { Startup, StartupMember, StartupRole, User } from '@systemodel/shared-types';
 
 // ─── MCP client config templates ─────────────────────────────────────────────
 
@@ -1029,6 +1029,192 @@ function AdminSection() {
           As admin, you can create, edit, and delete files in system projects from the Projects page.
         </p>
       </div>
+
+      <AdminUsersPanel />
+    </div>
+  );
+}
+
+// ─── Admin Users Panel (read-only) ─────────────────────────────────────────
+
+type AdminFile = { id: string; displayId: string; name: string; size: number; createdAt: string; updatedAt: string };
+type AdminProject = { id: string; displayId: string; name: string; _count: { files: number; children: number } };
+
+function AdminUsersPanel() {
+  const t = useTheme();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userProjects, setUserProjects] = useState<AdminProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectFiles, setProjectFiles] = useState<AdminFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [viewingFile, setViewingFile] = useState<{ id: string; name: string; content: string } | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const list = await api.admin.listUsers();
+      setUsers(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (expanded && users.length === 0) loadUsers(); }, [expanded, users.length, loadUsers]);
+
+  const loadUserProjects = async (userId: string) => {
+    if (selectedUserId === userId) { setSelectedUserId(null); setSelectedProjectId(null); setViewingFile(null); return; }
+    setSelectedUserId(userId);
+    setSelectedProjectId(null);
+    setViewingFile(null);
+    setProjectsLoading(true);
+    try {
+      const result = await api.admin.listUserProjects(userId);
+      setUserProjects(result.projects);
+    } catch {
+      setUserProjects([]);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  const loadProjectFiles = async (projectId: string) => {
+    if (selectedProjectId === projectId) { setSelectedProjectId(null); setViewingFile(null); return; }
+    setSelectedProjectId(projectId);
+    setViewingFile(null);
+    setFilesLoading(true);
+    try {
+      const files = await api.admin.listProjectFiles(projectId);
+      setProjectFiles(files);
+    } catch {
+      setProjectFiles([]);
+    } finally {
+      setFilesLoading(false);
+    }
+  };
+
+  const readFile = async (fileId: string, fileName: string) => {
+    if (viewingFile?.id === fileId) { setViewingFile(null); return; }
+    setFileLoading(true);
+    try {
+      const file = await api.admin.readFile(fileId);
+      setViewingFile({ id: file.id, name: file.name, content: file.content });
+    } catch {
+      setViewingFile(null);
+    } finally {
+      setFileLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h3
+        style={{ color: t.text, fontSize: 14, margin: '0 0 8px', cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? '▾' : '▸'} All Users &amp; Personal Projects
+      </h3>
+      <p style={{ color: t.textSecondary, fontSize: 12, margin: '0 0 8px' }}>
+        Read-only view of all registered users, their personal projects, and .sysml files.
+      </p>
+      {expanded && (
+        <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {loading && <div style={{ padding: 12, color: t.textSecondary, fontSize: 12 }}>Loading...</div>}
+          {error && <div style={{ padding: 12, color: t.error, fontSize: 12 }}>{error}</div>}
+          {!loading && users.map((u, i) => (
+            <div key={u.id}>
+              {/* User row */}
+              <div
+                onClick={() => loadUserProjects(u.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 12px', fontSize: 12, cursor: 'pointer',
+                  background: i % 2 === 0 ? t.bg : t.bgSecondary,
+                  borderBottom: `1px solid ${t.border}`,
+                }}
+              >
+                <span style={{ color: t.textSecondary, fontSize: 10 }}>{selectedUserId === u.id ? '▾' : '▸'}</span>
+                <span style={{ color: t.text, fontWeight: 500, minWidth: 140 }}>{u.name || '(no name)'}</span>
+                <span style={{ color: t.textSecondary, flex: 1 }}>{u.email}</span>
+                <span style={{
+                  color: u.role === 'admin' ? t.accent : t.textSecondary,
+                  fontSize: 10, textTransform: 'uppercase', fontWeight: 600,
+                }}>{u.role}</span>
+              </div>
+              {/* User's projects */}
+              {selectedUserId === u.id && (
+                <div style={{ padding: '4px 0 8px 28px', background: t.bgSecondary }}>
+                  {projectsLoading ? (
+                    <div style={{ color: t.textSecondary, fontSize: 11, padding: '4px 12px' }}>Loading projects...</div>
+                  ) : userProjects.length === 0 ? (
+                    <div style={{ color: t.textSecondary, fontSize: 11, fontStyle: 'italic', padding: '4px 12px' }}>No personal projects</div>
+                  ) : userProjects.map(p => (
+                    <div key={p.id}>
+                      {/* Project row */}
+                      <div
+                        onClick={() => loadProjectFiles(p.id)}
+                        style={{ fontSize: 11, color: t.text, padding: '4px 12px', cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center' }}
+                      >
+                        <span style={{ color: t.textSecondary, fontSize: 9 }}>{selectedProjectId === p.id ? '▾' : '▸'}</span>
+                        <span style={{ color: t.textSecondary, fontFamily: 'monospace', fontSize: 10 }}>{p.displayId}</span>
+                        <span style={{ fontWeight: 500 }}>{p.name}</span>
+                        <span style={{ color: t.textSecondary }}>({p._count.files} files)</span>
+                      </div>
+                      {/* Project's files */}
+                      {selectedProjectId === p.id && (
+                        <div style={{ padding: '2px 0 4px 44px' }}>
+                          {filesLoading ? (
+                            <div style={{ color: t.textSecondary, fontSize: 10 }}>Loading files...</div>
+                          ) : projectFiles.length === 0 ? (
+                            <div style={{ color: t.textSecondary, fontSize: 10, fontStyle: 'italic' }}>No files</div>
+                          ) : projectFiles.map(f => (
+                            <div key={f.id}>
+                              <div
+                                onClick={() => readFile(f.id, f.name)}
+                                style={{ fontSize: 10, padding: '2px 0', cursor: 'pointer', display: 'flex', gap: 6, alignItems: 'center' }}
+                              >
+                                <span style={{ color: t.accent }}>
+                                  {viewingFile?.id === f.id ? '▾' : '▸'} {f.name}.sysml
+                                </span>
+                                <span style={{ color: t.textSecondary }}>({Math.round(f.size / 1024 * 10) / 10} KB)</span>
+                              </div>
+                              {/* File content viewer (read-only) */}
+                              {viewingFile?.id === f.id && (
+                                <div style={{
+                                  margin: '4px 0 8px', padding: 8, borderRadius: 4,
+                                  background: t.bg, border: `1px solid ${t.border}`,
+                                  maxHeight: 300, overflow: 'auto',
+                                }}>
+                                  {fileLoading ? (
+                                    <div style={{ color: t.textSecondary, fontSize: 10 }}>Loading...</div>
+                                  ) : (
+                                    <pre style={{
+                                      margin: 0, fontSize: 11, fontFamily: 'monospace',
+                                      color: t.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                    }}>{viewingFile.content}</pre>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
