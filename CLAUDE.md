@@ -171,7 +171,7 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 
 ## Testing
 
-**Total: 958 tests** (all passing, 0 skipped)
+**Total: 863 tests** (all passing, 0 skipped)
 
 - `api-server`: 272 tests across 15 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking

@@ -651,7 +651,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Light theme with consistent cursor visibility (three-layer black cursor fix for Monaco editor)
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 958 vitest tests across 36 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, admin routes, edge label placement, label overlap resolution, OMG vehicle model validation)
+- [x] Automated tests: 863 vitest tests across 36 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, admin routes, edge label placement, label overlap resolution, OMG vehicle model validation)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 76 files across 9 subprojects including 39 OMG standard library files)
@@ -722,7 +722,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 | Email | Nodemailer (Gmail SMTP) |
 | Deployment | Nginx, Let's Encrypt SSL, PM2, Hetzner VPS |
 | Monorepo | pnpm workspaces + Turborepo |
-| Testing | Vitest (674 unit tests across 27 suites) + 36 live penetration tests |
+| Testing | Vitest (863 unit tests across 27 suites) + 36 live penetration tests |
 
 ---
 
@@ -737,7 +737,7 @@ pnpm --filter @systemodel/diagram-service test
 cd packages/diagram-service && pnpm test:watch
 ```
 
-**Coverage:** 674 tests across 27 test suites:
+**Coverage:** 863 tests across 27 test suites:
 
 **Diagram Service** (477 tests across 13 suites):
 - **Parser tests** (109): core/extended definitions, usages, specialization operators, packages, imports, action flow, control nodes, relationships, directed features, diagnostics, perform/exhibit containment, scoped start/terminate, boolean guard validation, if-then-else, same-named elements in multiple containers, derived features, noncomposite membership, crossing operator, feature chains, use case/analysis case/verification case usages
