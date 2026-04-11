@@ -33,6 +33,24 @@ export const MAX_PROJECT_DEPTH = 2;
 export const MAX_BUG_SCREENSHOT_BYTES = 5 * 1024 * 1024;  // 5 MB
 export const MAX_BUG_REPORTS_PER_HOUR = 5;
 
+// ── Email Domain Blocking ───────────────────────────────────────────────────
+// Disposable/throwaway email domains — block registration from these
+export const BLOCKED_EMAIL_DOMAINS = new Set([
+  // Single-letter/ultra-short domains (common throwaway pattern)
+  'g.com', 'x.com', 'a.com', 'b.com', 'e.com', 'i.com', 'o.com', 'q.com', 'r.com', 't.com', 'z.com',
+  // Well-known disposable email services
+  'mailinator.com', 'guerrillamail.com', 'guerrillamail.de', 'tempmail.com', 'temp-mail.org',
+  'throwaway.email', 'fakeinbox.com', 'sharklasers.com', 'guerrillamailblock.com',
+  'grr.la', 'dispostable.com', 'yopmail.com', 'trashmail.com', 'trashmail.me',
+  'mailnesia.com', 'maildrop.cc', 'discard.email', 'mailcatch.com',
+  'tempail.com', 'tempr.email', 'temp-mail.io', '10minutemail.com',
+  'minutemail.com', 'emailondeck.com', 'getnada.com', 'mohmal.com',
+  'burnermail.io', 'inboxbear.com', 'spamgourmet.com',
+]);
+
+// Minimum domain length (e.g., reject "x.co" but allow "gmail.com")
+export const MIN_EMAIL_DOMAIN_LENGTH = 4;
+
 // ── Element Locks ───────────────────────────────────────────────────────────
 export const MAX_ELEMENT_NAME_LENGTH = 500;
 export const MAX_NOTIFICATIONS_PER_QUERY = 50;

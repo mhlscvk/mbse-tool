@@ -9,7 +9,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
 import { asyncHandler } from '../lib/errors.js';
 import { email as emailSchema, password as passwordSchema } from '../config/schemas.js';
-import { BCRYPT_ROUNDS, VERIFY_TOKEN_TTL_MS, RESET_TOKEN_TTL_MS } from '../config/constants.js';
+import { BCRYPT_ROUNDS, VERIFY_TOKEN_TTL_MS, RESET_TOKEN_TTL_MS, BLOCKED_EMAIL_DOMAINS, MIN_EMAIL_DOMAIN_LENGTH } from '../config/constants.js';
 
 const router: IRouter = Router();
 
@@ -116,6 +116,16 @@ function getGoogleClient() {
 // ── Register ───────────────────────────────────────────────────────────
 router.post('/register', asyncHandler(async (req, res) => {
   const body = registerSchema.parse(req.body);
+
+  // Block disposable/throwaway email domains
+  const emailDomain = body.email.split('@')[1]?.toLowerCase();
+  if (!emailDomain || emailDomain.length < MIN_EMAIL_DOMAIN_LENGTH || BLOCKED_EMAIL_DOMAINS.has(emailDomain)) {
+    // Return same response as existing user to prevent domain enumeration
+    await bcrypt.hash(body.password, BCRYPT_ROUNDS);
+    res.status(201).json({ data: { user: { email: body.email }, message: 'Verification email sent. Please check your inbox.' } });
+    return;
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: body.email } });
   if (existing) {
     await bcrypt.hash(body.password, BCRYPT_ROUNDS); // burn time to match timing
