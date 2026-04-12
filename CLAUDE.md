@@ -181,12 +181,12 @@ MCP and AI chat tools are restricted to **read and update only**:
 
 ## Testing
 
-**Total: 962 tests** (all passing, 0 skipped)
+**Total: 1006 tests** (all passing, 0 skipped)
 
-- `api-server`: 276 tests across 15 suites
+- `api-server`: 313 tests across 19 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
   - `ai/tools.test.ts` (17): tool execution, access control, size limits, least-privilege enforcement
-  - `ai/providers.test.ts` (5): tool schema validation
+  - `ai/providers.test.ts` (5): tool schema validation, least-privilege tool exclusion
   - `middleware/auth.test.ts` (12): JWT validation, expired tokens, role checks
   - `middleware/error.test.ts` (4): Zod errors, AppError, info leakage prevention
   - `middleware/csrf.test.ts` (13): Content-Type enforcement for all methods
@@ -195,15 +195,22 @@ MCP and AI chat tools are restricted to **read and update only**:
   - `services/element-lock-ops.test.ts` (18): check-out/check-in, force check-in, TOCTOU (P2002), file-project validation, element name sanitization, audit logging
   - `services/notification-ops.test.ts` (15): create/list/read notifications, self-notification prevention, cooldown dedup, project access check, unread count
   - `routes/startups-invitations.test.ts` (10): invitation CRUD, email-based invitations, role assignment, duplicate prevention, revocation
-  - `services/file-ops.test.ts` (72): file CRUD, .sysml normalization (16 cases), sanitization, SysML package helpers (extractBaseName, isValidSysMLIdentifier, formatSysMLPackageName, generateRootPackage, updateRootPackageName), content size limits, applyEdit, search, MCP events, least-privilege source guards
-  - `lib/auth-helpers.test.ts` (16): isAdmin, assertProjectAccess (system/USER/STARTUP), assertWriteAccess
+  - `services/file-ops.test.ts` (95): file CRUD, .sysml normalization (16 cases), sanitization, SysML package helpers, content size limits, applyEdit, search, MCP events, least-privilege source guards (mcp/ai_chat blocked from create/delete)
+  - `lib/auth-helpers.test.ts` (19): isAdmin, assertProjectAccess (system/USER/STARTUP), assertWriteAccess
   - `routes/admin.test.ts` (9): admin user listing, user project listing, scope verification, authorization guards
   - `mcp/events.test.ts` (6): file change event emission
+  - `routes/files.test.ts` (8): file CRUD access control, SSE token format, move file dual-access check
+  - `routes/auth.test.ts` (10): registration security (disposable domains, timing-safe login), password reset token validation, JWT format, safe user object
+  - `routes/ai-keys.test.ts` (8): key encryption, masking, provider validation, upsert pattern, schema validation
+  - `routes/mcp-tokens.test.ts` (11): token masking, limit enforcement, format, expiration, soft delete, user scoping, schema validation
 - `web-client`: 95 tests across 7 suites
   - Theme store (4), recent files (13), sysml helpers (22), cursor fix (6), line diff (13)
   - `edgeLabelPlacement.test.ts` (23): candidate-based placement, collision avoidance, obstacles, direction helpers
   - `resolveEdgeLabelOverlaps.test.ts` (14): overlap detection, group resolution, determinism
-- `diagram-service`: 591 tests across 14 suites (parser, transformer, view filters, WebSocket, OMG vehicle model validation, P0-P3 types, occurrence subtypes, etc.)
+- `diagram-service`: 598 tests across 15 suites
+  - Parser: 6 suites (391 tests) — core parser, state, new features, robustness, security, OMG vehicle model
+  - Transformer: 5 suites (124 tests) — BDD core, state, new features, robustness, audit
+  - View filters (59), WebSocket server (17), ELK layout (7)
 
 Run tests:
 ```bash
@@ -220,9 +227,17 @@ pnpm --filter @systemodel/web-client test
 - Pages: LoginPage, ProjectsPage, EditorPage, SettingsPage, TrainingPage
 - ErrorBoundary wraps entire app
 
+## Diagram Layout
+
+- ELK layered algorithm for all views (DOWN direction for behavioral/flow containers)
+- **Action flow fix**: Succession edges (`first X then Y`) now drive layout ordering in ALL containers, not just behavioral kinds. Packages with actions render in correct topological order.
+- Flow edges get `elk.layered.priority.direction: 10` to override generic positioning
+- View-specific spacing: AFV uses 40px node / 50px layer, GV uses 30px / 40px
+- Containers with flow edges automatically get behavioral spacing and edge inclusion
+
 ## Branch History
 
-Working branch: `claude/onedrive-local-integration-GtEz8`
+Working branch: `master`
 
 Commits (chronological):
 1. `b799124` — Fix security, auth, and reliability issues from code review (20 files, +512/-57)
