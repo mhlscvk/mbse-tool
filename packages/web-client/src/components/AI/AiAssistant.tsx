@@ -24,7 +24,7 @@ interface ChatMessage {
 const PROVIDER_LABELS = { anthropic: 'Claude', openai: 'GPT', gemini: 'Gemini' } as const;
 const PROVIDER_COLORS = { anthropic: '#d4a27a', openai: '#74aa9c', gemini: '#4285f4' } as const;
 
-const FILE_EDIT_TOOLS = new Set(['apply_edit', 'update_file', 'create_file', 'delete_file']);
+const FILE_EDIT_TOOLS = new Set(['apply_edit', 'update_file']);
 
 export default function AiAssistant({ onClose, projectId, fileId, fileContent, fileName, onFileEdited }: AiAssistantProps) {
   const navigate = useNavigate();
