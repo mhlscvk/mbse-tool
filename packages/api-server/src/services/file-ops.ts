@@ -153,6 +153,9 @@ export async function readFileWithOwnerCheck(fileId: string, userId: string) {
   return readFileWithAccessCheck(fileId, userId);
 }
 
+/** Sources that are restricted from creating files (least-privilege policy). */
+const CREATE_DELETE_BLOCKED_SOURCES: ReadonlySet<string> = new Set(['mcp', 'ai_chat']);
+
 export async function createFile(
   projectId: string,
   name: string,
@@ -160,6 +163,9 @@ export async function createFile(
   userId: string,
   source?: 'mcp' | 'ai_chat' | 'rest',
 ) {
+  if (source && CREATE_DELETE_BLOCKED_SOURCES.has(source)) {
+    throw BadRequest('File creation is not permitted from this context');
+  }
   const safeName = sanitizeFileName(name);
   const size = assertContentSize(content);
   const displayId = generateFileDisplayId();
@@ -203,6 +209,9 @@ export async function renameFile(fileId: string, name: string) {
 }
 
 export async function deleteFile(fileId: string, userId: string, source?: 'mcp' | 'ai_chat' | 'rest') {
+  if (source && CREATE_DELETE_BLOCKED_SOURCES.has(source)) {
+    throw BadRequest('File deletion is not permitted from this context');
+  }
   const file = await prisma.sysMLFile.findUnique({ where: { id: fileId } });
   if (!file) throw NotFound('File');
   await prisma.sysMLFile.delete({ where: { id: fileId } });

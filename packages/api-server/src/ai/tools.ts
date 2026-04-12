@@ -28,19 +28,6 @@ export const AI_TOOLS = [
     },
   },
   {
-    name: 'create_file',
-    description: 'Create a new SysML file in a project',
-    parameters: {
-      type: 'object' as const,
-      properties: {
-        projectId: { type: 'string', description: 'The project ID' },
-        name: { type: 'string', description: 'File name (e.g. "Vehicle.sysml")' },
-        content: { type: 'string', description: 'Initial SysML content' },
-      },
-      required: ['projectId', 'name', 'content'],
-    },
-  },
-  {
     name: 'update_file',
     description: 'Replace the entire content of a SysML file',
     parameters: {
@@ -66,15 +53,6 @@ export const AI_TOOLS = [
         newText: { type: 'string', description: 'Replacement text (empty to delete)' },
       },
       required: ['fileId', 'startLine', 'startColumn', 'endLine', 'endColumn', 'newText'],
-    },
-  },
-  {
-    name: 'delete_file',
-    description: 'Delete a SysML file from a project',
-    parameters: {
-      type: 'object' as const,
-      properties: { fileId: { type: 'string', description: 'The file ID' } },
-      required: ['fileId'],
     },
   },
   {
@@ -142,14 +120,6 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
         return { result: `File: ${file.name} (${lines.length} lines)\n\n${numbered}`, isError: false };
       }
 
-      case 'create_file': {
-        const cAccess = await assertProjectAccess(args.projectId, userId, userRole);
-        if (!cAccess.allowed) return { result: 'Error: Project not found or access denied', isError: true };
-        if (cAccess.isSystem && !cAccess.isAdmin) return { result: 'Error: Cannot create files in system projects', isError: true };
-        const file = await fileOps.createFile(args.projectId, args.name as string, args.content as string, userId, 'ai_chat');
-        return { result: JSON.stringify({ id: file.id, name: file.name, size: file.size }), isError: false };
-      }
-
       case 'update_file': {
         await fileOps.readFileWithAccessCheck(args.fileId, userId, userRole);
         const updated = await fileOps.updateFileContent(args.fileId, args.content as string, userId, 'ai_chat');
@@ -163,12 +133,6 @@ export async function executeToolCall(userId: string, toolName: string, args: Re
         );
         if (error) return { result: error, isError: true };
         return { result: 'Edit applied successfully', isError: false };
-      }
-
-      case 'delete_file': {
-        const df = await fileOps.readFileWithAccessCheck(args.fileId, userId, userRole);
-        await fileOps.deleteFile(args.fileId, userId, 'ai_chat');
-        return { result: `File "${df.name}" deleted`, isError: false };
       }
 
       case 'search_files': {

@@ -344,6 +344,20 @@ describe('createFile', () => {
     const big = 'x'.repeat(10 * 1024 * 1024 + 1);
     await expect(createFile('proj1', 'test', big, 'user1')).rejects.toThrow('exceeds');
   });
+
+  it('rejects create from mcp source (least-privilege)', async () => {
+    await expect(createFile('proj1', 'test', 'abc', 'user1', 'mcp')).rejects.toThrow('not permitted');
+  });
+
+  it('rejects create from ai_chat source (least-privilege)', async () => {
+    await expect(createFile('proj1', 'test', 'abc', 'user1', 'ai_chat')).rejects.toThrow('not permitted');
+  });
+
+  it('allows create from rest source', async () => {
+    mock.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 'test.sysml', content: 'abc', size: 3 });
+    const result = await createFile('proj1', 'test', 'abc', 'user1', 'rest');
+    expect(result.name).toBe('test.sysml');
+  });
 });
 
 // ── updateFileContent ───────────────────────────────────────────────────────
@@ -398,6 +412,21 @@ describe('deleteFile', () => {
   it('throws NotFound when file does not exist', async () => {
     mock.sysMLFile.findUnique.mockResolvedValue(null);
     await expect(deleteFile('f1', 'user1')).rejects.toThrow('not found');
+  });
+
+  it('rejects delete from mcp source (least-privilege)', async () => {
+    await expect(deleteFile('f1', 'user1', 'mcp')).rejects.toThrow('not permitted');
+  });
+
+  it('rejects delete from ai_chat source (least-privilege)', async () => {
+    await expect(deleteFile('f1', 'user1', 'ai_chat')).rejects.toThrow('not permitted');
+  });
+
+  it('allows delete from rest source', async () => {
+    mock.sysMLFile.findUnique.mockResolvedValue({ id: 'f1', name: 'test.sysml' });
+    mock.sysMLFile.delete.mockResolvedValue({ id: 'f1' });
+    const result = await deleteFile('f1', 'user1', 'rest');
+    expect(result.id).toBe('f1');
   });
 });
 
@@ -550,9 +579,9 @@ describe('searchFiles', () => {
 describe('source parameter in events', () => {
   it('createFile passes source to emitFileChange', async () => {
     mock.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 't', size: 1 });
-    await createFile('proj1', 'test', 'abc', 'user1', 'mcp');
+    await createFile('proj1', 'test', 'abc', 'user1', 'rest');
     expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'mcp' }),
+      expect.objectContaining({ source: 'rest' }),
     );
   });
 
@@ -575,9 +604,9 @@ describe('source parameter in events', () => {
   it('deleteFile passes source to emitFileChange', async () => {
     mock.sysMLFile.findUnique.mockResolvedValue({ id: 'f1' });
     mock.sysMLFile.delete.mockResolvedValue({});
-    await deleteFile('f1', 'user1', 'mcp');
+    await deleteFile('f1', 'user1', 'rest');
     expect(mockEvents.emitFileChange).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'mcp' }),
+      expect.objectContaining({ source: 'rest' }),
     );
   });
 

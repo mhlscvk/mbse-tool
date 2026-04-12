@@ -102,29 +102,18 @@ describe('executeToolCall', () => {
     expect(data[0].name).toBe('My Project');
   });
 
-  it('create_file rejects content over 10MB', async () => {
-    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
-    const hugeContent = 'x'.repeat(11 * 1024 * 1024);
+  it('rejects create_file as unknown tool (least-privilege)', async () => {
     const result = await executeToolCall('user1', 'create_file', {
-      projectId: 'p1', name: 'huge.sysml', content: hugeContent,
+      projectId: 'p1', name: 'test.sysml', content: 'part def A;',
     });
     expect(result.isError).toBe(true);
-    expect(result.result).toContain('byte limit');
+    expect(result.result).toContain('Unknown tool');
   });
 
-  it('create_file sanitizes dangerous file names', async () => {
-    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
-    mockPrisma.sysMLFile.create.mockResolvedValue({ id: 'f1', name: 'etcpasswd.sysml', size: 10 });
-
-    // Name with slashes: slashes stripped, then normalized to .sysml
-    await executeToolCall('user1', 'create_file', {
-      projectId: 'p1', name: 'path/to\\evil', content: 'part def A;',
-    });
-
-    const createCall = mockPrisma.sysMLFile.create.mock.calls[0][0];
-    expect(createCall.data.name).not.toContain('/');
-    expect(createCall.data.name).not.toContain('\\');
-    expect(createCall.data.name).toMatch(/\.sysml$/);
+  it('rejects delete_file as unknown tool (least-privilege)', async () => {
+    const result = await executeToolCall('user1', 'delete_file', { fileId: 'f1' });
+    expect(result.isError).toBe(true);
+    expect(result.result).toContain('Unknown tool');
   });
 
   it('update_file rejects content over 10MB', async () => {
@@ -180,14 +169,6 @@ describe('executeToolCall', () => {
     );
   });
 
-  it('create_file blocks writes to system projects for non-admin', async () => {
-    mockAccess.mockResolvedValue({ allowed: true, isSystem: true, isAdmin: false });
-    const result = await executeToolCall('user1', 'create_file', {
-      projectId: 'p1', name: 'test.sysml', content: 'part def A;',
-    });
-    expect(result.isError).toBe(true);
-    expect(result.result).toContain('system');
-  });
 });
 
 describe('executeToolCall — access control and source', () => {
@@ -245,16 +226,6 @@ describe('executeToolCall — access control and source', () => {
     );
   });
 
-  it('delete_file checks access and emits source ai_chat', async () => {
-    mockPrisma.sysMLFile.findUnique.mockResolvedValue({
-      id: 'f1', name: 'test.sysml', projectId: 'p1', project: {},
-    });
-    mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false });
-    mockPrisma.sysMLFile.delete.mockResolvedValue({});
-    const result = await executeToolCall('user1', 'delete_file', { fileId: 'f1' });
-    expect(result.isError).toBe(false);
-    expect(result.result).toContain('deleted');
-  });
 
   it('list_files allows startup member access', async () => {
     mockAccess.mockResolvedValue({ allowed: true, isSystem: false, isAdmin: false, startupRole: 'STARTUP_USER' });

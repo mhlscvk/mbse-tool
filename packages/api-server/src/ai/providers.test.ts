@@ -7,9 +7,10 @@ vi.mock('../mcp/events.js', () => ({ mcpEvents: { emitFileChange: vi.fn() } }));
 import { AI_TOOLS } from './tools.js';
 
 describe('AI tool schema definitions', () => {
+  // Least-privilege: only read + update tools exposed (no create_file, delete_file)
   const EXPECTED_TOOLS = [
-    'list_projects', 'list_files', 'read_file', 'create_file',
-    'update_file', 'apply_edit', 'delete_file', 'search_files',
+    'list_projects', 'list_files', 'read_file',
+    'update_file', 'apply_edit', 'search_files',
   ];
 
   it('exports all expected tools', () => {
@@ -46,10 +47,9 @@ describe('AI tool schema definitions', () => {
     expect(applyEdit.parameters.required).toContain('newText');
   });
 
-  it('create_file requires projectId, name, and content', () => {
-    const createFile = AI_TOOLS.find(t => t.name === 'create_file')!;
-    expect(createFile.parameters.required).toEqual(
-      expect.arrayContaining(['projectId', 'name', 'content']),
-    );
+  it('does not expose create_file or delete_file (least-privilege)', () => {
+    const names = AI_TOOLS.map(t => t.name);
+    expect(names).not.toContain('create_file');
+    expect(names).not.toContain('delete_file');
   });
 });

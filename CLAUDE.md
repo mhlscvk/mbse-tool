@@ -148,9 +148,19 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 - 3 providers: Anthropic (Claude), OpenAI (GPT), Google (Gemini)
 - Free tier: Claude Haiku, 50 requests/month, 3 tool rounds max
 - Paid tier: User provides API key (encrypted AES-256-GCM), unlimited, 10 tool rounds max
-- 8 tools: list_projects, list_files, read_file, create_file, update_file, apply_edit, delete_file, search_files
+- 6 tools: list_projects, list_files, read_file, update_file, apply_edit, search_files
+- Least-privilege: create_file and delete_file removed from AI and MCP tools (server-enforced in file-ops.ts)
 - Tool name whitelist validation across all providers
 - SSE streaming for chat responses
+
+## MCP & AI Least-Privilege Policy
+
+MCP and AI chat tools are restricted to **read and update only**:
+- **Allowed**: list_projects, list_files, read_file, update_file, apply_edit, search_files
+- **Blocked**: create_file, delete_file (removed from tool definitions)
+- **Defense-in-depth**: `file-ops.ts` rejects `createFile`/`deleteFile` calls from `mcp` or `ai_chat` source
+- **API keys**: AES-256-GCM encrypted at rest, decrypted only in-memory during API call, never logged or sent to clients
+- File creation and deletion remain available via REST API routes only
 
 ## Security Highlights
 
@@ -171,11 +181,11 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
 
 ## Testing
 
-**Total: 863 tests** (all passing, 0 skipped)
+**Total: 962 tests** (all passing, 0 skipped)
 
-- `api-server`: 272 tests across 15 suites
+- `api-server`: 276 tests across 15 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
-  - `ai/tools.test.ts` (19): tool execution, access control, size limits, name sanitization, .sysml enforcement
+  - `ai/tools.test.ts` (17): tool execution, access control, size limits, least-privilege enforcement
   - `ai/providers.test.ts` (5): tool schema validation
   - `middleware/auth.test.ts` (12): JWT validation, expired tokens, role checks
   - `middleware/error.test.ts` (4): Zod errors, AppError, info leakage prevention
@@ -185,7 +195,7 @@ Internal CUIDs remain the primary keys; display IDs are unique secondary identif
   - `services/element-lock-ops.test.ts` (18): check-out/check-in, force check-in, TOCTOU (P2002), file-project validation, element name sanitization, audit logging
   - `services/notification-ops.test.ts` (15): create/list/read notifications, self-notification prevention, cooldown dedup, project access check, unread count
   - `routes/startups-invitations.test.ts` (10): invitation CRUD, email-based invitations, role assignment, duplicate prevention, revocation
-  - `services/file-ops.test.ts` (66): file CRUD, .sysml normalization (16 cases), sanitization, SysML package helpers (extractBaseName, isValidSysMLIdentifier, formatSysMLPackageName, generateRootPackage, updateRootPackageName), content size limits, applyEdit, search, MCP events
+  - `services/file-ops.test.ts` (72): file CRUD, .sysml normalization (16 cases), sanitization, SysML package helpers (extractBaseName, isValidSysMLIdentifier, formatSysMLPackageName, generateRootPackage, updateRootPackageName), content size limits, applyEdit, search, MCP events, least-privilege source guards
   - `lib/auth-helpers.test.ts` (16): isAdmin, assertProjectAccess (system/USER/STARTUP), assertWriteAccess
   - `routes/admin.test.ts` (9): admin user listing, user project listing, scope verification, authorization guards
   - `mcp/events.test.ts` (6): file change event emission

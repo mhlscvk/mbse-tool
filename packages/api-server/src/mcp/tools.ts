@@ -66,27 +66,6 @@ export function registerTools(server: McpServer, userId: string, userRole?: stri
     },
   );
 
-  // ─── create_file ────────────────────────────────────────────────────────────
-  server.tool(
-    'create_file',
-    'Create a new SysML file in a project',
-    {
-      projectId: z.string().describe('The project ID'),
-      name: z.string().min(1).max(255).describe('File name (e.g. "Vehicle.sysml")'),
-      content: z.string().describe('Initial SysML content'),
-    },
-    async ({ projectId, name, content }) => {
-      const project = await prisma.project.findFirst({ where: { id: projectId, ownerId: userId } });
-      if (!project) return mcpText('Error: Project not found or access denied', true);
-      try {
-        const file = await fileOps.createFile(projectId, name, content, userId, 'mcp');
-        return mcpText(JSON.stringify({ id: file.id, name: file.name, size: file.size }, null, 2));
-      } catch (err) {
-        return mcpText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
-      }
-    },
-  );
-
   // ─── update_file ────────────────────────────────────────────────────────────
   server.tool(
     'update_file',
@@ -134,22 +113,6 @@ export function registerTools(server: McpServer, userId: string, userRole?: stri
         return mcpText(`Edit applied successfully. Preview around edit:\n\n${preview}`);
       } catch {
         return mcpText('Edit applied successfully.');
-      }
-    },
-  );
-
-  // ─── delete_file ────────────────────────────────────────────────────────────
-  server.tool(
-    'delete_file',
-    'Delete a SysML file from a project',
-    { fileId: z.string().describe('The file ID') },
-    async ({ fileId }) => {
-      try {
-        const file = await fileOps.readFileWithAccessCheck(fileId, userId, userRole);
-        await fileOps.deleteFile(fileId, userId, 'mcp');
-        return mcpText(`File "${file.name}" deleted`);
-      } catch {
-        return mcpText('Error: File not found or access denied', true);
       }
     },
   );
