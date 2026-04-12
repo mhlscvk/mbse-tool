@@ -11,7 +11,7 @@ function makeEdge(id: string, sourceId: string, targetId: string, kind = 'succes
 }
 
 function makeModel(nodes: SNode[], edges: SEdge[]): SModelRoot {
-  return { type: 'root', id: 'root', children: [...nodes, ...edges] };
+  return { type: 'graph', id: 'root', children: [...nodes, ...edges] };
 }
 
 describe('elk-layout: succession-driven ordering', () => {
