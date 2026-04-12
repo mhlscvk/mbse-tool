@@ -539,7 +539,7 @@ package VehicleSystem {
 - **Own key** — unlimited, any model (Claude Sonnet/Opus, GPT-4o, Gemini) — key encrypted with AES-256-GCM, stored server-side
 - Multi-provider: Anthropic, OpenAI, Google Gemini
 - Streaming responses with tool call visualization
-- AI can read, edit, create, delete, and search SysML files via tools
+- AI can read, edit, and search existing SysML files via tools (file creation/deletion via web editor only)
 
 ### MCP Server
 
@@ -547,7 +547,7 @@ External AI clients (Claude Desktop, Cursor, VS Code, Windsurf) connect to syste
 
 - **Endpoint:** `/mcp` (Streamable HTTP transport)
 - **Auth:** JWT or long-lived MCP access tokens (created in Settings)
-- **8 tools:** list_projects, list_files, read_file, create_file, update_file, apply_edit, delete_file, search_files
+- **6 tools:** list_projects, list_files, read_file, update_file, apply_edit, search_files (read + edit only; no create/delete)
 - **3 prompts:** review-sysml, explain-element, generate-sysml
 - **Resources:** SysML v2 syntax reference, dynamic file resources (subscribable)
 - **Real-time:** file change notifications pushed to connected MCP clients
@@ -641,7 +641,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] Edge click navigation to source code
 - [x] .sysml file upload (button + drag & drop)
 - [x] AI Chat: hybrid free tier (Haiku) + own-key unlimited (Claude/GPT/Gemini), encrypted key storage
-- [x] MCP Server: 8 tools, 3 prompts, real-time subscriptions, Streamable HTTP transport
+- [x] MCP Server: 6 tools (read + edit only), 3 prompts, real-time subscriptions, Streamable HTTP transport
 - [x] MCP access tokens: long-lived, revocable, per-client config generator
 - [x] MCP Desktop integration: Claude Desktop edits trigger real-time diff highlighting, undo/redo, accept/revert in web UI via SSE events with source tracking
 - [x] User auth: email/password + Google OAuth + email verification + forgot password (email reset link)
@@ -651,7 +651,7 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 - [x] Security audit: 36 live penetration tests (SQL/NoSQL injection, XSS, IDOR, JWT forgery, CORS, WebSocket CSRF, path traversal, ReDoS, rate limiting, header injection, prototype pollution, verb tampering)
 - [x] Light theme with consistent cursor visibility (three-layer black cursor fix for Monaco editor)
 - [x] Recent files navigation (header dropdown, last 10 files, localStorage persist) and quick file switcher in editor
-- [x] Automated tests: 863 vitest tests across 36 suites (parser, transformer, view filters, WebSocket, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, admin routes, edge label placement, label overlap resolution, OMG vehicle model validation)
+- [x] Automated tests: 1006 vitest tests across 41 suites (parser, transformer, view filters, WebSocket, ELK layout, state machines, robustness, security, audit, theme store, recent files, sysml helpers, cursor fix, line diff, MCP events, AI tools, encryption, providers, ID generator, startup ops, element locks, notifications, startup invitations, admin routes, file routes, auth routes, AI key routes, MCP token routes, edge label placement, label overlap resolution, OMG vehicle model validation)
 - [x] Project and file CRUD with auto-save, rename, download, delete (context menu)
 - [x] Nested projects (3-level hierarchy with collapsible tree)
 - [x] System "Examples" project (read-only for users, admin-editable with auto-sync to disk, 76 files across 9 subprojects including 39 OMG standard library files)
