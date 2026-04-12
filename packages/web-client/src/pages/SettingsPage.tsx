@@ -498,12 +498,13 @@ function McpSection() {
           <span><code style={{ color: t.info }}>list_projects</code> — List your projects</span>
           <span><code style={{ color: t.info }}>list_files</code> — List files in a project</span>
           <span><code style={{ color: t.info }}>read_file</code> — Read file content</span>
-          <span><code style={{ color: t.info }}>create_file</code> — Create a new file</span>
+          <span><code style={{ color: t.info }}>search_files</code> — Search across files</span>
           <span><code style={{ color: t.info }}>update_file</code> — Replace file content</span>
           <span><code style={{ color: t.info }}>apply_edit</code> — Precise line/col edit</span>
-          <span><code style={{ color: t.info }}>delete_file</code> — Delete a file</span>
-          <span><code style={{ color: t.info }}>search_files</code> — Search across files</span>
         </div>
+        <p style={{ fontSize: 11, color: t.textSecondary, marginTop: 8, fontStyle: 'italic' }}>
+          MCP tools can read and edit existing .sysml files. File creation and deletion are only available through the web editor.
+        </p>
 
         <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Supported AI Clients</h4>
         <div style={{ color: t.textSecondary, fontSize: 12, lineHeight: 1.7 }}>
