@@ -636,7 +636,8 @@ export default function DiagramViewer({
         while (cur && !elkVisibleIds.has(cur)) cur = parentOf.get(cur);
         return cur;
       }
-      const flowEdgesByParent = new Map<string, Array<{ id: string; sources: string[]; targets: string[] }>>();
+      const FLOW_EDGE_LAYOUT = { 'elk.layered.priority.direction': '10' };
+      const flowEdgesByParent = new Map<string, Array<{ id: string; sources: string[]; targets: string[]; layoutOptions?: Record<string, string> }>>();
       for (const e of allEdges) {
         const ek = e.cssClasses?.[0];
         if (ek !== 'flow' && ek !== 'succession' && ek !== 'transition') continue;
@@ -646,7 +647,7 @@ export default function DiagramViewer({
         const tgtParent = effectiveParent(e.targetId);
         if (srcParent && srcParent === tgtParent) {
           const arr = flowEdgesByParent.get(srcParent) ?? [];
-          arr.push({ id: e.id, sources: [e.sourceId], targets: [e.targetId] });
+          arr.push({ id: e.id, sources: [e.sourceId], targets: [e.targetId], layoutOptions: FLOW_EDGE_LAYOUT });
           flowEdgesByParent.set(srcParent, arr);
         } else if (srcParent && tgtParent && srcParent !== tgtParent) {
           // Pin-to-pin flow: lift to action-usage-to-action-usage for layout ordering
@@ -655,7 +656,7 @@ export default function DiagramViewer({
           const tgtGrand = effectiveParent(tgtParent);
           if (srcGrand && srcGrand === tgtGrand) {
             const arr = flowEdgesByParent.get(srcGrand) ?? [];
-            arr.push({ id: `${e.id}__layout`, sources: [srcParent], targets: [tgtParent] });
+            arr.push({ id: `${e.id}__layout`, sources: [srcParent], targets: [tgtParent], layoutOptions: FLOW_EDGE_LAYOUT });
             flowEdgesByParent.set(srcGrand, arr);
           }
         }
@@ -675,20 +676,24 @@ export default function DiagramViewer({
         if (childIds.length > 0) {
           const isPkgNode = cssClass === 'package';
           const isBehavioural = BEHAVIOURAL_KINDS.has(cssClass);
+          // Detect containers that have flow edges (succession/flow/transition)
+          // even if the container itself isn't a behavioural kind (e.g. package with actions)
+          const hasFlowEdges = flowEdgesByParent.has(nodeId);
+          const isBehaviouralOrFlow = isBehavioural || hasFlowEdges;
           // Check if all children are small pins (actionin/actionout/actioninout/portusage)
           const allChildrenArePins = vcfg.compactPinContainers && childIds.every(cId => {
             const cn = nodeMap.get(cId);
             const cc = cn?.cssClasses?.[0] ?? '';
             return vcfg.pinCssClasses.has(cc);
           });
-          // Use DOWN layout for packages, behavioural, and containers with 3+ children
+          // Use DOWN layout for packages, behavioural, containers with flow edges, and containers with 3+ children
           // (RIGHT direction causes horizontal cramming with many children)
-          const isDownLayout = isPkgNode || isBehavioural || childIds.length >= 3;
+          const isDownLayout = isPkgNode || isBehaviouralOrFlow || childIds.length >= 3;
           const minW = allChildrenArePins ? Math.max(w, 80) : Math.max(w, 140);
           const minH = allChildrenArePins ? Math.max(h, 40) : Math.max(h, isPkgNode ? 80 : 70);
 
-          // Collect internal flow edges for behavioural containers (successions)
-          const internalEdges = isBehavioural ? (flowEdgesByParent.get(nodeId) ?? []) : [];
+          // Collect internal flow edges for behavioural containers or any container with successions
+          const internalEdges = isBehaviouralOrFlow ? (flowEdgesByParent.get(nodeId) ?? []) : [];
 
           const padTop = isPkgNode ? 48 : allChildrenArePins ? 30 : isBehavioural ? 50 : 52;
           const padSide = isPkgNode ? 20 : allChildrenArePins ? 10 : isBehavioural ? 24 : 20;
@@ -700,9 +705,9 @@ export default function DiagramViewer({
               'elk.padding': `[top=${padTop},left=${padSide},bottom=${padBottom},right=${padSide}]`,
               'elk.algorithm': 'layered',
               'elk.direction': isDownLayout ? 'DOWN' : 'RIGHT',
-              'elk.spacing.nodeNode': isPkgNode ? '30' : isBehavioural ? String(vcfg.behavioralNodeSpacing) : '24',
-              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode ? '40' : isBehavioural ? String(vcfg.behavioralLayerSpacing) : '30',
-              ...(isBehavioural ? { 'elk.spacing.edgeNode': '20' } : {}),
+              'elk.spacing.nodeNode': isPkgNode && !hasFlowEdges ? '30' : isBehaviouralOrFlow ? String(vcfg.behavioralNodeSpacing) : '24',
+              'elk.layered.spacing.nodeNodeBetweenLayers': isPkgNode && !hasFlowEdges ? '40' : isBehaviouralOrFlow ? String(vcfg.behavioralLayerSpacing) : '30',
+              ...(isBehaviouralOrFlow ? { 'elk.spacing.edgeNode': '20' } : {}),
               'elk.edgeRouting': 'ORTHOGONAL',
               'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
               'elk.nodeSize.constraints': 'MINIMUM_SIZE',
