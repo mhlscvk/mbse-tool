@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
 
 // Mock prisma before importing the router
 vi.mock('../db.js', () => ({
@@ -23,13 +23,13 @@ function getHandler(method: string, path: string) {
   throw new Error(`No handler for ${method.toUpperCase()} ${path}`);
 }
 
-function mockRes() {
-  const res = {
+function mockRes(): any {
+  const res: any = {
     statusCode: 200,
-    body: null as unknown,
+    body: null,
     status(code: number) { res.statusCode = code; return res; },
     json(data: unknown) { res.body = data; return res; },
-  } as unknown as Response;
+  };
   return res;
 }
 
@@ -39,12 +39,12 @@ describe('Health endpoints', () => {
       const handler = getHandler('get', '/health');
       const res = mockRes();
       handler({} as Request, res);
-      expect((res as any).body).toMatchObject({
+      expect(res.body).toMatchObject({
         status: 'ok',
         service: 'api-server',
       });
-      expect((res as any).body.version).toBeDefined();
-      expect(typeof (res as any).body.uptime_seconds).toBe('number');
+      expect(res.body.version).toBeDefined();
+      expect(typeof res.body.uptime_seconds).toBe('number');
     });
   });
 
@@ -58,9 +58,9 @@ describe('Health endpoints', () => {
       const handler = getHandler('get', '/ready');
       const res = mockRes();
       await handler({} as Request, res);
-      expect((res as any).statusCode).toBe(200);
-      expect((res as any).body.status).toBe('ok');
-      expect((res as any).body.checks.database).toBe('ok');
+      expect(res.statusCode).toBe(200);
+      expect(res.body.status).toBe('ok');
+      expect(res.body.checks.database).toBe('ok');
     });
 
     it('returns 503 with checks.database=fail when DB is unreachable', async () => {
@@ -68,9 +68,9 @@ describe('Health endpoints', () => {
       const handler = getHandler('get', '/ready');
       const res = mockRes();
       await handler({} as Request, res);
-      expect((res as any).statusCode).toBe(503);
-      expect((res as any).body.status).toBe('degraded');
-      expect((res as any).body.checks.database).toBe('fail');
+      expect(res.statusCode).toBe(503);
+      expect(res.body.status).toBe('degraded');
+      expect(res.body.checks.database).toBe('fail');
     });
   });
 });
