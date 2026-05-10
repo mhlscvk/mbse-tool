@@ -1163,6 +1163,8 @@ export default function EditorPage() {
                   setShowInherited(v);
                   if (fileId) diagramClient.sendText(`file://${fileId}`, content, viewType, v);
                 }}
+                projectName={projectName}
+                fileName={file?.name || ''}
                 locks={locks}
                 currentUserId={currentUserId}
                 onCheckOut={handleCheckOut}

@@ -13,6 +13,7 @@ import BrowserRenderer from './BrowserRenderer.js';
 import GeometryRenderer from './GeometryRenderer.js';
 import { placeEdgeLabels, pathDirectionAt, lineDirection, bezierDirection } from './edgeLabelPlacement.js';
 import type { EdgeLabelInput } from './edgeLabelPlacement.js';
+import { exportSvgString, exportPngBlob, downloadFile, generateExportFilename } from '../../utils/diagram-export.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const elk = new (ELKModule as any)();
@@ -66,6 +67,10 @@ interface DiagramViewerProps {
   onCheckIn?: (elementName: string) => void;
   /** Called to request a locked element from holder */
   onRequestLock?: (elementName: string) => void;
+  /** Project name for export filename */
+  projectName?: string;
+  /** File name for export filename */
+  fileName?: string;
 }
 
 // ContextMenu type imported from DiagramContextMenu
@@ -367,6 +372,7 @@ export default function DiagramViewer({
   onShowInheritedChange,
   onShowOnly, onResetView,
   locks, currentUserId, onCheckOut, onCheckIn, onRequestLock,
+  projectName = '', fileName = '',
 }: DiagramViewerProps) {
   const t = useTheme();
   const NODE_COLORS = NODE_COLORS_LIGHT;
@@ -403,6 +409,16 @@ export default function DiagramViewer({
   }, [locks]);
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const [exporting, setExporting] = useState<'png' | 'svg' | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  // Close export dropdown on outside click
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const close = () => setShowExportMenu(false);
+    // Defer so the opening click doesn't immediately close
+    const id = setTimeout(() => document.addEventListener('click', close), 0);
+    return () => { clearTimeout(id); document.removeEventListener('click', close); };
+  }, [showExportMenu]);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const transformRef = useRef(transform);
@@ -921,6 +937,26 @@ export default function DiagramViewer({
     setPositionOverrides(new Map());
     setLayoutTrigger((n) => n + 1);
   }, [setPositionOverrides]);
+
+  const handleExport = useCallback(async (format: 'png' | 'svg') => {
+    if (!svgRef.current) return;
+    setExporting(format);
+    setShowExportMenu(false);
+    try {
+      const fname = generateExportFilename(projectName, fileName, viewType || 'general', format);
+      if (format === 'svg') {
+        const svgStr = exportSvgString(svgRef.current);
+        downloadFile(svgStr, fname, 'image/svg+xml');
+      } else {
+        const blob = await exportPngBlob(svgRef.current, window.devicePixelRatio * 2);
+        downloadFile(blob, fname);
+      }
+    } catch (err) {
+      console.error('[DiagramViewer] Export failed:', err);
+    } finally {
+      setExporting(null);
+    }
+  }, [projectName, fileName, viewType]);
 
   const nodePos = useCallback((id: string) => positionOverrides.get(id) ?? positions.get(id) ?? { x: 0, y: 0 }, [positionOverrides, positions]);
   const nodeSz = useCallback((id: string) => {
@@ -1908,6 +1944,57 @@ export default function DiagramViewer({
             ↺ Default
           </button>
         )}
+        <span style={{ color: t.textDim, fontSize: 10 }}>|</span>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            disabled={isEmpty || exporting !== null}
+            title="Export diagram as image"
+            style={{
+              background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: isEmpty ? t.textDim : t.text,
+              fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: isEmpty ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4, opacity: isEmpty ? 0.5 : 1,
+            }}
+            onMouseEnter={e => { if (!isEmpty) { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.borderColor = t.statusBar; e.currentTarget.style.color = '#fff'; } }}
+            onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.borderColor = t.btnBorder; e.currentTarget.style.color = isEmpty ? t.textDim : t.text; }}
+          >
+            {exporting ? `Exporting ${exporting.toUpperCase()}...` : '⤓ Export'}
+          </button>
+          {showExportMenu && !isEmpty && (
+            <div
+              style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                background: t.bg, border: `1px solid ${t.btnBorder}`, borderRadius: 4,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 140,
+              }}
+            >
+              <button
+                onClick={() => handleExport('png')}
+                style={{
+                  display: 'block', width: '100%', padding: '6px 12px', border: 'none',
+                  background: 'transparent', color: t.text, fontSize: 12, cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = t.btnBgHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Export as PNG
+              </button>
+              <button
+                onClick={() => handleExport('svg')}
+                style={{
+                  display: 'block', width: '100%', padding: '6px 12px', border: 'none',
+                  background: 'transparent', color: t.text, fontSize: 12, cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = t.btnBgHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Export as SVG
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       {/* Non-graph views: delegate to specialized renderers */}
       {viewType === 'sequence' && (
