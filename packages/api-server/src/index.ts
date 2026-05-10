@@ -16,6 +16,7 @@ import bugReportRoutes from './routes/bug-reports.js';
 import startupRoutes from './routes/startups.js';
 import elementLockRoutes from './routes/element-locks.js';
 import notificationRoutes from './routes/notifications.js';
+import healthRoutes from './routes/health.js';
 import { errorHandler } from './middleware/error.js';
 
 const PORT = parseInt(process.env.PORT ?? '3003', 10);
@@ -137,9 +138,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'api-server', port: PORT });
-});
+// Health & readiness endpoints (no auth, no rate limit — for uptime probes)
+app.use(healthRoutes);
 
 // Auth routes with rate limiting
 app.use('/api/auth/login', authLimiter);

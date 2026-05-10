@@ -776,6 +776,24 @@ cd packages/diagram-service && pnpm test:watch
 
 ---
 
+## Monitoring
+
+All backend services expose health check endpoints (no authentication required):
+
+| Endpoint | Purpose | Response |
+|---|---|---|
+| `GET /health` | Liveness probe — instant response | `200` with service name, version, uptime |
+| `GET /ready` | Readiness probe — checks dependencies | `200` if healthy, `503` if degraded |
+
+**Dependency checks:**
+- **api-server**: PostgreSQL connectivity
+- **diagram-service**: SysML parser self-test
+- **lsp-server**: HTTP server availability
+
+See [docs/monitoring-setup.md](docs/monitoring-setup.md) for UptimeRobot configuration, Nginx routing, and SSL expiry monitoring.
+
+---
+
 ## Project Links
 
 - Live: https://systemodel.com

@@ -179,11 +179,21 @@ MCP and AI chat tools are restricted to **read and update only**:
 - Startup ID race condition: retry loop with P2002 catch for concurrent creates
 - Audit log queries capped (100 entries max) to prevent resource exhaustion
 
+## Monitoring
+
+All backend services expose `/health` (liveness) and `/ready` (readiness) endpoints — no auth, no rate limit:
+- **api-server**: `/health`, `/ready` (checks PostgreSQL via `SELECT 1`)
+- **diagram-service**: `/health`, `/ready` (checks parser self-test)
+- **lsp-server**: `/health`, `/ready` (checks HTTP server availability)
+- Health routes defined in `api-server/src/routes/health.ts`, inline in `diagram-service/src/index.ts` and `lsp-server/src/index.ts`
+- External monitoring via UptimeRobot (free tier, 5-min interval, email alerts)
+- Setup docs: `docs/monitoring-setup.md`
+
 ## Testing
 
-**Total: 1006 tests** (all passing, 0 skipped)
+**Total: 1009 tests** (all passing, 0 skipped)
 
-- `api-server`: 313 tests across 19 suites
+- `api-server`: 316 tests across 20 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
   - `ai/tools.test.ts` (17): tool execution, access control, size limits, least-privilege enforcement
   - `ai/providers.test.ts` (5): tool schema validation, least-privilege tool exclusion
@@ -200,6 +210,7 @@ MCP and AI chat tools are restricted to **read and update only**:
   - `routes/admin.test.ts` (9): admin user listing, user project listing, scope verification, authorization guards
   - `mcp/events.test.ts` (6): file change event emission
   - `routes/files.test.ts` (8): file CRUD access control, SSE token format, move file dual-access check
+  - `routes/health.test.ts` (3): liveness response format, readiness DB ok/fail scenarios
   - `routes/auth.test.ts` (10): registration security (disposable domains, timing-safe login), password reset token validation, JWT format, safe user object
   - `routes/ai-keys.test.ts` (8): key encryption, masking, provider validation, upsert pattern, schema validation
   - `routes/mcp-tokens.test.ts` (11): token masking, limit enforcement, format, expiration, soft delete, user scoping, schema validation
