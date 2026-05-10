@@ -48,7 +48,7 @@ app.get('/ready', (_req, res) => {
   // Parser self-test: can we parse a minimal SysML snippet?
   try {
     const result = parseSysMLText('healthcheck.sysml', 'package HealthCheck {}');
-    checks.parser = result && result.elements ? 'ok' : 'fail';
+    checks.parser = result && result.model ? 'ok' : 'fail';
   } catch {
     checks.parser = 'fail';
     console.error('[Health] Parser self-test failed');
