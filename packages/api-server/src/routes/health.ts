@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, type IRouter } from 'express';
 import { prisma } from '../db.js';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
 
-const router = Router();
+const router: IRouter = Router();
 const startTime = Date.now();
 
 // GET /health — lightweight liveness check (no auth, no rate limit)

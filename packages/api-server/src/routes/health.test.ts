@@ -39,12 +39,12 @@ describe('Health endpoints', () => {
       const handler = getHandler('get', '/health');
       const res = mockRes();
       handler({} as Request, res);
-      expect(res.body).toMatchObject({
+      expect((res as any).body).toMatchObject({
         status: 'ok',
         service: 'api-server',
       });
-      expect((res.body as any).version).toBeDefined();
-      expect(typeof (res.body as any).uptime_seconds).toBe('number');
+      expect((res as any).body.version).toBeDefined();
+      expect(typeof (res as any).body.uptime_seconds).toBe('number');
     });
   });
 
@@ -58,9 +58,9 @@ describe('Health endpoints', () => {
       const handler = getHandler('get', '/ready');
       const res = mockRes();
       await handler({} as Request, res);
-      expect(res.statusCode).toBe(200);
-      expect((res.body as any).status).toBe('ok');
-      expect((res.body as any).checks.database).toBe('ok');
+      expect((res as any).statusCode).toBe(200);
+      expect((res as any).body.status).toBe('ok');
+      expect((res as any).body.checks.database).toBe('ok');
     });
 
     it('returns 503 with checks.database=fail when DB is unreachable', async () => {
@@ -68,9 +68,9 @@ describe('Health endpoints', () => {
       const handler = getHandler('get', '/ready');
       const res = mockRes();
       await handler({} as Request, res);
-      expect(res.statusCode).toBe(503);
-      expect((res.body as any).status).toBe('degraded');
-      expect((res.body as any).checks.database).toBe('fail');
+      expect((res as any).statusCode).toBe(503);
+      expect((res as any).body.status).toBe('degraded');
+      expect((res as any).body.checks.database).toBe('fail');
     });
   });
 });
