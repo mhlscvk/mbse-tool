@@ -1,9 +1,9 @@
 import { Router, type IRouter } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { prisma } from '../db.js';
-import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url);
-const pkg = require('../../package.json');
+const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 
 const router: IRouter = Router();
 const startTime = Date.now();

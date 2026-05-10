@@ -2,12 +2,12 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
-import { createRequire } from 'module';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { createDiagramWebSocketServer } from './websocket-server.js';
 import { parseSysMLText } from './parser/sysml-text-parser.js';
 
-const require = createRequire(import.meta.url);
-const pkg = require('../../package.json');
+const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 
 const PORT = parseInt(process.env.PORT ?? '3002', 10);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
