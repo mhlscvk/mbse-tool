@@ -14,7 +14,7 @@ const TURKISH_MAP: Record<string, string> = {
 export function sanitizeFilename(name: string): string {
   let s = name;
   for (const [from, to] of Object.entries(TURKISH_MAP)) {
-    s = s.replaceAll(from, to);
+    s = s.split(from).join(to);
   }
   // Replace non-alphanumeric (except dash/underscore/dot) with underscore
   s = s.replace(/[^a-zA-Z0-9._-]/g, '_');
