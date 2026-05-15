@@ -52,7 +52,23 @@ export interface DiagramDiagnostic {
   fixes?: DiagnosticFix[];
 }
 
+// Phase 0 renderer-refactor: which pipeline produced the SModelRoot.
+// Carried inside DiagramMessage._meta so the renderer wedge is observable
+// from the frontend (and from WebSocket frames in DevTools) without changing
+// the transport.
+export type RendererOutcome =
+  | 'new'
+  | 'old-default'
+  | 'old-fallback-from-new'
+  | 'old-fallback-not-registered';
+
 export type DiagramMessage =
-  | { kind: 'model'; model: SModelRoot; diagnostics: DiagramDiagnostic[]; viewType?: ViewType }
+  | {
+      kind: 'model';
+      model: SModelRoot;
+      diagnostics: DiagramDiagnostic[];
+      viewType?: ViewType;
+      _meta?: { rendererUsed: RendererOutcome };
+    }
   | { kind: 'error'; message: string }
   | { kind: 'clear' };

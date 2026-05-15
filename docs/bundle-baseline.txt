@@ -1,0 +1,28 @@
+# Web Client Bundle Baseline — Pre Phase 0
+
+Captured immediately before the renderer-refactor Phase 0 foundation work
+lands, so that the Phase 0 bundle-size delta (NFR-PH0-01: <2KB gzip) can be
+verified by re-running the same measurement at the end of the phase.
+
+## Measurement
+
+- File: packages/web-client/dist/assets/index-BgqGz5F_.js
+- Raw size: 5,940,225 bytes (5801 KB)
+- Gzip size: 1,608,310 bytes (1570 KB)
+- Build tool: Vite 5.2.11 + Rollup, production mode
+- Date: 2026-05-15
+- Git commit: e721e029e3f2387818542b1433401dbb7369e515
+
+## How to reproduce
+
+    pnpm --filter @systemodel/web-client build
+    BUNDLE=$(ls packages/web-client/dist/assets/index-*.js | head -1)
+    stat -c%s "$BUNDLE"            # raw
+    gzip -c "$BUNDLE" | wc -c      # gzip
+
+## Phase 0 acceptance
+
+Re-measure after Phase 0 lands. Initial-chunk gzip delta must be <2KB.
+Lazy view-renderer chunks (state-machine, etc.) are split into separate
+files via Vite's default dynamic-import code splitting and do not count
+toward this budget.

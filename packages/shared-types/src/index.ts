@@ -1,5 +1,6 @@
 export * from './ast.js';
 export * from './diagram.js';
+export * from './diagram-ir/index.js';
 export * from './api.js';
 export type { ViewConfig, PinPlacement } from './view-config.js';
 export { SYSML_V2_METACLASSES, SYSML_V2_PROPERTIES } from './sysml-v2-spec.js';
