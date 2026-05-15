@@ -20,6 +20,7 @@ model User {
   resetTokenExp   DateTime?
   googleId        String?   @unique
   preferredLanguage String? @db.VarChar(8)
+  featureFlags    Json?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   projects        Project[]

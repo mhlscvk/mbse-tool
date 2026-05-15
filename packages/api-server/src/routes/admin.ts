@@ -142,4 +142,23 @@ router.get('/files/:fileId', asyncHandler(async (req: AuthRequest, res) => {
   res.json({ data: file });
 }));
 
+// GET /api/admin/renderer-stats — Phase 0 renderer-refactor observability.
+// Surface (route + response shape) is fixed here in Slice 2 so the frontend
+// admin view can integrate against a stable contract. The wedge + counter
+// that produces the data lives in diagram-service and lands in Slice 3.
+//
+// Until then we return zeroed counts plus a `pending` flag so callers can
+// distinguish "no renders happened" from "stats not wired yet".
+router.get('/renderer-stats', asyncHandler(async (_req: AuthRequest, res) => {
+  res.json({
+    data: {
+      totalRenders: 0,
+      byViewType: {} as Record<string, Record<string, number>>,
+      unmapped: 0,
+      pending: true,
+      note: 'Renderer stats collection lands in Slice 3 (wedge + RendererStats).',
+    },
+  });
+}));
+
 export default router;
