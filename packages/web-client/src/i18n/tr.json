@@ -52,7 +52,7 @@
   "auth": {
     "brand_tagline": "SysML v2 Modelleme Platformu",
     "tabs": {
-      "login": "Giriş yap",
+      "login": "Hesabım var",
       "register": "Hesap oluştur"
     },
     "login": {
