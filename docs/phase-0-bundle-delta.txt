@@ -1,0 +1,59 @@
+# Phase 0 Bundle Delta Report
+
+Compares the web-client production bundle after Phase 0 lands against the
+pre-Phase-0 baseline captured in `bundle-baseline.txt`. NFR-PH0-01 budget:
+<2 KB gzip increase on the initial chunk.
+
+## Measurement
+
+- File: packages/web-client/dist/assets/index-BgqGz5F_.js
+- Raw size: 5,940,225 bytes (5801 KB)
+- Gzip size: 1,608,310 bytes (1570 KB)
+- Build tool: Vite 5.2.11 + Rollup, production mode
+- Date: 2026-05-15
+- Final Phase 0 commit at measurement: 4d3d6f6 (Slice 3 — Slice 4 is
+  docs/tests/fixtures only, no client-side code; numbers unchanged
+  through Slice 4)
+
+## Delta
+
+| Metric | Baseline | Phase 0 | Δ |
+|---|---|---|---|
+| Raw bytes | 5,940,225 | 5,940,225 | **0** |
+| Gzip bytes | 1,608,310 | 1,608,310 | **0** |
+
+## Why zero
+
+- IR types (`shared-types/src/diagram-ir/*.ts`) are pure TypeScript
+  `interface` and `type` declarations. The compiler erases them; no
+  runtime artefacts.
+- `RendererOutcome` and `DiagramMessage._meta` field are also type-only.
+  The web-client constructs and reads these shapes but doesn't bundle
+  any constants tied to them.
+- `RENDERER_FLAGS` is a runtime const (an array of 6 strings) — but
+  nothing in `packages/web-client/src/` imports it, so Rollup
+  tree-shakes it out of the web-client bundle. Phase 1+ will keep this
+  invariant by reading the array only on the server side.
+- All other Phase 0 code (view-registry, feature-flags provider, wedge,
+  renderer-stats, no-op renderer, fixture-loader) lives under
+  `packages/diagram-service/`. That's a separate runtime; it never
+  reaches the browser bundle.
+
+## Acceptance
+
+NFR-PH0-01 budget: **<2 KB gzip increase** → **0 KB**. Met with full
+margin.
+
+Future phases should keep this invariant: server-side rendering code
+stays in diagram-service, runtime flag constants are imported only by
+diagram-service or api-server. Any web-client code that consumes IR
+should do so via type imports (`import type { ... }`) so erasure
+remains guaranteed.
+
+## How to reproduce
+
+    pnpm --filter @systemodel/shared-types build
+    pnpm --filter @systemodel/web-client build
+    BUNDLE=$(ls packages/web-client/dist/assets/index-*.js | head -1)
+    stat -c%s "$BUNDLE"            # raw
+    gzip -c "$BUNDLE" | wc -c      # gzip
