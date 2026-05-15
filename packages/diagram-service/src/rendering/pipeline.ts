@@ -58,11 +58,13 @@ export function makeWedge(deps: WedgeDeps) {
 
     // Legacy view types with no IR equivalent (Phase 0: everything) go
     // straight through. We don't even consult the flag provider — there is
-    // no renderer to enable. Recorded as 'unknown' so admin stats can show
-    // that traffic is in the unmapped bucket.
+    // no renderer to enable. Recorded under the *raw legacy ViewType*
+    // bucket (not 'unknown') so admin stats can see which legacy view
+    // generates the most traffic and the next phase can prioritise the
+    // renderer that earns the biggest payoff.
     if (!diagramViewType) {
       const result = deps.runOldPipeline(model, viewType, showInherited);
-      deps.stats.record('unknown', 'old-default');
+      deps.stats.record(viewType, 'old-default');
       return { result, rendererUsed: 'old-default' };
     }
 

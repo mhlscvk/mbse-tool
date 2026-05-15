@@ -166,7 +166,17 @@ router.get('/renderer-stats', asyncHandler(async (_req: AuthRequest, res) => {
       byViewType: Record<string, Record<string, number>>;
       unmapped: number;
     };
-    res.json({ data: { status: 'live', ...snapshot } });
+    res.json({
+      data: {
+        status: 'live',
+        ...snapshot,
+        _note:
+          "byViewType keys may be DiagramViewType ('state-machine', ...) " +
+          "or legacy ViewType ('general', 'state-transition', ...). " +
+          'Legacy keys indicate the wedge fell through to the old pipeline ' +
+          'because no mapping exists yet; their sum equals `unmapped`.',
+      },
+    });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     res.json({ data: { status: 'unavailable', error: reason } });

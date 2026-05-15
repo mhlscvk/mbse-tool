@@ -4,17 +4,29 @@
 // /api/admin/renderer-stats). Resets on process restart; Phase 0 accepts the
 // volatility since the counter is for dogfooding observability, not billing.
 // Phase 7+ can swap in Redis if persistence becomes useful.
+//
+// Bucket-naming policy (Slice 5+):
+//   - If mapToDiagramViewType returns a DiagramViewType, the bucket is
+//     keyed by that (e.g. 'state-machine'). All four RendererOutcomes are
+//     meaningful here.
+//   - If the legacy ViewType has no mapping yet, the bucket is keyed by
+//     the *raw legacy ViewType* (e.g. 'general', 'state-transition'),
+//     not by a generic 'unknown'. This lets the Phase 1 brief see
+//     which legacy views generate the most traffic and prioritise the
+//     next renderer accordingly. `unmapped` in the snapshot remains the
+//     total of all such legacy buckets.
 
 import type {
   DiagramViewType,
   RendererOutcome,
+  ViewType,
 } from '@systemodel/shared-types';
+import { isDiagramViewType } from '@systemodel/shared-types';
 
-// Counters are keyed by `${viewType}:${outcome}` so the snapshot can
-// reconstruct a nested shape without holding two maps. 'unknown' is a valid
-// viewType bucket for legacy ViewType values the mapper doesn't translate
-// (e.g. 'general'); those always go through the old pipeline.
-type ViewTypeKey = DiagramViewType | 'unknown';
+// Either a new IR-side view tag or the request-level legacy enum value.
+// Both are string literal unions with disjoint members; the union covers
+// every bucket key that can arrive here.
+type ViewTypeKey = DiagramViewType | ViewType;
 
 export interface RendererStatsSnapshot {
   totalRenders: number;
@@ -39,7 +51,10 @@ export class RendererStats {
       const sep = key.indexOf(':');
       const viewType = key.slice(0, sep);
       const outcome = key.slice(sep + 1) as RendererOutcome;
-      if (viewType === 'unknown') unmapped += n;
+      // Any bucket that isn't a known DiagramViewType is a legacy
+      // ViewType that fell through to the old pipeline; sum these into
+      // the `unmapped` rollup so admins keep the single-number view.
+      if (!isDiagramViewType(viewType)) unmapped += n;
       const bucket = byViewType[viewType] ?? (byViewType[viewType] = {});
       bucket[outcome] = n;
       totalRenders += n;

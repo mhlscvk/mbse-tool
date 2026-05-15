@@ -24,15 +24,24 @@ describe('RendererStats', () => {
     expect(snap.unmapped).toBe(0);
   });
 
-  it('tracks unmapped legacy views in the unmapped counter', () => {
+  it('tracks unmapped legacy views by their raw ViewType name, summed into unmapped', () => {
     const s = new RendererStats();
-    s.record('unknown', 'old-default');
-    s.record('unknown', 'old-default');
+    // Two distinct legacy ViewTypes with no mapper entry yet.
+    s.record('general', 'old-default');
+    s.record('general', 'old-default');
+    s.record('state-transition', 'old-default');
+    // One mapped DiagramViewType bucket — does not count toward unmapped.
     s.record('state-machine', 'new');
 
     const snap = s.snapshot();
-    expect(snap.unmapped).toBe(2);
-    expect(snap.totalRenders).toBe(3);
+    // Granular buckets — each legacy ViewType keeps its own identity so
+    // Phase 1 prioritisation can see which view earns the biggest payoff.
+    expect(snap.byViewType.general).toEqual({ 'old-default': 2 });
+    expect(snap.byViewType['state-transition']).toEqual({ 'old-default': 1 });
+    expect(snap.byViewType['state-machine']).toEqual({ new: 1 });
+    // unmapped rollup: every bucket whose key is not a DiagramViewType.
+    expect(snap.unmapped).toBe(3);
+    expect(snap.totalRenders).toBe(4);
   });
 
   it('reset clears all counters', () => {
