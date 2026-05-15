@@ -26,7 +26,7 @@ import type { FlagContext, FlagProvider } from './feature-flags.js';
 const SENTINEL_OLD: SModelRoot = { type: 'graph', id: 'sentinel-old', children: [] };
 const SENTINEL_NEW: SModelRoot = { type: 'graph', id: 'sentinel-new', children: [] };
 
-const emptyModel: SysMLModel = { uri: 'test://empty', nodes: [] };
+const emptyModel: SysMLModel = { uri: 'test://empty', nodes: [], connections: [] };
 
 function emptyIR(): StateMachineIR {
   return {
