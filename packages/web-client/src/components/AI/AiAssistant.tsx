@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAiSettings } from '../../store/ai-settings.js';
 import { streamChat, fetchFreeTierStatus, fetchChatHistory, clearChatHistory, type ToolCallDisplay, type FreeTierStatus, type TokenUsageInfo } from '../../services/ai-client.js';
 import { api, type AiKeyInfo } from '../../services/api-client.js';
@@ -30,6 +31,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
   const navigate = useNavigate();
   const { provider, setProvider } = useAiSettings();
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -193,7 +195,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
           setMessages(prev => {
             const next = [...prev];
             const last = next[next.length - 1];
-            next[next.length - 1] = { ...last, content: last.content + `\n\n**Error:** ${event.message}` };
+            next[next.length - 1] = { ...last, content: last.content + `\n\n${tr('ai.error_prefix')}${event.message}` };
             return next;
           });
           if (isFreeTier) fetchFreeTierStatus().then(setFreeStatus);
@@ -204,7 +206,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
       setMessages(prev => {
         const next = [...prev];
         const last = next[next.length - 1];
-        next[next.length - 1] = { ...last, content: last.content + `\n\n**Error:** ${err instanceof Error ? err.message : 'Failed'}` };
+        next[next.length - 1] = { ...last, content: last.content + `\n\n${tr('ai.error_prefix')}${err instanceof Error ? err.message : tr('ai.error_fallback')}` };
         return next;
       });
     } finally {
@@ -219,7 +221,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
     }
   };
 
-  const tierLabel = hasOwnKey ? PROVIDER_LABELS[provider] : 'Free';
+  const tierLabel = hasOwnKey ? PROVIDER_LABELS[provider] : tr('ai.tier_free');
   const tierColor = hasOwnKey ? PROVIDER_COLORS[provider] : t.textMuted;
 
   return (
@@ -237,21 +239,21 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14 }}>&#10022;</span>
-          <span style={{ color: t.text, fontWeight: 600, fontSize: 12 }}>AI Chat</span>
+          <span style={{ color: t.text, fontWeight: 600, fontSize: 12 }}>{tr('ai.chat_title')}</span>
           <span style={{
             fontSize: 9, background: tierColor + '30', color: tierColor,
             borderRadius: 3, padding: '1px 5px', fontWeight: 600,
           }}>{tierLabel}</span>
         </div>
         <div style={{ display: 'flex', gap: 4, color: t.textMuted }}>
-          <button onClick={() => navigate('/settings?tab=ai-provider')} title="AI Settings" style={iconBtn}>&#9881;</button>
+          <button onClick={() => navigate('/settings?tab=ai-provider')} title={tr('ai.settings_title')} style={iconBtn}>&#9881;</button>
           {messages.length > 0 && (
             <button onClick={() => {
               if (fileId) clearChatHistory(fileId);
               setMessages([]);
-            }} title="Clear chat" style={iconBtn}>&#10227;</button>
+            }} title={tr('ai.clear_chat_title')} style={iconBtn}>&#10227;</button>
           )}
-          <button onClick={onClose} title="Close" style={iconBtn}>&#10005;</button>
+          <button onClick={onClose} title={tr('ai.close_title')} style={iconBtn}>&#10005;</button>
         </div>
       </div>
 
@@ -260,12 +262,12 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
         <div style={{ padding: '4px 10px', background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
             <span style={{ fontSize: 10, color: t.textMuted }}>
-              {freeStatus.used} / {freeStatus.limit} free messages
+              {tr('ai.free_quota', { used: freeStatus.used, limit: freeStatus.limit })}
             </span>
             <span style={{ fontSize: 10, color: quotaExhausted ? t.error : t.info, cursor: 'pointer' }}
               onClick={() => navigate('/settings?tab=ai-provider')}
             >
-              {quotaExhausted ? 'Upgrade' : 'Add your key for unlimited'}
+              {quotaExhausted ? tr('ai.upgrade') : tr('ai.add_key')}
             </span>
           </div>
           <div style={{ width: '100%', height: 3, background: t.bgTertiary, borderRadius: 2, overflow: 'hidden' }}>
@@ -279,26 +281,26 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
       )}
 
       {/* Token usage bar */}
-      {canChat && <TokenUsageBar usage={tokenUsage} t={t} streaming={streaming} />}
+      {canChat && <TokenUsageBar usage={tokenUsage} t={t} streaming={streaming} tr={tr} />}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {!canChat ? (
           <div style={{ padding: '24px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>&#10022;</div>
-            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect AI Provider</div>
+            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{tr('ai.connect_title')}</div>
             <div style={{ color: t.textMuted, fontSize: 12, lineHeight: 1.6, marginBottom: 16 }}>
-              Add your AI provider API key in Settings to start chatting.
+              {tr('ai.connect_description')}
             </div>
             <button onClick={() => navigate('/settings?tab=ai-provider')} style={{
               background: t.accent, color: '#fff', border: 'none',
               borderRadius: 4, padding: '8px 20px', fontSize: 13, cursor: 'pointer',
-            }}>Configure AI Provider</button>
+            }}>{tr('ai.configure_provider')}</button>
           </div>
         ) : messages.length === 0 ? (
           <div style={{ padding: '16px 12px', color: t.textMuted, fontSize: 12, lineHeight: 1.6 }}>
-            Ask the AI to edit your SysML model, fix errors, explain code, or generate new elements.
-            {isFreeTier && <span style={{ color: t.info }}> You&apos;re on the free tier ({freeStatus?.remaining ?? '...'} messages left).</span>}
+            {tr('ai.empty_prompt')}
+            {isFreeTier && <span style={{ color: t.info }}> {tr('ai.free_tier_remaining', { remaining: freeStatus?.remaining ?? '...' })}</span>}
           </div>
         ) : (
           messages.map((msg, mi) => (
@@ -346,7 +348,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={quotaExhausted ? 'Free tier limit reached — add your key in Settings' : 'Ask about your SysML model...'}
+              placeholder={quotaExhausted ? tr('ai.input_quota_exhausted') : tr('ai.input_placeholder')}
               disabled={streaming || quotaExhausted}
               rows={3}
               style={{
@@ -363,7 +365,7 @@ export default function AiAssistant({ onClose, projectId, fileId, fileContent, f
             <button
               onClick={() => streaming ? abortControllerRef.current?.abort() : send(input)}
               disabled={quotaExhausted && !streaming}
-              title={quotaExhausted ? 'Limit reached' : streaming ? 'Stop' : 'Send (Enter)'}
+              title={quotaExhausted ? tr('ai.limit_reached_title') : streaming ? tr('ai.stop_title') : tr('ai.send_title')}
               style={{
                 position: 'absolute', right: 6, bottom: 6,
                 background: streaming ? t.error : quotaExhausted ? t.btnDisabled : (input.trim() ? t.accent : t.bgTertiary),
@@ -387,7 +389,7 @@ function formatTokenCount(n: number): string {
   return String(n);
 }
 
-function TokenUsageBar({ usage, t, streaming }: { usage: TokenUsageInfo; t: ReturnType<typeof useTheme>; streaming: boolean }) {
+function TokenUsageBar({ usage, t, streaming, tr }: { usage: TokenUsageInfo; t: ReturnType<typeof useTheme>; streaming: boolean; tr: (key: string, opts?: Record<string, unknown>) => string }) {
   const total = usage.inputTokens + usage.outputTokens;
   const hasUsage = total > 0;
   // Context window estimate based on common model limits
@@ -403,12 +405,12 @@ function TokenUsageBar({ usage, t, streaming }: { usage: TokenUsageInfo; t: Retu
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{ fontSize: 10, color: t.textMuted }}>
           {hasUsage
-            ? `Tokens: ${formatTokenCount(usage.inputTokens)} in + ${formatTokenCount(usage.outputTokens)} out`
-            : streaming ? 'Calculating tokens...' : 'Token usage'
+            ? tr('ai.tokens_summary', { input: formatTokenCount(usage.inputTokens), output: formatTokenCount(usage.outputTokens) })
+            : streaming ? tr('ai.tokens_calculating') : tr('ai.tokens_label')
           }
         </span>
         <span style={{ fontSize: 10, color: t.textMuted }}>
-          {hasUsage ? `${formatTokenCount(total)} total` : '0'}
+          {hasUsage ? tr('ai.tokens_total', { total: formatTokenCount(total) }) : '0'}
         </span>
       </div>
       <div style={{
@@ -429,6 +431,7 @@ function TokenUsageBar({ usage, t, streaming }: { usage: TokenUsageInfo; t: Retu
 
 function ToolCallCard({ call }: { call: ToolCallDisplay }) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const isDone = call.result !== undefined;
   const isError = call.isError;
@@ -455,13 +458,13 @@ function ToolCallCard({ call }: { call: ToolCallDisplay }) {
       </div>
       {expanded && (
         <div style={{ borderTop: `1px solid ${t.border}`, padding: '4px 8px', background: t.bgSecondary }}>
-          <div style={{ color: t.textMuted, fontSize: 10, marginBottom: 2 }}>Args:</div>
+          <div style={{ color: t.textMuted, fontSize: 10, marginBottom: 2 }}>{tr('ai.tool_args')}</div>
           <pre style={{ color: t.textMuted, margin: 0, fontSize: 10, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
             {JSON.stringify(call.args, null, 2)}
           </pre>
           {call.result && (
             <>
-              <div style={{ color: t.textMuted, fontSize: 10, marginTop: 4, marginBottom: 2 }}>Result:</div>
+              <div style={{ color: t.textMuted, fontSize: 10, marginTop: 4, marginBottom: 2 }}>{tr('ai.tool_result')}</div>
               <pre style={{
                 color: isError ? t.error : t.success, margin: 0, fontSize: 10,
                 whiteSpace: 'pre-wrap', fontFamily: 'monospace', maxHeight: 120, overflow: 'auto',

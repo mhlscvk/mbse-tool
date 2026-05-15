@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../store/theme.js';
-import { LEGEND_ITEMS } from '../../training/tasks.js';
+import { getLegendItems } from '../../training/tasks.js';
 import type { LegendItem, LegendShapeType } from '../../training/tasks.js';
+import { useI18nStore } from '../../store/i18n.js';
 
 // ─── Shape preview SVG ────────────────────────────────────────────────────────
 
@@ -241,10 +243,13 @@ interface LegendPanelProps {
 
 export default function LegendPanel({ currentLevel }: LegendPanelProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
+  const language = useI18nStore((s) => s.language);
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
 
-  const visible = LEGEND_ITEMS.filter((item) => item.minLevel <= currentLevel);
-  const locked = LEGEND_ITEMS.filter((item) => item.minLevel > currentLevel);
+  const items = getLegendItems(language);
+  const visible = items.filter((item) => item.minLevel <= currentLevel);
+  const locked = items.filter((item) => item.minLevel > currentLevel);
 
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
@@ -253,7 +258,7 @@ export default function LegendPanel({ currentLevel }: LegendPanelProps) {
         textTransform: 'uppercase', letterSpacing: 0.8,
         padding: '8px 12px 4px',
       }}>
-        Notation Reference
+        {tr('training_ui.notation_reference')}
       </div>
 
       {visible.map((item: LegendItem) => {
@@ -307,7 +312,7 @@ export default function LegendPanel({ currentLevel }: LegendPanelProps) {
           marginTop: 2,
         }}>
           <div style={{ fontSize: 10, color: t.textDim, fontStyle: 'italic' }}>
-            {locked.length} element{locked.length > 1 ? 's' : ''} unlock in later levels
+            {tr('training_ui.locked_count', { count: locked.length })}
           </div>
         </div>
       )}

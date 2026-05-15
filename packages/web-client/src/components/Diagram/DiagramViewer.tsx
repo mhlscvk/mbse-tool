@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import ELKModule from 'elkjs/lib/elk.bundled.js';
 import type { SModelRoot, SNode, SEdge, ViewType, ElementLock } from '@systemodel/shared-types';
@@ -375,6 +376,7 @@ export default function DiagramViewer({
   projectName = '', fileName = '',
 }: DiagramViewerProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const NODE_COLORS = NODE_COLORS_LIGHT;
   // Themed SVG text/stroke colors
   const svgText = '#1a1a2e';
@@ -1664,13 +1666,13 @@ export default function DiagramViewer({
   const isEmpty = !model || allNodes.length === 0;
   const emptyHint = (() => {
     if (!isEmpty) return '';
-    if (!model) return 'Start editing to generate a diagram.';
+    if (!model) return tr('diagram.empty_default');
     const viewHints: Record<string, string> = {
-      'interconnection': 'No parts, ports, or connections found for this view.',
-      'action-flow': 'No actions, successions, or flows found for this view.',
-      'state-transition': 'No states or transitions found for this view.',
+      'interconnection': tr('diagram.empty_interconnection'),
+      'action-flow': tr('diagram.empty_action_flow'),
+      'state-transition': tr('diagram.empty_state_transition'),
     };
-    return viewHints[viewType] ?? 'No elements to display for this view.';
+    return viewHints[viewType] ?? tr('diagram.empty_generic');
   })();
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -1794,20 +1796,20 @@ export default function DiagramViewer({
             background: '#007acc', color: '#fff', fontSize: 11, borderRadius: 3,
             padding: '2px 8px', pointerEvents: 'none',
           }}>
-            Laying out…
+            {tr('diagram.laying_out')}
           </div>
         )}
         {/* View type selector */}
         <div style={{ display: 'flex', gap: 1 }}>
           {([
-            { key: 'general' as ViewType, label: 'GV', title: 'General View — all elements' },
-            { key: 'interconnection' as ViewType, label: 'IV', title: 'Interconnection View — parts, ports, connections' },
-            { key: 'action-flow' as ViewType, label: 'AFV', title: 'Action Flow View — actions, successions, flows' },
-            { key: 'state-transition' as ViewType, label: 'STV', title: 'State Transition View — states, transitions' },
-            { key: 'sequence' as ViewType, label: 'SEQ', title: 'Sequence View — lifelines, messages, time ordering' },
-            { key: 'grid' as ViewType, label: 'GRD', title: 'Grid View — relationship matrix (satisfy, verify, allocate)' },
-            { key: 'browser' as ViewType, label: 'BRW', title: 'Browser View — hierarchical tree of model elements' },
-            { key: 'geometry' as ViewType, label: 'GEO', title: 'Geometry View — 3D spatial visualization (coming soon)' },
+            { key: 'general' as ViewType, label: 'GV', title: tr('diagram.view_general_title') },
+            { key: 'interconnection' as ViewType, label: 'IV', title: tr('diagram.view_interconnection_title') },
+            { key: 'action-flow' as ViewType, label: 'AFV', title: tr('diagram.view_action_flow_title') },
+            { key: 'state-transition' as ViewType, label: 'STV', title: tr('diagram.view_state_transition_title') },
+            { key: 'sequence' as ViewType, label: 'SEQ', title: tr('diagram.view_sequence_title') },
+            { key: 'grid' as ViewType, label: 'GRD', title: tr('diagram.view_grid_title') },
+            { key: 'browser' as ViewType, label: 'BRW', title: tr('diagram.view_browser_title') },
+            { key: 'geometry' as ViewType, label: 'GEO', title: tr('diagram.view_geometry_title') },
           ]).map(({ key, label, title }) => {
             const active = viewType === key;
             return (
@@ -1845,7 +1847,7 @@ export default function DiagramViewer({
                       onViewModeChange(mode);
                     }
                   }}
-                  title={mode === 'nested' ? 'Nested containment view' : 'Tree view (flat BDD-style)'}
+                  title={mode === 'nested' ? tr('diagram.mode_nested_title') : tr('diagram.mode_tree_title')}
                   style={{
                     background: active ? t.statusBar : t.bgSecondary,
                     border: '1px solid', borderColor: active ? t.statusBar : t.btnBorder,
@@ -1856,7 +1858,7 @@ export default function DiagramViewer({
                   onMouseEnter={e => { if (!active) { e.currentTarget.style.background = t.btnBgHover; } }}
                   onMouseLeave={e => { if (!active) { e.currentTarget.style.background = t.bgSecondary; } }}
                 >
-                  {mode === 'nested' ? '⊞ Nested' : '⊟ Tree'}
+                  {mode === 'nested' ? tr('diagram.mode_nested_label') : tr('diagram.mode_tree_label')}
                 </button>
               );
             })}
@@ -1865,7 +1867,7 @@ export default function DiagramViewer({
         {onShowInheritedChange && (
           <button
             onClick={() => onShowInheritedChange(!showInherited)}
-            title={showInherited ? 'Hide inherited features' : 'Show inherited features from parent definitions'}
+            title={showInherited ? tr('diagram.inherited_hide_title') : tr('diagram.inherited_show_title')}
             style={{
               background: showInherited ? t.statusBar : t.bgSecondary,
               border: '1px solid', borderColor: showInherited ? t.statusBar : t.btnBorder,
@@ -1876,13 +1878,13 @@ export default function DiagramViewer({
             onMouseEnter={e => { if (!showInherited) e.currentTarget.style.background = t.btnBgHover; }}
             onMouseLeave={e => { if (!showInherited) e.currentTarget.style.background = t.bgSecondary; }}
           >
-            Inherited
+            {tr('diagram.inherited')}
           </button>
         )}
         {onToggleLegend && (
           <button
             onClick={onToggleLegend}
-            title={showLegend ? 'Hide legend' : 'Show legend'}
+            title={showLegend ? tr('diagram.legend_hide_title') : tr('diagram.legend_show_title')}
             style={{
               background: showLegend ? t.statusBar : t.bgSecondary,
               border: '1px solid', borderColor: showLegend ? t.statusBar : t.btnBorder,
@@ -1893,12 +1895,12 @@ export default function DiagramViewer({
             onMouseEnter={e => { if (!showLegend) e.currentTarget.style.background = t.btnBgHover; }}
             onMouseLeave={e => { if (!showLegend) e.currentTarget.style.background = t.bgSecondary; }}
           >
-            Legend
+            {tr('diagram.legend')}
           </button>
         )}
         <button
           onClick={fitToWindow}
-          title="Fit all visible elements to window"
+          title={tr('diagram.fit_title')}
           style={{
             background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
             fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
@@ -1907,11 +1909,11 @@ export default function DiagramViewer({
           onMouseEnter={e => { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.borderColor = t.statusBar; e.currentTarget.style.color = '#fff'; }}
           onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.borderColor = t.btnBorder; e.currentTarget.style.color = t.text; }}
         >
-          ⊡ Fit
+          {tr('diagram.fit_label')}
         </button>
         <button
           onClick={() => setTransform((t) => ({ ...t, scale: Math.min(5, t.scale * 1.3) }))}
-          title="Zoom in"
+          title={tr('diagram.zoom_in_title')}
           style={{
             background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
             fontSize: 14, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', lineHeight: 1,
@@ -1921,7 +1923,7 @@ export default function DiagramViewer({
         >+</button>
         <button
           onClick={() => setTransform((t) => ({ ...t, scale: Math.max(0.1, t.scale * 0.7) }))}
-          title="Zoom out"
+          title={tr('diagram.zoom_out_title')}
           style={{
             background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
             fontSize: 14, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', lineHeight: 1,
@@ -1932,7 +1934,7 @@ export default function DiagramViewer({
         {onResetView && (
           <button
             onClick={() => { onResetView(); setTimeout(fitToWindow, 100); }}
-            title="Reset view: show all elements and relations, then fit to window"
+            title={tr('diagram.default_title')}
             style={{
               background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: t.text,
               fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
@@ -1941,7 +1943,7 @@ export default function DiagramViewer({
             onMouseEnter={e => { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.borderColor = t.statusBar; e.currentTarget.style.color = '#fff'; }}
             onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.borderColor = t.btnBorder; e.currentTarget.style.color = t.text; }}
           >
-            ↺ Default
+            {tr('diagram.default_label')}
           </button>
         )}
         <span style={{ color: t.textDim, fontSize: 10 }}>|</span>
@@ -1949,7 +1951,7 @@ export default function DiagramViewer({
           <button
             onClick={() => setShowExportMenu(!showExportMenu)}
             disabled={isEmpty || exporting !== null}
-            title="Export diagram as image"
+            title={tr('diagram.export_title')}
             style={{
               background: t.bgSecondary, border: `1px solid ${t.btnBorder}`, color: isEmpty ? t.textDim : t.text,
               fontSize: 11, borderRadius: 3, padding: '3px 8px', cursor: isEmpty ? 'not-allowed' : 'pointer',
@@ -1958,7 +1960,7 @@ export default function DiagramViewer({
             onMouseEnter={e => { if (!isEmpty) { e.currentTarget.style.background = t.statusBar; e.currentTarget.style.borderColor = t.statusBar; e.currentTarget.style.color = '#fff'; } }}
             onMouseLeave={e => { e.currentTarget.style.background = t.bgSecondary; e.currentTarget.style.borderColor = t.btnBorder; e.currentTarget.style.color = isEmpty ? t.textDim : t.text; }}
           >
-            {exporting ? `Exporting ${exporting.toUpperCase()}...` : '⤓ Export'}
+            {exporting ? tr('diagram.export_progress', { format: exporting.toUpperCase() }) : tr('diagram.export_label')}
           </button>
           {showExportMenu && !isEmpty && (
             <div
@@ -1978,7 +1980,7 @@ export default function DiagramViewer({
                 onMouseEnter={e => { e.currentTarget.style.background = t.btnBgHover; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
-                Export as PNG
+                {tr('diagram.export_as_png')}
               </button>
               <button
                 onClick={() => handleExport('svg')}
@@ -1990,7 +1992,7 @@ export default function DiagramViewer({
                 onMouseEnter={e => { e.currentTarget.style.background = t.btnBgHover; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
-                Export as SVG
+                {tr('diagram.export_as_svg')}
               </button>
             </div>
           )}
@@ -2761,95 +2763,104 @@ export default function DiagramViewer({
           const nodeItems: NodeLegendItem[] = [];
 
           // Package — all views
-          nodeItems.push({ label: 'Package', fill: NODE_COLORS.package, stroke: svgPkgStroke, rx: 0, textColor: svgPkgLabel, icon: 'pkg' });
+          nodeItems.push({ label: tr('diagram.legend_package'), fill: NODE_COLORS.package, stroke: svgPkgStroke, rx: 0, textColor: svgPkgLabel, icon: 'pkg' });
 
           if (viewType === 'general' || viewType === 'interconnection') {
-            nodeItems.push({ label: 'Part def', fill: NODE_COLORS.partdefinition, stroke: svgStroke, rx: 0, textColor: svgTextSub });
-            nodeItems.push({ label: 'Part usage', fill: NODE_COLORS.partusage, stroke: svgStroke, rx: 4, textColor: svgTextSub });
-            nodeItems.push({ label: 'Attribute def', fill: NODE_COLORS.attributedefinition, stroke: '#8aaa8a', rx: 0, textColor: '#3a6a3a' });
-            nodeItems.push({ label: 'Connection def', fill: NODE_COLORS.connectiondefinition, stroke: '#aa8a6a', rx: 0, textColor: '#6a4a2a' });
-            nodeItems.push({ label: 'Port def', fill: NODE_COLORS.portdefinition, stroke: svgPortStroke, rx: 0, textColor: svgPortText });
-            nodeItems.push({ label: 'Port usage', fill: NODE_COLORS.portusage, stroke: svgPortStroke, rx: 0, textColor: svgPortText, icon: 'port' });
-            nodeItems.push({ label: 'Item def', fill: NODE_COLORS.itemdefinition, stroke: '#aa8a50', rx: 0, textColor: '#6a4a20' });
-            nodeItems.push({ label: 'Interface def', fill: NODE_COLORS.interfacedefinition, stroke: '#8a6aaa', rx: 0, textColor: '#5a3a8a' });
-            nodeItems.push({ label: 'Enum def', fill: NODE_COLORS.enumdefinition, stroke: '#6aaa8a', rx: 0, textColor: '#2a5a40' });
-            nodeItems.push({ label: 'Requirement def', fill: NODE_COLORS.requirementdefinition, stroke: '#aa6a6a', rx: 0, textColor: '#6a2a2a' });
-            nodeItems.push({ label: 'Requirement usage', fill: NODE_COLORS.requirementusage, stroke: '#aa6a6a', rx: 4, textColor: '#6a2a2a' });
-            nodeItems.push({ label: 'Constraint def', fill: NODE_COLORS.constraintdefinition, stroke: '#aa7a5a', rx: 0, textColor: '#6a3a1a' });
-            nodeItems.push({ label: 'Use case def', fill: NODE_COLORS.usecasedefinition, stroke: '#6a7aaa', rx: 10, textColor: '#3a4a7a' });
-            nodeItems.push({ label: 'Calculation def', fill: NODE_COLORS.calcdefinition, stroke: '#5a9aaa', rx: 0, textColor: '#2a5a6a' });
-            nodeItems.push({ label: 'Allocation def', fill: NODE_COLORS.allocationdefinition, stroke: '#aa9050', rx: 0, textColor: '#6a5010' });
-            nodeItems.push({ label: 'View def', fill: NODE_COLORS.viewdefinition, stroke: '#6aaaaa', rx: 0, textColor: '#2a6a6a' });
-            nodeItems.push({ label: 'Viewpoint def', fill: NODE_COLORS.viewpointdefinition, stroke: '#7a7aaa', rx: 0, textColor: '#4a4a7a' });
-            nodeItems.push({ label: 'Metadata def', fill: NODE_COLORS.metadatadefinition, stroke: '#8a6a8a', rx: 0, textColor: '#5a3a5a' });
-            nodeItems.push({ label: 'Comment', fill: NODE_COLORS.comment, stroke: svgCommentStroke, rx: 0, textColor: svgCommentLabel });
+            nodeItems.push({ label: tr('diagram.legend_part_def'), fill: NODE_COLORS.partdefinition, stroke: svgStroke, rx: 0, textColor: svgTextSub });
+            nodeItems.push({ label: tr('diagram.legend_part_usage'), fill: NODE_COLORS.partusage, stroke: svgStroke, rx: 4, textColor: svgTextSub });
+            nodeItems.push({ label: tr('diagram.legend_attribute_def'), fill: NODE_COLORS.attributedefinition, stroke: '#8aaa8a', rx: 0, textColor: '#3a6a3a' });
+            nodeItems.push({ label: tr('diagram.legend_connection_def'), fill: NODE_COLORS.connectiondefinition, stroke: '#aa8a6a', rx: 0, textColor: '#6a4a2a' });
+            nodeItems.push({ label: tr('diagram.legend_port_def'), fill: NODE_COLORS.portdefinition, stroke: svgPortStroke, rx: 0, textColor: svgPortText });
+            nodeItems.push({ label: tr('diagram.legend_port_usage'), fill: NODE_COLORS.portusage, stroke: svgPortStroke, rx: 0, textColor: svgPortText, icon: 'port' });
+            nodeItems.push({ label: tr('diagram.legend_item_def'), fill: NODE_COLORS.itemdefinition, stroke: '#aa8a50', rx: 0, textColor: '#6a4a20' });
+            nodeItems.push({ label: tr('diagram.legend_interface_def'), fill: NODE_COLORS.interfacedefinition, stroke: '#8a6aaa', rx: 0, textColor: '#5a3a8a' });
+            nodeItems.push({ label: tr('diagram.legend_enum_def'), fill: NODE_COLORS.enumdefinition, stroke: '#6aaa8a', rx: 0, textColor: '#2a5a40' });
+            nodeItems.push({ label: tr('diagram.legend_requirement_def'), fill: NODE_COLORS.requirementdefinition, stroke: '#aa6a6a', rx: 0, textColor: '#6a2a2a' });
+            nodeItems.push({ label: tr('diagram.legend_requirement_usage'), fill: NODE_COLORS.requirementusage, stroke: '#aa6a6a', rx: 4, textColor: '#6a2a2a' });
+            nodeItems.push({ label: tr('diagram.legend_constraint_def'), fill: NODE_COLORS.constraintdefinition, stroke: '#aa7a5a', rx: 0, textColor: '#6a3a1a' });
+            nodeItems.push({ label: tr('diagram.legend_use_case_def'), fill: NODE_COLORS.usecasedefinition, stroke: '#6a7aaa', rx: 10, textColor: '#3a4a7a' });
+            nodeItems.push({ label: tr('diagram.legend_calculation_def'), fill: NODE_COLORS.calcdefinition, stroke: '#5a9aaa', rx: 0, textColor: '#2a5a6a' });
+            nodeItems.push({ label: tr('diagram.legend_allocation_def'), fill: NODE_COLORS.allocationdefinition, stroke: '#aa9050', rx: 0, textColor: '#6a5010' });
+            nodeItems.push({ label: tr('diagram.legend_view_def'), fill: NODE_COLORS.viewdefinition, stroke: '#6aaaaa', rx: 0, textColor: '#2a6a6a' });
+            nodeItems.push({ label: tr('diagram.legend_viewpoint_def'), fill: NODE_COLORS.viewpointdefinition, stroke: '#7a7aaa', rx: 0, textColor: '#4a4a7a' });
+            nodeItems.push({ label: tr('diagram.legend_metadata_def'), fill: NODE_COLORS.metadatadefinition, stroke: '#8a6a8a', rx: 0, textColor: '#5a3a5a' });
+            nodeItems.push({ label: tr('diagram.legend_comment'), fill: NODE_COLORS.comment, stroke: svgCommentStroke, rx: 0, textColor: svgCommentLabel });
           }
 
           if (viewType === 'action-flow') {
-            nodeItems.push({ label: 'Action def', fill: NODE_COLORS.actiondefinition, stroke: '#5aaaaa', rx: 0, textColor: '#2a6a6a' });
-            nodeItems.push({ label: 'Action usage', fill: NODE_COLORS.actionusage, stroke: '#5aaaaa', rx: 4, textColor: '#2a6a6a' });
-            nodeItems.push({ label: 'Send action', fill: NODE_COLORS.sendactionusage, stroke: '#5a9aba', rx: 4, textColor: '#2a5a7a' });
-            nodeItems.push({ label: 'Accept action', fill: NODE_COLORS.acceptactionusage, stroke: '#5a9aba', rx: 4, textColor: '#2a5a7a' });
-            nodeItems.push({ label: 'If action', fill: NODE_COLORS.ifactionusage, stroke: '#5aa0b0', rx: 4, textColor: '#2a6070' });
-            nodeItems.push({ label: 'For loop', fill: NODE_COLORS.forloopactionusage, stroke: '#5ab0b0', rx: 4, textColor: '#2a7070' });
-            nodeItems.push({ label: 'Action in', fill: NODE_COLORS.actionin, stroke: '#5aaa78', rx: 2, textColor: '#2a6a40' });
-            nodeItems.push({ label: 'Action out', fill: NODE_COLORS.actionout, stroke: '#aa5a5a', rx: 2, textColor: '#7a2a2a' });
-            nodeItems.push({ label: 'Fork node', fill: NODE_COLORS.forknode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-fork' });
-            nodeItems.push({ label: 'Join node', fill: NODE_COLORS.joinnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-join' });
-            nodeItems.push({ label: 'Decision node', fill: NODE_COLORS.decisionnode, stroke: '#aaaaaa', rx: 0, textColor: '#5a5a3a', icon: 'ctrl-decision' });
-            nodeItems.push({ label: 'Merge node', fill: NODE_COLORS.mergenode, stroke: '#aaaaaa', rx: 0, textColor: '#5a5a3a', icon: 'ctrl-merge' });
-            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-start' });
-            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-done' });
+            nodeItems.push({ label: tr('diagram.legend_action_def'), fill: NODE_COLORS.actiondefinition, stroke: '#5aaaaa', rx: 0, textColor: '#2a6a6a' });
+            nodeItems.push({ label: tr('diagram.legend_action_usage'), fill: NODE_COLORS.actionusage, stroke: '#5aaaaa', rx: 4, textColor: '#2a6a6a' });
+            nodeItems.push({ label: tr('diagram.legend_send_action'), fill: NODE_COLORS.sendactionusage, stroke: '#5a9aba', rx: 4, textColor: '#2a5a7a' });
+            nodeItems.push({ label: tr('diagram.legend_accept_action'), fill: NODE_COLORS.acceptactionusage, stroke: '#5a9aba', rx: 4, textColor: '#2a5a7a' });
+            nodeItems.push({ label: tr('diagram.legend_if_action'), fill: NODE_COLORS.ifactionusage, stroke: '#5aa0b0', rx: 4, textColor: '#2a6070' });
+            nodeItems.push({ label: tr('diagram.legend_for_loop'), fill: NODE_COLORS.forloopactionusage, stroke: '#5ab0b0', rx: 4, textColor: '#2a7070' });
+            nodeItems.push({ label: tr('diagram.legend_action_in'), fill: NODE_COLORS.actionin, stroke: '#5aaa78', rx: 2, textColor: '#2a6a40' });
+            nodeItems.push({ label: tr('diagram.legend_action_out'), fill: NODE_COLORS.actionout, stroke: '#aa5a5a', rx: 2, textColor: '#7a2a2a' });
+            nodeItems.push({ label: tr('diagram.legend_fork_node'), fill: NODE_COLORS.forknode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-fork' });
+            nodeItems.push({ label: tr('diagram.legend_join_node'), fill: NODE_COLORS.joinnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-join' });
+            nodeItems.push({ label: tr('diagram.legend_decision_node'), fill: NODE_COLORS.decisionnode, stroke: '#aaaaaa', rx: 0, textColor: '#5a5a3a', icon: 'ctrl-decision' });
+            nodeItems.push({ label: tr('diagram.legend_merge_node'), fill: NODE_COLORS.mergenode, stroke: '#aaaaaa', rx: 0, textColor: '#5a5a3a', icon: 'ctrl-merge' });
+            nodeItems.push({ label: tr('diagram.legend_start'), fill: NODE_COLORS.startnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-start' });
+            nodeItems.push({ label: tr('diagram.legend_done'), fill: NODE_COLORS.donenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-done' });
           }
 
           if (viewType === 'state-transition') {
-            nodeItems.push({ label: 'State def', fill: NODE_COLORS.statedefinition, stroke: '#aaaa5a', rx: 0, textColor: '#5a5a20' });
-            nodeItems.push({ label: 'State usage', fill: NODE_COLORS.stateusage, stroke: '#aaaa5a', rx: 10, textColor: '#5a5a20' });
-            nodeItems.push({ label: 'Entry/Do/Exit', fill: NODE_COLORS.entryactionusage, stroke: '#5aaa90', rx: 4, textColor: '#2a6a50' });
-            nodeItems.push({ label: 'Start', fill: NODE_COLORS.startnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-start' });
-            nodeItems.push({ label: 'Done', fill: NODE_COLORS.donenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-done' });
-            nodeItems.push({ label: 'Terminate', fill: NODE_COLORS.terminatenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-terminate' });
+            nodeItems.push({ label: tr('diagram.legend_state_def'), fill: NODE_COLORS.statedefinition, stroke: '#aaaa5a', rx: 0, textColor: '#5a5a20' });
+            nodeItems.push({ label: tr('diagram.legend_state_usage'), fill: NODE_COLORS.stateusage, stroke: '#aaaa5a', rx: 10, textColor: '#5a5a20' });
+            nodeItems.push({ label: tr('diagram.legend_entry_do_exit'), fill: NODE_COLORS.entryactionusage, stroke: '#5aaa90', rx: 4, textColor: '#2a6a50' });
+            nodeItems.push({ label: tr('diagram.legend_start'), fill: NODE_COLORS.startnode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-start' });
+            nodeItems.push({ label: tr('diagram.legend_done'), fill: NODE_COLORS.donenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-done' });
+            nodeItems.push({ label: tr('diagram.legend_terminate'), fill: NODE_COLORS.terminatenode, stroke: '#999', rx: 0, textColor: '#555', icon: 'ctrl-terminate' });
           }
 
           // ── Edge legend items (per view type) ──
           type EdgeLegendItem = { label: string; color: string; dash?: string };
           const edgeItems: EdgeLegendItem[] = [];
           if (effectiveViewMode === 'tree') {
-            edgeItems.push({ label: '◆── composition', color: '#9cdcfe' });
-            edgeItems.push({ label: '◇── noncomposite (ref)', color: '#9cdcfe' });
+            edgeItems.push({ label: `◆── ${tr('diagram.edge_composition')}`, color: '#9cdcfe' });
+            edgeItems.push({ label: `◇── ${tr('diagram.edge_noncomposite')}`, color: '#9cdcfe' });
           }
           if (viewType === 'general' || viewType === 'interconnection') {
-            edgeItems.push({ label: '◁── specializes :>', color: '#9e9e9e' });
-            edgeItems.push({ label: '──▷ subsets :>', color: '#9e9e9e' });
-            edgeItems.push({ label: '|──▷ redefines :>>', color: '#9e9e9e' });
-            edgeItems.push({ label: '- -◁ defined by :', color: '#6a7a8a', dash: '4,3' });
-            edgeItems.push({ label: '──▶ flow', color: '#4ec9b0' });
-            edgeItems.push({ label: '──▷ connection', color: '#777' });
+            edgeItems.push({ label: `◁── ${tr('diagram.edge_specializes')}`, color: '#9e9e9e' });
+            edgeItems.push({ label: `──▷ ${tr('diagram.edge_subsets')}`, color: '#9e9e9e' });
+            edgeItems.push({ label: `|──▷ ${tr('diagram.edge_redefines')}`, color: '#9e9e9e' });
+            edgeItems.push({ label: `- -◁ ${tr('diagram.edge_defined_by')}`, color: '#6a7a8a', dash: '4,3' });
+            edgeItems.push({ label: `──▶ ${tr('diagram.edge_flow')}`, color: '#4ec9b0' });
+            edgeItems.push({ label: `──▷ ${tr('diagram.edge_connection')}`, color: '#777' });
           }
           if (viewType === 'interconnection') {
-            edgeItems.push({ label: '- - bind', color: '#9090c0', dash: '4,3' });
+            edgeItems.push({ label: `- - ${tr('diagram.edge_bind')}`, color: '#9090c0', dash: '4,3' });
           }
           if (viewType === 'action-flow') {
-            edgeItems.push({ label: '──▷ succession', color: '#4ec9b0' });
-            edgeItems.push({ label: '──▶ flow', color: '#4ec9b0' });
+            edgeItems.push({ label: `──▷ ${tr('diagram.edge_succession')}`, color: '#4ec9b0' });
+            edgeItems.push({ label: `──▶ ${tr('diagram.edge_flow')}`, color: '#4ec9b0' });
           }
           if (viewType === 'state-transition') {
-            edgeItems.push({ label: '──▶ transition', color: '#4ec9b0' });
+            edgeItems.push({ label: `──▶ ${tr('diagram.edge_transition')}`, color: '#4ec9b0' });
           }
           if (viewType === 'general') {
-            edgeItems.push({ label: '──▷ succession', color: '#4ec9b0' });
-            edgeItems.push({ label: '──▷ ref subsets ::>', color: '#9e9e9e' });
-            edgeItems.push({ label: '- -▷ satisfy', color: '#e06060', dash: '6,3' });
-            edgeItems.push({ label: '- -▷ verify', color: '#60b060', dash: '6,3' });
-            edgeItems.push({ label: '- -▷ allocate', color: '#c0a060', dash: '6,3' });
-            edgeItems.push({ label: '- - annotate', color: '#a0a060', dash: '4,3' });
+            edgeItems.push({ label: `──▷ ${tr('diagram.edge_succession')}`, color: '#4ec9b0' });
+            edgeItems.push({ label: `──▷ ${tr('diagram.edge_ref_subsets')}`, color: '#9e9e9e' });
+            edgeItems.push({ label: `- -▷ ${tr('diagram.edge_satisfy')}`, color: '#e06060', dash: '6,3' });
+            edgeItems.push({ label: `- -▷ ${tr('diagram.edge_verify')}`, color: '#60b060', dash: '6,3' });
+            edgeItems.push({ label: `- -▷ ${tr('diagram.edge_allocate')}`, color: '#c0a060', dash: '6,3' });
+            edgeItems.push({ label: `- - ${tr('diagram.edge_annotate')}`, color: '#a0a060', dash: '4,3' });
           }
           // Deduplicate edges
           const seenEdge = new Set<string>();
           const uniqueEdges = edgeItems.filter(item => { if (seenEdge.has(item.label)) return false; seenEdge.add(item.label); return true; });
 
           // Compute layout
-          const viewLabel = ({ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View', 'sequence': 'Sequence View', 'grid': 'Grid View', 'browser': 'Browser View', 'geometry': 'Geometry View' } as Record<string, string>)[viewType];
+          const viewLabel = ({
+            'general': tr('diagram.view_label_general'),
+            'interconnection': tr('diagram.view_label_interconnection'),
+            'action-flow': tr('diagram.view_label_action_flow'),
+            'state-transition': tr('diagram.view_label_state_transition'),
+            'sequence': tr('diagram.view_label_sequence'),
+            'grid': tr('diagram.view_label_grid'),
+            'browser': tr('diagram.view_label_browser'),
+            'geometry': tr('diagram.view_label_geometry'),
+          } as Record<string, string>)[viewType];
           const ROW = 16;
           const nodeStart = 18;
           const edgeStart = nodeStart + nodeItems.length * ROW + 6;

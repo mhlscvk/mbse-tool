@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ElementLock } from '@systemodel/shared-types';
 import { useTheme } from '../../store/theme.js';
 import ContextMenuButton from './ContextMenuButton.js';
@@ -56,6 +57,7 @@ export default function DiagramContextMenu({
   getDescendants, clearMultiSelection,
 }: DiagramContextMenuProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
 
   return (
     <>
@@ -75,11 +77,11 @@ export default function DiagramContextMenu({
         {menu.type === 'multi' ? (
           <>
             <div style={{ padding: '4px 12px', color: t.textSecondary, fontSize: 10, borderBottom: `1px solid ${t.border}`, marginBottom: 2 }}>
-              {(menu.nodeIds?.length ?? 0) + (menu.edgeIds?.length ?? 0)} selected items
+              {tr('diagram.ctx_selected_items_count', { count: (menu.nodeIds?.length ?? 0) + (menu.edgeIds?.length ?? 0) })}
             </div>
             <ContextMenuButton
               icon="&#x2716;"
-              label={`Hide ${(menu.nodeIds?.length ?? 0) + (menu.edgeIds?.length ?? 0)} selected items`}
+              label={tr('diagram.ctx_hide_selected', { count: (menu.nodeIds?.length ?? 0) + (menu.edgeIds?.length ?? 0) })}
               onClick={() => {
                 const nIds = menu.nodeIds ?? [];
                 const eIds = menu.edgeIds ?? [];
@@ -93,7 +95,7 @@ export default function DiagramContextMenu({
         ) : (
           <>
             <div style={{ padding: '4px 12px', color: t.textSecondary, fontSize: 10, borderBottom: `1px solid ${t.border}`, marginBottom: 2 }}>
-              {menu.type === 'node' ? 'Element' : 'Relationship'}: {menu.label}
+              {menu.type === 'node' ? tr('diagram.ctx_header_element') : tr('diagram.ctx_header_relationship')}: {menu.label}
             </div>
 
             {/* Check In */}
@@ -103,11 +105,11 @@ export default function DiagramContextMenu({
               return (
                 <ContextMenuButton
                   icon="&#128274;"
-                  label="Check In"
+                  label={tr('diagram.ctx_check_in')}
                   onClick={() => { onClose(); onCheckIn(menu.label); }}
                   disabled={!isMine}
                   color={isMine ? t.info : undefined}
-                  title={isMine ? 'Check in this element' : 'Not checked out by you'}
+                  title={isMine ? tr('diagram.ctx_check_in_title_mine') : tr('diagram.ctx_check_in_title_not_yours')}
                 />
               );
             })()}
@@ -118,10 +120,14 @@ export default function DiagramContextMenu({
               return (
                 <ContextMenuButton
                   icon="&#128275;"
-                  label="Check Out"
+                  label={tr('diagram.ctx_check_out')}
                   onClick={() => { onClose(); onCheckOut(menu.label); }}
                   disabled={!!lock}
-                  title={lock ? (lock.lockedBy === currentUserId ? 'Already checked out by you' : `Locked by ${lock.user?.name ?? 'another user'}`) : 'Check out this element'}
+                  title={lock
+                    ? (lock.lockedBy === currentUserId
+                      ? tr('diagram.ctx_check_out_title_already_yours')
+                      : tr('diagram.ctx_check_out_title_locked_by', { user: lock.user?.name ?? tr('diagram.ctx_lock_user_unknown') }))
+                    : tr('diagram.ctx_check_out_title')}
                 />
               );
             })()}
@@ -130,14 +136,14 @@ export default function DiagramContextMenu({
             {menu.type === 'node' && menu.range && onNodeSelect && (
               <ContextMenuButton
                 icon="&lt;/&gt;"
-                label="Go to code"
+                label={tr('diagram.ctx_go_to_code')}
                 onClick={() => { onClose(); onNodeSelect(menu.range!); }}
               />
             )}
             {menu.type === 'edge' && (menu.range ? onEdgeSelect : onEdgeGoToCode) && (
               <ContextMenuButton
                 icon="&lt;/&gt;"
-                label="Go to code"
+                label={tr('diagram.ctx_go_to_code')}
                 onClick={() => {
                   onClose();
                   if (menu.range && onEdgeSelect) {
@@ -152,7 +158,7 @@ export default function DiagramContextMenu({
             {/* Hide element */}
             <ContextMenuButton
               icon="&#x2716;"
-              label={`Hide ${menu.type === 'node' ? 'element' : 'relationship'}`}
+              label={menu.type === 'node' ? tr('diagram.ctx_hide_element') : tr('diagram.ctx_hide_relationship')}
               onClick={() => {
                 onClose();
                 if (menu.type === 'node' && onHideNode) onHideNode(menu.id);
@@ -167,7 +173,7 @@ export default function DiagramContextMenu({
               return (
                 <ContextMenuButton
                   icon="&#x2716;"
-                  label={`Hide group (${descendants.size + 1} elements)`}
+                  label={tr('diagram.ctx_hide_group', { count: descendants.size + 1 })}
                   onClick={() => {
                     onClose();
                     if (onHideNodes) onHideNodes([menu.id, ...descendants]);
@@ -183,12 +189,12 @@ export default function DiagramContextMenu({
               return (
                 <>
                   <div style={{ padding: '4px 12px', color: t.warning, fontSize: 10 }}>
-                    Locked by {lock.user?.name ?? 'another user'}
+                    {tr('diagram.ctx_locked_by', { user: lock.user?.name ?? tr('diagram.ctx_lock_user_unknown') })}
                   </div>
                   {onRequestLock && (
                     <ContextMenuButton
                       icon="&#128276;"
-                      label="Request Unlock"
+                      label={tr('diagram.ctx_request_unlock')}
                       color={t.warning}
                       onClick={() => { onClose(); onRequestLock(menu.label); }}
                     />
@@ -201,7 +207,7 @@ export default function DiagramContextMenu({
             {menu.type === 'node' && onShowOnly && (
               <ContextMenuButton
                 icon="&#x1F441;"
-                label="Show only this"
+                label={tr('diagram.ctx_show_only')}
                 onClick={() => { onClose(); onShowOnly(menu.id); }}
               />
             )}

@@ -1,8 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../store/theme.js';
 
 export default function GeometryRenderer() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
 
   return (
     <div style={{
@@ -23,12 +25,12 @@ export default function GeometryRenderer() {
         <line x1={20} y1={100} x2={40} y2={80} stroke="#8aa0c0" strokeWidth={1.5} strokeDasharray="4,3" />
       </svg>
       <div style={{ color: '#4a6a8a', fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-        Geometry View
+        {tr('diagram.geometry_title')}
       </div>
       <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', maxWidth: 320, lineHeight: 1.6 }}>
-        3D spatial visualization of physical items with shapes, coordinate frames, and quantity features.
+        {tr('diagram.geometry_description_line1')}
         <br /><br />
-        This view will be available in a future release.
+        {tr('diagram.geometry_description_line2')}
       </div>
     </div>
   );

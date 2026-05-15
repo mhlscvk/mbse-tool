@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: 'viewer' | 'editor' | 'admin';
   emailVerified: boolean;
+  preferredLanguage?: string | null;
   createdAt: string;
 }
 

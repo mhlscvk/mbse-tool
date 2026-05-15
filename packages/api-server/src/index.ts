@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { RATE_LIMIT } from './config/constants.js';
 import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
 import projectRoutes from './routes/projects.js';
 import fileRoutes from './routes/files.js';
 import mcpRoutes from './routes/mcp.js';
@@ -165,6 +166,7 @@ app.use('/api/bug-reports', apiLimiter, express.json({ limit: '8mb' }), bugRepor
 app.use('/api/startups', apiLimiter, startupRoutes);
 app.use('/api/projects/:projectId/element-locks', apiLimiter, elementLockRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
+app.use('/api/users', apiLimiter, userRoutes);
 
 // MCP endpoint — Streamable HTTP transport for AI client integrations
 // MCP clients (Claude Desktop, Cursor, etc.) are desktop apps, not browsers.

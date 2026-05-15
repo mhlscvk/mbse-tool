@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../i18n/index.js';
 
 interface Props {
   children: React.ReactNode;
@@ -31,9 +32,9 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           height: '100%', padding: 40, fontFamily: 'system-ui, sans-serif',
         }}>
           <div style={{ textAlign: 'center', maxWidth: 480 }}>
-            <h2 style={{ color: '#e06c75', marginBottom: 12 }}>Something went wrong</h2>
+            <h2 style={{ color: '#e06c75', marginBottom: 12 }}>{i18n.t('error_boundary.title')}</h2>
             <p style={{ color: '#888', fontSize: 14, marginBottom: 20 }}>
-              {this.state.error?.message ?? 'An unexpected error occurred'}
+              {this.state.error?.message ?? i18n.t('error_boundary.description')}
             </p>
             <button
               onClick={() => { this.setState({ hasError: false, error: null }); }}
@@ -43,7 +44,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 marginRight: 8,
               }}
             >
-              Try Again
+              {i18n.t('error_boundary.try_again')}
             </button>
             <button
               onClick={() => { window.location.href = '/projects'; }}
@@ -52,7 +53,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 borderRadius: 4, padding: '8px 20px', cursor: 'pointer', fontSize: 14,
               }}
             >
-              Go to Projects
+              {i18n.t('error_boundary.go_to_projects')}
             </button>
           </div>
         </div>

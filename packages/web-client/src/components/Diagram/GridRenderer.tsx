@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 import { useTheme } from '../../store/theme.js';
 
@@ -9,13 +10,13 @@ interface GridRendererProps {
 
 type RelKind = 'satisfy' | 'verify' | 'allocate' | 'dependency' | 'flow' | 'composition' | 'typereference';
 
-const REL_TABS: { key: RelKind | 'all'; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'satisfy', label: 'Satisfy' },
-  { key: 'verify', label: 'Verify' },
-  { key: 'allocate', label: 'Allocate' },
-  { key: 'dependency', label: 'Specialization' },
-  { key: 'flow', label: 'Flow' },
+const REL_TABS: { key: RelKind | 'all'; labelKey: string }[] = [
+  { key: 'all', labelKey: 'diagram.grid_tab_all' },
+  { key: 'satisfy', labelKey: 'diagram.grid_tab_satisfy' },
+  { key: 'verify', labelKey: 'diagram.grid_tab_verify' },
+  { key: 'allocate', labelKey: 'diagram.grid_tab_allocate' },
+  { key: 'dependency', labelKey: 'diagram.grid_tab_dependency' },
+  { key: 'flow', labelKey: 'diagram.grid_tab_flow' },
 ];
 
 const REL_SYMBOLS: Record<string, string> = {
@@ -40,6 +41,7 @@ const REL_COLORS: Record<string, string> = {
 
 export default function GridRenderer({ model, onNodeSelect }: GridRendererProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [activeTab, setActiveTab] = useState<RelKind | 'all'>('all');
 
   const { rowNodes, colNodes, matrix } = useMemo(() => {
@@ -87,7 +89,7 @@ export default function GridRenderer({ model, onNodeSelect }: GridRendererProps)
   const hoverBg = '#e8e8f0';
 
   if (!model) {
-    return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>No model data for Grid View</div>;
+    return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>{tr('diagram.grid_empty_no_data')}</div>;
   }
 
   return (
@@ -105,14 +107,16 @@ export default function GridRenderer({ model, onNodeSelect }: GridRendererProps)
               cursor: 'pointer', fontWeight: activeTab === tab.key ? 700 : 400,
             }}
           >
-            {tab.label}
+            {tr(tab.labelKey)}
           </button>
         ))}
       </div>
 
       {rowNodes.length === 0 || colNodes.length === 0 ? (
         <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center', fontSize: 13 }}>
-          No relationships found{activeTab !== 'all' ? ` for "${activeTab}"` : ''}. Add satisfy, verify, allocate, or flow relationships to see the matrix.
+          {activeTab !== 'all'
+            ? tr('diagram.grid_empty_no_relations_filtered', { kind: activeTab })
+            : tr('diagram.grid_empty_no_relations')}
         </div>
       ) : (
         <div style={{ overflow: 'auto', maxHeight: 'calc(100% - 40px)' }}>
@@ -120,7 +124,7 @@ export default function GridRenderer({ model, onNodeSelect }: GridRendererProps)
             <thead>
               <tr>
                 <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 2, background: headerBg, border: `1px solid ${cellBorder}`, padding: '4px 8px', minWidth: 120 }}>
-                  Source ↓ / Target →
+                  {tr('diagram.grid_header_source_target')}
                 </th>
                 {colNodes.map(cn => (
                   <th

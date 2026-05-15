@@ -131,8 +131,12 @@ router.patch('/:fileId', asyncHandler(async (req: AuthRequest, res) => {
   const oldFile = await fileOps.getFile(req.params.fileId, req.params.projectId);
   const updated = await fileOps.renameFile(req.params.fileId, name);
   if (access.isSystem) {
-    const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
-    if (project) renameFileOnDisk(project.name, oldFile.name, updated.name);
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+      include: { parent: { select: { name: true } } },
+    });
+    const rootName = project?.parent?.name ?? project?.name ?? '';
+    if (project) renameFileOnDisk(rootName, project.name, oldFile.name, updated.name);
   }
   res.json({ data: updated });
 }));
@@ -154,8 +158,12 @@ router.delete('/:fileId', asyncHandler(async (req: AuthRequest, res) => {
   const file = await fileOps.getFile(req.params.fileId, req.params.projectId);
   await fileOps.deleteFile(req.params.fileId, req.userId!);
   if (access.isSystem) {
-    const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
-    if (project) removeFileFromDisk(project.name, file.name);
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+      include: { parent: { select: { name: true } } },
+    });
+    const rootName = project?.parent?.name ?? project?.name ?? '';
+    if (project) removeFileFromDisk(rootName, project.name, file.name);
   }
   res.status(204).send();
 }));

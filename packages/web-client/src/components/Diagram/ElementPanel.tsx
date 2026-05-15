@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SNode, SEdge, ElementLock, ViewType } from '@systemodel/shared-types';
 import { useTheme } from '../../store/theme.js';
 
@@ -79,66 +80,68 @@ interface ElementPanelProps {
   onGoToCode?: (elementName: string) => void;
 }
 
-const KIND_LABELS: Record<string, string> = {
-  package:              'Package',
-  partdefinition:       'Part Def',
-  attributedefinition:  'Attribute Def',
-  connectiondefinition: 'Connection Def',
-  portdefinition:       'Port Def',
-  actiondefinition:     'Action Def',
-  statedefinition:      'State Def',
-  itemdefinition:       'Item Def',
-  partusage:            'Part Usage',
-  attributeusage:       'Attribute Usage',
-  connectionusage:      'Connection Usage',
-  portusage:            'Port Usage',
-  actionusage:          'Action Usage',
-  stateusage:           'State Usage',
-  itemusage:            'Item Usage',
-  actionin:             'In Parameter',
-  actionout:            'Out Parameter',
-  actioninout:          'InOut Parameter',
-  casedefinition:       'Case Def',
-  caseusage:            'Case Usage',
-  metadatausage:        'Metadata Usage',
-  flowusage:            'Flow Usage',
-  successionflowusage:  'Succession Flow',
-  connectorasusage:     'Connector',
-  bindingconnectorasusage:'Binding Connector',
-  successionasusage:    'Succession',
-  conjugatedportdefinition:'Conjugated Port Def',
-  performactionusage:   'Perform Action',
-  sendactionusage:      'Send Action',
-  acceptactionusage:    'Accept Action',
-  ifactionusage:        'If Action',
-  assignmentactionusage:'Assignment',
-  forloopactionusage:   'For Loop',
-  whileloopactionusage: 'While Loop',
-  includeusecaseusage:  'Include Use Case',
-  assertconstraintusage:'Assert Constraint',
-  satisfyrequirementusage:'Satisfy Requirement',
-  eventoccurrenceusage: 'Event Occurrence',
-  exhibitstateusage:    'Exhibit State',
-  transitionusage:      'Transition',
-  forknode:             'Fork Node',
-  joinnode:             'Join Node',
-  mergenode:            'Merge Node',
-  decisionnode:         'Decision Node',
-  startnode:            'Start Node',
-  donenode:             'Done Node',
-  terminatenode:        'Terminate Node',
-  objectivemembership:  'Objective',
-  subjectmembership:    'Subject',
-  actormembership:      'Actor',
-  stakeholdermembership:'Stakeholder',
-  viewrenderingmembership:'Rendering',
-  membershipexpose:     'Expose',
-  namespaceexpose:      'Expose',
-  referenceusage:       'Reference',
-  alias:                'Alias',
-  comment:              'Comment',
-  stdlib:               'Standard Library',
-  default:              'Other',
+// i18n key per SysML element kind — resolved via tr() at the call site so
+// the label updates immediately when the user switches language.
+const KIND_LABEL_KEYS: Record<string, string> = {
+  package:                  'element_panel.kind_package',
+  partdefinition:           'element_panel.kind_part_def',
+  attributedefinition:      'element_panel.kind_attribute_def',
+  connectiondefinition:     'element_panel.kind_connection_def',
+  portdefinition:           'element_panel.kind_port_def',
+  actiondefinition:         'element_panel.kind_action_def',
+  statedefinition:          'element_panel.kind_state_def',
+  itemdefinition:           'element_panel.kind_item_def',
+  partusage:                'element_panel.kind_part_usage',
+  attributeusage:           'element_panel.kind_attribute_usage',
+  connectionusage:          'element_panel.kind_connection_usage',
+  portusage:                'element_panel.kind_port_usage',
+  actionusage:              'element_panel.kind_action_usage',
+  stateusage:               'element_panel.kind_state_usage',
+  itemusage:                'element_panel.kind_item_usage',
+  actionin:                 'element_panel.kind_action_in',
+  actionout:                'element_panel.kind_action_out',
+  actioninout:              'element_panel.kind_action_inout',
+  casedefinition:           'element_panel.kind_case_def',
+  caseusage:                'element_panel.kind_case_usage',
+  metadatausage:            'element_panel.kind_metadata_usage',
+  flowusage:                'element_panel.kind_flow_usage',
+  successionflowusage:      'element_panel.kind_succession_flow',
+  connectorasusage:         'element_panel.kind_connector',
+  bindingconnectorasusage:  'element_panel.kind_binding_connector',
+  successionasusage:        'element_panel.kind_succession',
+  conjugatedportdefinition: 'element_panel.kind_conjugated_port_def',
+  performactionusage:       'element_panel.kind_perform_action',
+  sendactionusage:          'element_panel.kind_send_action',
+  acceptactionusage:        'element_panel.kind_accept_action',
+  ifactionusage:            'element_panel.kind_if_action',
+  assignmentactionusage:    'element_panel.kind_assignment',
+  forloopactionusage:       'element_panel.kind_for_loop',
+  whileloopactionusage:     'element_panel.kind_while_loop',
+  includeusecaseusage:      'element_panel.kind_include_use_case',
+  assertconstraintusage:    'element_panel.kind_assert_constraint',
+  satisfyrequirementusage:  'element_panel.kind_satisfy_requirement',
+  eventoccurrenceusage:     'element_panel.kind_event_occurrence',
+  exhibitstateusage:        'element_panel.kind_exhibit_state',
+  transitionusage:          'element_panel.kind_transition',
+  forknode:                 'element_panel.kind_fork_node',
+  joinnode:                 'element_panel.kind_join_node',
+  mergenode:                'element_panel.kind_merge_node',
+  decisionnode:             'element_panel.kind_decision_node',
+  startnode:                'element_panel.kind_start_node',
+  donenode:                 'element_panel.kind_done_node',
+  terminatenode:            'element_panel.kind_terminate_node',
+  objectivemembership:      'element_panel.kind_objective',
+  subjectmembership:        'element_panel.kind_subject',
+  actormembership:          'element_panel.kind_actor',
+  stakeholdermembership:    'element_panel.kind_stakeholder',
+  viewrenderingmembership:  'element_panel.kind_rendering',
+  membershipexpose:         'element_panel.kind_expose',
+  namespaceexpose:          'element_panel.kind_expose',
+  referenceusage:           'element_panel.kind_reference',
+  alias:                    'element_panel.kind_alias',
+  comment:                  'element_panel.kind_comment',
+  stdlib:                   'element_panel.kind_stdlib',
+  default:                  'element_panel.kind_default',
 };
 
 const KIND_COLORS: Record<string, string> = {
@@ -202,23 +205,23 @@ const KIND_COLORS: Record<string, string> = {
   default:              '#252525',
 };
 
-const EDGE_KIND_LABELS: Record<string, string> = {
-  dependency:          'Specialization',
-  composition:         'Composition',
-  association:         'Association',
-  flow:                'Flow',
-  succession:          'Succession',
-  transition:          'Transition',
-  typereference:       'Type Reference',
-  subsetting:          'Subsetting',
-  redefinition:        'Redefinition',
-  referencesubsetting: 'Reference Subsetting',
-  satisfy:             'Satisfy',
-  verify:              'Verify',
-  allocate:            'Allocate',
-  bind:                'Binding',
-  annotate:            'Annotate',
-  conjugation:         'Conjugation',
+const EDGE_KIND_LABEL_KEYS: Record<string, string> = {
+  dependency:          'element_panel.rel_specialization',
+  composition:         'element_panel.rel_composition',
+  association:         'element_panel.rel_association',
+  flow:                'element_panel.rel_flow',
+  succession:          'element_panel.rel_succession',
+  transition:          'element_panel.rel_transition',
+  typereference:       'element_panel.rel_type_reference',
+  subsetting:          'element_panel.rel_subsetting',
+  redefinition:        'element_panel.rel_redefinition',
+  referencesubsetting: 'element_panel.rel_reference_subsetting',
+  satisfy:             'element_panel.rel_satisfy',
+  verify:              'element_panel.rel_verify',
+  allocate:            'element_panel.rel_allocate',
+  bind:                'element_panel.rel_binding',
+  annotate:            'element_panel.rel_annotate',
+  conjugation:         'element_panel.rel_conjugation',
 };
 
 const EDGE_KIND_COLORS: Record<string, string> = {
@@ -277,6 +280,16 @@ export default function ElementPanel({
   onGoToCode,
 }: ElementPanelProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
+  // Resolve element kind / edge kind to localized labels.
+  const kindLabel = useCallback(
+    (kind: string) => (KIND_LABEL_KEYS[kind] ? (tr(KIND_LABEL_KEYS[kind]) as string) : kind),
+    [tr],
+  );
+  const edgeKindLabel = useCallback(
+    (kind: string) => (EDGE_KIND_LABEL_KEYS[kind] ? (tr(EDGE_KIND_LABEL_KEYS[kind]) as string) : kind),
+    [tr],
+  );
 
   // Theme-aware button styles
   const btnStyleT: React.CSSProperties = {
@@ -589,7 +602,7 @@ export default function ElementPanel({
     const kind = getNodeKind(node);
     const name = getNodeName(node);
     const color = KIND_COLORS[kind] ?? KIND_COLORS.default;
-    const kindLabel = KIND_LABELS[kind] ?? kind;
+    const labelText = kindLabel(kind);
     const visible = !hiddenNodeIds.has(node.id);
     const isPkg = kind === 'package';
     const children = sortedChildren.get(node.id) ?? [];
@@ -687,7 +700,7 @@ export default function ElementPanel({
             fontSize: 9, color: isDiagramSelected ? '#f0c040' : t.textMuted, flexShrink: 0,
             background: t.bg, borderRadius: 3, padding: '0 4px',
           }}>
-            {kindLabel}
+            {labelText}
           </span>
         </div>
 
@@ -700,11 +713,11 @@ export default function ElementPanel({
   // Tree view renderer — flat list grouped by kind
   const renderTreeView = () => {
     const sortedKinds = Array.from(kindGroups.entries())
-      .sort(([a], [b]) => (KIND_LABELS[a] ?? a).localeCompare(KIND_LABELS[b] ?? b));
+      .sort(([a], [b]) => kindLabel(a).localeCompare(kindLabel(b)));
 
     return sortedKinds.map(([kind, groupNodes]) => {
       const color = KIND_COLORS[kind] ?? KIND_COLORS.default;
-      const label = KIND_LABELS[kind] ?? kind;
+      const label = kindLabel(kind);
       const isGroupCollapsed = collapsedTreeGroups.has(kind);
       const groupIds = groupNodes.map(n => n.id);
       const groupAllVisible = groupIds.every(id => !hiddenNodeIds.has(id));
@@ -792,7 +805,7 @@ export default function ElementPanel({
                     return (
                       <button
                         onClick={e => { e.stopPropagation(); onCheckOut(name); }}
-                        title="Check out this element"
+                        title={tr('element_panel.check_out_title')}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: t.textDim, padding: '0 2px', flexShrink: 0 }}
                       >&#128275;</button>
                     );
@@ -806,7 +819,7 @@ export default function ElementPanel({
                           if (isMine && onCheckIn) onCheckIn(name);
                           else if (!isMine && onRequestLock) onRequestLock(name);
                         }}
-                        title={isMine ? 'Check in (you hold this lock)' : `Locked by ${lock.user?.name ?? 'another user'} — click to request`}
+                        title={isMine ? tr('element_panel.lock_mine_title') : tr('element_panel.lock_others_title', { user: lock.user?.name ?? tr('element_panel.lock_others_unknown') })}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer', fontSize: 10,
                           color: isMine ? t.info : t.warning, padding: '0 2px', flexShrink: 0,
@@ -832,7 +845,7 @@ export default function ElementPanel({
       }}>
         <button
           onClick={() => setCollapsed(false)}
-          title="Show elements panel"
+          title={tr('element_panel.btn_show_panel')}
           style={{ background: 'none', border: 'none', color: t.textSecondary, cursor: 'pointer', fontSize: 16, padding: 4, lineHeight: 1 }}
         >&#9776;</button>
       </div>
@@ -853,43 +866,43 @@ export default function ElementPanel({
         padding: '6px 8px', borderBottom: `1px solid ${t.border}`, background: t.bgSecondary, flexShrink: 0,
       }}>
         <span style={{ color: t.text, fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          {tab === 'elements' ? 'Elements' : tab === 'relationships' ? 'Relations' : tab === 'locks' ? 'Checked Out' : 'Views'}
+          {tab === 'elements' ? tr('element_panel.header_elements') : tab === 'relationships' ? tr('element_panel.header_relations') : tab === 'locks' ? tr('element_panel.header_checked_out') : tr('element_panel.header_views')}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
           {tab === 'elements' && (
             <>
-              <button onClick={() => onToggleAll(true)} title="Show all" style={btnStyleT}>All</button>
-              <button onClick={() => onToggleAll(false)} title="Hide all" style={btnStyleT}>None</button>
+              <button onClick={() => onToggleAll(true)} title={tr('element_panel.btn_show_all_title')} style={btnStyleT}>{tr('element_panel.btn_show_all')}</button>
+              <button onClick={() => onToggleAll(false)} title={tr('element_panel.btn_hide_all_title')} style={btnStyleT}>{tr('element_panel.btn_hide_all')}</button>
               <button
                 onClick={stepExpand}
                 disabled={allGroupsExpanded}
-                title="Expand one level"
+                title={tr('element_panel.btn_expand_one')}
                 style={{ ...btnStyleT, opacity: allGroupsExpanded ? 0.3 : 1 }}
               >&#9660;</button>
               <button
                 onClick={stepCollapse}
                 disabled={allGroupsCollapsed}
-                title="Collapse one level"
+                title={tr('element_panel.btn_collapse_one')}
                 style={{ ...btnStyleT, opacity: allGroupsCollapsed ? 0.3 : 1 }}
               >&#9650;</button>
             </>
           )}
           {tab === 'relationships' && (
             <>
-              <button onClick={() => toggleAllEdges(true)} title="Show all" style={btnStyleT}>All</button>
-              <button onClick={() => toggleAllEdges(false)} title="Hide all" style={btnStyleT}>None</button>
+              <button onClick={() => toggleAllEdges(true)} title={tr('element_panel.btn_show_all_title')} style={btnStyleT}>{tr('element_panel.btn_show_all')}</button>
+              <button onClick={() => toggleAllEdges(false)} title={tr('element_panel.btn_hide_all_title')} style={btnStyleT}>{tr('element_panel.btn_hide_all')}</button>
               <button
                 onClick={() => {
                   const allKinds = Object.keys(edgeGroups);
                   const allCol = allKinds.every(k => collapsedEdgeGroups.has(k));
                   setCollapsedEdgeGroups(allCol ? new Set() : new Set(allKinds));
                 }}
-                title="Collapse / expand all"
+                title={tr('element_panel.btn_toggle_all')}
                 style={btnStyleT}
               >{Object.keys(edgeGroups).every(k => collapsedEdgeGroups.has(k)) ? '▶▶' : '▼▼'}</button>
             </>
           )}
-          <button onClick={() => setCollapsed(true)} title="Collapse panel" style={{ ...btnStyleT, fontSize: 14 }}>&#8249;</button>
+          <button onClick={() => setCollapsed(true)} title={tr('element_panel.btn_collapse_panel')} style={{ ...btnStyleT, fontSize: 14 }}>&#8249;</button>
         </div>
       </div>
 
@@ -897,10 +910,10 @@ export default function ElementPanel({
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
         {([
-          { key: 'elements' as Tab, label: `Elements (${nodes.length})` },
-          { key: 'relationships' as Tab, label: `Relations (${edges.length})` },
-          ...(viewStorageKey ? [{ key: 'views' as Tab, label: `Views (${savedViews.length})` }] : []),
-          ...(locks && locks.some(l => l.lockedBy === currentUserId) ? [{ key: 'locks' as Tab, label: `Locks (${locks.filter(l => l.lockedBy === currentUserId).length})` }] : []),
+          { key: 'elements' as Tab, label: tr('element_panel.tab_elements', { count: nodes.length }) },
+          { key: 'relationships' as Tab, label: tr('element_panel.tab_relations', { count: edges.length }) },
+          ...(viewStorageKey ? [{ key: 'views' as Tab, label: tr('element_panel.tab_views', { count: savedViews.length }) }] : []),
+          ...(locks && locks.some(l => l.lockedBy === currentUserId) ? [{ key: 'locks' as Tab, label: tr('element_panel.tab_locks', { count: locks.filter(l => l.lockedBy === currentUserId).length }) }] : []),
         ]).map(({ key, label }) => (
           <button
             key={key}
@@ -934,7 +947,7 @@ export default function ElementPanel({
                 color: viewMode === mode ? ('#fff') : t.textSecondary,
                 fontWeight: viewMode === mode ? 600 : 400,
               }}
-            >{mode === 'nested' ? 'Nested' : 'By Kind'}</button>
+            >{mode === 'nested' ? tr('element_panel.mode_nested') : tr('element_panel.mode_by_kind')}</button>
           ))}
         </div>
       )}
@@ -943,7 +956,7 @@ export default function ElementPanel({
       {tab === 'elements' && (
         nodes.length === 0 ? (
           <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic' }}>
-            No elements detected.<br />Start typing SysML.
+            {tr('element_panel.no_elements_detected')}<br />{tr('element_panel.start_typing_sysml')}
           </div>
         ) : (
           <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -959,15 +972,15 @@ export default function ElementPanel({
       {tab === 'relationships' && (
         edges.length === 0 ? (
           <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic' }}>
-            No relationships detected.
+            {tr('element_panel.no_relationships_detected')}
           </div>
         ) : (
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {Object.entries(edgeGroups)
-              .sort(([a], [b]) => (EDGE_KIND_LABELS[a] ?? a).localeCompare(EDGE_KIND_LABELS[b] ?? b))
+              .sort(([a], [b]) => edgeKindLabel(a).localeCompare(edgeKindLabel(b)))
               .map(([kind, kindEdges]) => {
                 const color = EDGE_KIND_COLORS[kind] ?? '#777';
-                const label = EDGE_KIND_LABELS[kind] ?? kind;
+                const label = edgeKindLabel(kind);
                 const groupAllVisible = kindEdges.every(e => !hiddenEdgeIds.has(e.id));
                 const groupAllHidden = kindEdges.every(e => hiddenEdgeIds.has(e.id));
                 const isGroupCollapsed = collapsedEdgeGroups.has(kind);
@@ -1056,7 +1069,7 @@ export default function ElementPanel({
               value={newViewName}
               onChange={(e) => setNewViewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') saveCurrentView(); }}
-              placeholder="View name..."
+              placeholder={tr('element_panel.save_view_placeholder')}
               style={{
                 flex: 1, background: t.bgInput, border: `1px solid ${t.btnBorder}`,
                 borderRadius: 3, color: t.text, fontSize: 11, padding: '4px 8px',
@@ -1066,21 +1079,21 @@ export default function ElementPanel({
             <button
               onClick={saveCurrentView}
               disabled={!newViewName.trim()}
-              title="Save current visibility as a named view"
+              title={tr('element_panel.save_view_title')}
               style={{
                 ...btnStyleT,
                 opacity: newViewName.trim() ? 1 : 0.4,
                 padding: '3px 8px',
               }}
             >
-              Save
+              {tr('element_panel.save_view_btn')}
             </button>
           </div>
 
           {/* Saved views list */}
           {savedViews.length === 0 ? (
             <div style={{ padding: 12, color: t.textDim, fontStyle: 'italic', fontSize: 11 }}>
-              No saved views yet. Configure element/relation visibility, then save it as a view above.
+              {tr('element_panel.no_saved_views')}
             </div>
           ) : (
             <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -1141,12 +1154,12 @@ export default function ElementPanel({
                               {view.name}
                             </span>
                             <span style={{ fontSize: 9, color: t.textDim, flexShrink: 0 }}>
-                              {hiddenCount > 0 ? `${hiddenCount} hidden` : 'all visible'}
+                              {hiddenCount > 0 ? tr('element_panel.view_hidden_count', { count: hiddenCount }) : tr('element_panel.view_all_visible')}
                               {view.viewType ? ` · ${
                                 ({ general: 'GV', interconnection: 'IV', 'action-flow': 'AFV', 'state-transition': 'STV', sequence: 'SEQ', grid: 'GRD', browser: 'BRW', geometry: 'GEO' } as Record<string, string>)[view.viewType]
                               }` : ''}
-                              {view.viewMode === 'tree' ? ' · Tree' : ''}
-                              {view.showInherited ? ' · Inh' : ''}
+                              {view.viewMode === 'tree' ? tr('element_panel.view_tree_suffix') : ''}
+                              {view.showInherited ? tr('element_panel.view_inh_suffix') : ''}
                             </span>
                           </div>
                           {/* Action buttons */}
@@ -1154,8 +1167,8 @@ export default function ElementPanel({
                             <button
                               onClick={(e) => { e.stopPropagation(); loadView(view); }}
                               style={{ ...viewBtnStyleT, color: t.info, borderColor: t.btnBorder }}
-                              title="Load this view"
-                            >Load</button>
+                              title={tr('element_panel.view_load_title')}
+                            >{tr('element_panel.view_load_btn')}</button>
                             <button
                               onClick={(e) => { e.stopPropagation(); updateView(view.name); }}
                               style={{
@@ -1164,8 +1177,8 @@ export default function ElementPanel({
                                   ? { color: t.success, borderColor: t.success }
                                   : {}),
                               }}
-                              title="Update with current visibility"
-                            >{updatedViewName === view.name ? 'Updated' : 'Update'}</button>
+                              title={tr('element_panel.view_update_title')}
+                            >{updatedViewName === view.name ? tr('element_panel.view_updated_btn') : tr('element_panel.view_update_btn')}</button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1173,13 +1186,13 @@ export default function ElementPanel({
                                 setRenameText(view.name);
                               }}
                               style={viewBtnStyleT}
-                              title="Rename view"
-                            >Rename</button>
+                              title={tr('element_panel.view_rename_title')}
+                            >{tr('element_panel.view_rename_btn')}</button>
                             <button
                               onClick={(e) => { e.stopPropagation(); deleteView(view.name); }}
                               style={{ ...viewBtnStyleT, color: t.error, borderColor: t.btnBorder }}
-                              title="Delete view"
-                            >Delete</button>
+                              title={tr('element_panel.view_delete_title')}
+                            >{tr('element_panel.view_delete_btn')}</button>
                           </div>
                         </>
                       )}
@@ -1202,7 +1215,7 @@ export default function ElementPanel({
                 color: t.textSecondary, fontSize: 11, cursor: 'pointer',
               }}
             >
-              Show All (reset)
+              {tr('element_panel.show_all_reset')}
             </button>
           </div>
         </div>
@@ -1216,7 +1229,7 @@ export default function ElementPanel({
             if (myLocks.length === 0) {
               return (
                 <div style={{ padding: 16, color: t.textMuted, fontSize: 12, textAlign: 'center' }}>
-                  No elements checked out.
+                  {tr('element_panel.no_checked_out')}
                 </div>
               );
             }
@@ -1231,13 +1244,13 @@ export default function ElementPanel({
                 <div
                   style={{ flex: 1, minWidth: 0, cursor: onGoToCode ? 'pointer' : 'default' }}
                   onClick={() => onGoToCode?.(lock.elementName)}
-                  title="Go to code"
+                  title={tr('element_panel.go_to_code')}
                 >
                   <div style={{ color: t.info, fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     &#128274; {lock.elementName}
                   </div>
                   <div style={{ color: t.textDim, fontSize: 9 }}>
-                    {new Date(lock.lockedAt).toLocaleTimeString()} — click to go to code
+                    {tr('element_panel.lock_time_hint', { time: new Date(lock.lockedAt).toLocaleTimeString() })}
                   </div>
                 </div>
                 <button
@@ -1247,7 +1260,7 @@ export default function ElementPanel({
                     padding: '3px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 600, flexShrink: 0,
                   }}
                 >
-                  Check In
+                  {tr('element_panel.check_in_btn')}
                 </button>
               </div>
             ));

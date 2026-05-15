@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.js';
+import { useI18nStore } from './store/i18n.js';
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from './i18n/index.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 import BugReportButton from './components/BugReportButton.js';
 import LoginPage from './pages/LoginPage.js';
@@ -19,7 +21,20 @@ function AuthenticatedBugButton() {
   return token ? <BugReportButton /> : null;
 }
 
+function useSyncUserLanguage() {
+  const user = useAuthStore((s) => s.user);
+  const setLanguage = useI18nStore((s) => s.setLanguage);
+  const currentLanguage = useI18nStore((s) => s.language);
+  useEffect(() => {
+    const pref = user?.preferredLanguage;
+    if (!pref) return;
+    if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(pref)) return;
+    if (pref !== currentLanguage) setLanguage(pref as SupportedLanguage);
+  }, [user, currentLanguage, setLanguage]);
+}
+
 export default function App() {
+  useSyncUserLanguage();
   return (
     <ErrorBoundary>
       <BrowserRouter>

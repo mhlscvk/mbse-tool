@@ -144,7 +144,7 @@ router.post('/register', asyncHandler(async (req, res) => {
       verifyTokenExp: isDev ? null : verifyTokenExp,
       emailVerified: isDev,
     },
-    select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true },
+    select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true, preferredLanguage: true },
   });
 
   // Auto-join any startups this email was invited to
@@ -282,7 +282,7 @@ router.post('/google', asyncHandler(async (req, res) => {
 router.get('/me', requireAuth, asyncHandler(async (req: AuthRequest, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId },
-    select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true },
+    select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true, preferredLanguage: true },
   });
   if (!user) { res.status(404).json({ error: 'Not Found', message: 'User not found' }); return; }
   res.json({ data: { ...user, role: user.role.toLowerCase() } });

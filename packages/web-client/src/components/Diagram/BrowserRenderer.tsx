@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 import { useTheme } from '../../store/theme.js';
+import { localeLowerCase } from '../../utils/locale.js';
 
 interface BrowserRendererProps {
   model: SModelRoot | null;
@@ -52,6 +54,7 @@ const KIND_COLORS: Record<string, string> = {
 
 export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }: BrowserRendererProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
 
@@ -100,12 +103,12 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
     });
   }, []);
 
-  const filterLower = filter.toLowerCase();
+  const filterLower = localeLowerCase(filter);
 
   function matchesFilter(node: TreeNode): boolean {
     if (!filterLower) return true;
-    if (node.name.toLowerCase().includes(filterLower)) return true;
-    if (node.kind.toLowerCase().includes(filterLower)) return true;
+    if (localeLowerCase(node.name).includes(filterLower)) return true;
+    if (localeLowerCase(node.kind).includes(filterLower)) return true;
     return node.children.some(matchesFilter);
   }
 
@@ -161,7 +164,7 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
   }
 
   if (!model) {
-    return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>No model data for Browser View</div>;
+    return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>{tr('diagram.browser_empty_no_data')}</div>;
   }
 
   return (
@@ -172,7 +175,7 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
           type="text"
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          placeholder="Filter elements..."
+          placeholder={tr('diagram.browser_filter_placeholder')}
           style={{
             width: '100%', padding: '4px 8px', fontSize: 11,
             background: '#f8f8ff',
@@ -185,7 +188,7 @@ export default function BrowserRenderer({ model, onNodeSelect, selectedNodeId }:
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
         {tree.length === 0 ? (
           <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center', fontSize: 13 }}>
-            No model elements to display.
+            {tr('diagram.browser_empty_no_elements')}
           </div>
         ) : (
           tree.map(node => renderNode(node, 0))

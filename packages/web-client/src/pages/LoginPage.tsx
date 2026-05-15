@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../services/api-client.js';
+import { useTranslation } from 'react-i18next';
+import { api, ApiError } from '../services/api-client.js';
 import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
+
+function describeError(err: unknown, fallbackKey: string, translate: (key: string, opts?: Record<string, unknown>) => string): string {
+  if (err instanceof ApiError) {
+    return translate(`errors.${err.code}`, { defaultValue: err.message });
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return translate(fallbackKey);
+}
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
@@ -19,16 +28,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const t = useTheme();
+  const { t: tr } = useTranslation();
 
   // Handle URL params: ?verified=success/expired, ?reset=TOKEN
   useEffect(() => {
     const verified = searchParams.get('verified');
     const reset = searchParams.get('reset');
     if (verified === 'success') {
-      setInfo('Email verified successfully! You can now sign in.');
+      setInfo(tr('auth.verify.success'));
       setMode('login');
     } else if (verified === 'expired') {
-      setError('Verification link expired. Please register again or resend verification.');
+      setError(tr('auth.verify.expired'));
     }
     if (reset) {
       if (/^[a-f0-9]{64}$/.test(reset)) {
@@ -37,10 +47,10 @@ export default function LoginPage() {
         setInfo('');
         setError('');
       } else {
-        setError('Invalid password reset link.');
+        setError(tr('auth.reset.link_invalid'));
       }
     }
-  }, [searchParams]);
+  }, [searchParams, tr]);
 
   // Google Sign-In callback
   const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
@@ -51,11 +61,11 @@ export default function LoginPage() {
       setAuth(result.accessToken, result.user);
       navigate('/projects');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google authentication failed');
+      setError(describeError(err, 'auth.google_failed', tr));
     } finally {
       setLoading(false);
     }
-  }, [setAuth, navigate]);
+  }, [setAuth, navigate, tr]);
 
   // Load Google Identity Services script
   const scriptRef = useRef<HTMLScriptElement | null>(null);
@@ -117,7 +127,7 @@ export default function LoginPage() {
     try {
       if (mode === 'register') {
         await api.auth.register(form.email, form.password, form.name);
-        setInfo('Account created! Check your email for a verification link.');
+        setInfo(tr('auth.register.success'));
         setMode('login');
       } else {
         const result = await api.auth.login(form.email, form.password);
@@ -125,9 +135,12 @@ export default function LoginPage() {
         navigate('/projects');
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Authentication failed';
-      setError(msg);
-      if (msg.toLowerCase().includes('verify')) setShowResend(true);
+      setError(describeError(err, 'auth.failed', tr));
+      // Backend signals unverified email via 403 Forbidden on the login route;
+      // surface the resend button so the user can self-recover.
+      if (err instanceof ApiError && err.status === 403 && mode === 'login') {
+        setShowResend(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -138,10 +151,10 @@ export default function LoginPage() {
     setInfo('');
     try {
       await api.auth.resendVerify(form.email);
-      setInfo('Verification email sent. Please check your inbox.');
+      setInfo(tr('auth.verify.resent'));
       setShowResend(false);
     } catch {
-      setError('Failed to resend verification email.');
+      setError(tr('auth.verify.resend_failed'));
     }
   };
 
@@ -149,13 +162,13 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setInfo('');
-    if (!form.email.trim()) { setError('Please enter your email address'); return; }
+    if (!form.email.trim()) { setError(tr('auth.forgot.email_required')); return; }
     setLoading(true);
     try {
       const result = await api.auth.forgotPassword(form.email);
       setInfo(result.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send reset email');
+      setError(describeError(err, 'auth.forgot.failed', tr));
     } finally {
       setLoading(false);
     }
@@ -166,11 +179,11 @@ export default function LoginPage() {
     setError('');
     setInfo('');
     if (resetForm.newPassword !== resetForm.confirmPassword) {
-      setError('Passwords do not match');
+      setError(tr('auth.reset.passwords_mismatch'));
       return;
     }
     if (resetForm.newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError(tr('auth.reset.password_too_short'));
       return;
     }
     setLoading(true);
@@ -182,7 +195,7 @@ export default function LoginPage() {
       setSearchParams({});
       setMode('login');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset password');
+      setError(describeError(err, 'auth.reset.failed', tr));
     } finally {
       setLoading(false);
     }
@@ -207,22 +220,22 @@ export default function LoginPage() {
         <div style={{ marginBottom: 8 }}>
           <h1 style={{ color: '#A0522D', fontSize: 28, fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: 'italic', margin: 0 }}>SysteModel</h1>
         </div>
-        <p style={{ color: t.textSecondary, marginBottom: 32, fontSize: 13 }}>SysML v2 Modeling Platform</p>
+        <p style={{ color: t.textSecondary, marginBottom: 32, fontSize: 13 }}>{tr('auth.brand_tagline')}</p>
 
         {/* ── Reset Password Form (from email link) ──────────────────── */}
         {mode === 'reset' && (
           <>
-            <h2 style={{ color: t.text, fontSize: 16, marginBottom: 16 }}>Set New Password</h2>
+            <h2 style={{ color: t.text, fontSize: 16, marginBottom: 16 }}>{tr('auth.reset.title')}</h2>
             <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input
-                type="password" placeholder="New password (min 8 characters)"
+                type="password" placeholder={tr('auth.reset.new_password_placeholder')}
                 value={resetForm.newPassword}
                 onChange={(e) => setResetForm(f => ({ ...f, newPassword: e.target.value }))}
                 required minLength={8}
                 style={inputStyle}
               />
               <input
-                type="password" placeholder="Confirm new password"
+                type="password" placeholder={tr('auth.reset.confirm_placeholder')}
                 value={resetForm.confirmPassword}
                 onChange={(e) => setResetForm(f => ({ ...f, confirmPassword: e.target.value }))}
                 required minLength={8}
@@ -235,14 +248,14 @@ export default function LoginPage() {
                 border: 'none', borderRadius: 4, padding: '10px 0',
                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 4,
               }}>
-                {loading ? 'Please wait...' : 'Reset Password'}
+                {loading ? tr('common.please_wait') : tr('auth.reset.submit')}
               </button>
             </form>
             <button
               onClick={() => { switchMode('login'); setSearchParams({}); }}
               style={{ background: 'none', border: 'none', color: t.info, cursor: 'pointer', fontSize: 12, marginTop: 16, padding: 0 }}
             >
-              Back to Sign In
+              {tr('common.back_to_signin')}
             </button>
           </>
         )}
@@ -250,13 +263,13 @@ export default function LoginPage() {
         {/* ── Forgot Password Form ───────────────────────────────────── */}
         {mode === 'forgot' && (
           <>
-            <h2 style={{ color: t.text, fontSize: 16, marginBottom: 8 }}>Forgot Password</h2>
+            <h2 style={{ color: t.text, fontSize: 16, marginBottom: 8 }}>{tr('auth.forgot.title')}</h2>
             <p style={{ color: t.textSecondary, fontSize: 12, marginBottom: 16, lineHeight: 1.5 }}>
-              Enter your email address and we'll send you a link to reset your password.
+              {tr('auth.forgot.description')}
             </p>
             <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input
-                type="email" placeholder="Email"
+                type="email" placeholder={tr('auth.login.email_placeholder')}
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 required
@@ -269,14 +282,14 @@ export default function LoginPage() {
                 border: 'none', borderRadius: 4, padding: '10px 0',
                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 4,
               }}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
+                {loading ? tr('auth.forgot.sending') : tr('auth.forgot.submit')}
               </button>
             </form>
             <button
               onClick={() => switchMode('login')}
               style={{ background: 'none', border: 'none', color: t.info, cursor: 'pointer', fontSize: 12, marginTop: 16, padding: 0 }}
             >
-              Back to Sign In
+              {tr('common.back_to_signin')}
             </button>
           </>
         )}
@@ -290,7 +303,7 @@ export default function LoginPage() {
                   flex: 1, padding: '8px 0', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13,
                   background: mode === m ? t.accent : t.btnBg, color: mode === m ? '#fff' : t.textSecondary,
                 }}>
-                  {m === 'login' ? 'Sign In' : 'Create Account'}
+                  {m === 'login' ? tr('auth.tabs.login') : tr('auth.tabs.register')}
                 </button>
               ))}
             </div>
@@ -298,7 +311,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {mode === 'register' && (
                 <input
-                  placeholder="Full name"
+                  placeholder={tr('auth.register.name_placeholder')}
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   required
@@ -306,14 +319,14 @@ export default function LoginPage() {
                 />
               )}
               <input
-                type="email" placeholder="Email"
+                type="email" placeholder={tr('auth.login.email_placeholder')}
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 required
                 style={inputStyle}
               />
               <input
-                type="password" placeholder="Password"
+                type="password" placeholder={tr('auth.login.password_placeholder')}
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 required
@@ -329,7 +342,7 @@ export default function LoginPage() {
                     fontSize: 12, padding: 0, textAlign: 'right', marginTop: -4,
                   }}
                 >
-                  Forgot password?
+                  {tr('auth.login.forgot_link')}
                 </button>
               )}
               {error && <div style={{ color: t.error, fontSize: 13 }}>{error}</div>}
@@ -338,7 +351,7 @@ export default function LoginPage() {
                   background: 'none', border: `1px solid ${t.border}`, borderRadius: 4,
                   color: t.info, fontSize: 12, padding: '6px 0', cursor: 'pointer',
                 }}>
-                  Resend verification email
+                  {tr('auth.verify.resend_button')}
                 </button>
               )}
               {info && <div style={{ color: t.success, fontSize: 13 }}>{info}</div>}
@@ -347,7 +360,7 @@ export default function LoginPage() {
                 border: 'none', borderRadius: 4, padding: '10px 0',
                 cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 8,
               }}>
-                {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+                {loading ? tr('common.please_wait') : mode === 'login' ? tr('auth.login.submit') : tr('auth.register.submit')}
               </button>
             </form>
 
@@ -356,7 +369,7 @@ export default function LoginPage() {
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
                   <div style={{ flex: 1, height: 1, background: t.border }} />
-                  <span style={{ color: t.textMuted, fontSize: 12 }}>or</span>
+                  <span style={{ color: t.textMuted, fontSize: 12 }}>{tr('common.or')}</span>
                   <div style={{ flex: 1, height: 1, background: t.border }} />
                 </div>
                 <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center' }} />

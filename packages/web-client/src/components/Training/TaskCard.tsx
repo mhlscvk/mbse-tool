@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TrainingTask, ValidationResult } from '../../training/tasks.js';
 import { useTheme } from '../../store/theme.js';
 
@@ -67,6 +68,7 @@ export default function TaskCard({
   isCompleted, canGoNext, canGoPrev,
 }: TaskCardProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [showHint, setShowHint] = useState(false);
 
   // Reset hint when task changes
@@ -100,7 +102,7 @@ export default function TaskCard({
           marginBottom: 3,
         }}>
           <div style={{ fontSize: 10, color: t.textDim, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-            Task {taskIndex + 1} / {totalTasks}
+            {tr('training_ui.task_progress', { current: taskIndex + 1, total: totalTasks })}
           </div>
           {isCompleted && (
             <div style={{
@@ -108,7 +110,7 @@ export default function TaskCard({
               border: '1px solid #0a6e37', borderRadius: 3,
               padding: '1px 6px', textTransform: 'uppercase', letterSpacing: 0.5,
             }}>
-              Completed
+              {tr('training_ui.status_completed')}
             </div>
           )}
         </div>
@@ -129,7 +131,7 @@ export default function TaskCard({
             if (canGoPrev) (e.currentTarget as HTMLButtonElement).style.background = t.btnBg;
           }}
         >
-          ← Prev
+          {tr('training_ui.btn_prev')}
         </button>
         <button
           onClick={canGoNext ? onNext : undefined}
@@ -141,7 +143,7 @@ export default function TaskCard({
             if (canGoNext) (e.currentTarget as HTMLButtonElement).style.background = t.btnBg;
           }}
         >
-          Next →
+          {tr('training_ui.btn_next')}
         </button>
       </div>
 
@@ -181,7 +183,7 @@ export default function TaskCard({
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.textSecondary; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.border; }}
         >
-          Show hint
+          {tr('training_ui.btn_show_hint')}
         </button>
       ) : (
         <div style={{
@@ -190,7 +192,7 @@ export default function TaskCard({
           borderRadius: 4, padding: '7px 10px',
           fontSize: 11, color: '#2a6a2a', lineHeight: 1.5,
         }}>
-          <span style={{ opacity: 0.7 }}>Hint: </span>{task.hint}
+          <span style={{ opacity: 0.7 }}>{tr('training_ui.hint_prefix')} </span>{task.hint}
         </div>
       )}
 
@@ -206,7 +208,7 @@ export default function TaskCard({
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#0d8a45'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#0a6e37'; }}
         >
-          {isLast ? 'Complete Training ✓' : 'Next Task →'}
+          {isLast ? tr('training_ui.btn_complete_training') : tr('training_ui.btn_next_task')}
         </button>
       ) : (
         <button
@@ -219,7 +221,7 @@ export default function TaskCard({
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accentHover; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accent; }}
         >
-          Check Answer
+          {tr('training_ui.btn_check_answer')}
         </button>
       )}
     </div>

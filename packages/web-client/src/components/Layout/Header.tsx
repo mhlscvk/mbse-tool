@@ -1,9 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { useAuthStore } from '../../store/auth.js';
 import { useTheme } from '../../store/theme.js';
 import { useRecentFilesStore } from '../../store/recent-files.js';
+import { useI18nStore } from '../../store/i18n.js';
 import { api } from '../../services/api-client.js';
+import { formatRelative } from '../../utils/locale.js';
+import LanguageSwitcher from '../LanguageSwitcher.js';
 import type { LockNotification } from '@systemodel/shared-types';
 
 interface HeaderProps {
@@ -21,6 +25,9 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
   const onTrainingPage = location.pathname === '/training';
   const onSettingsPage = location.pathname === '/settings';
   const t = useTheme();
+  const { t: tr } = useTranslation();
+  // Subscribe so timeAgo re-renders when language changes
+  useI18nStore((s) => s.language);
   const recentEntries = useRecentFilesStore((s) => s.entries);
   const [recentOpen, setRecentOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -100,14 +107,8 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
     onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textSecondary; },
   };
 
-  // Format relative time
-  const timeAgo = (ts: number): string => {
-    const diff = Math.floor((Date.now() - ts) / 1000);
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  };
+  // Format relative time (locale-aware via Intl.RelativeTimeFormat)
+  const timeAgo = (ts: number): string => formatRelative(ts);
 
   return (
     <header style={{
@@ -147,7 +148,7 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
             flexShrink: 0,
           }}
         >
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? tr('common.saving') : tr('common.save')}
         </button>
       )}
 
@@ -162,9 +163,9 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
               color: recentOpen ? '#fff' : t.textSecondary,
               borderColor: recentOpen ? t.accent : t.border,
             }}
-            title="Recent files"
+            title={tr('nav.recent_files_title')}
           >
-            Recent
+            {tr('nav.recent')}
           </button>
           {recentOpen && (
             <div style={{
@@ -173,7 +174,7 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
               boxShadow: t.shadow, minWidth: 280, maxWidth: 400, padding: '4px 0',
             }}>
               <div style={{ padding: '6px 12px', color: t.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Recent Files
+                {tr('nav.recent_files_header')}
               </div>
               {recentEntries.map((entry) => (
                 <div
@@ -217,9 +218,9 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
               color: notifOpen ? '#fff' : t.textSecondary,
               borderColor: notifOpen ? t.accent : t.border,
             }}
-            title="Notifications"
+            title={tr('nav.notifications_title')}
           >
-            Notifications
+            {tr('nav.notifications')}
             {unreadCount > 0 && (
               <span style={{
                 position: 'absolute', top: -6, right: -6,
@@ -240,16 +241,16 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
               maxHeight: 400, overflowY: 'auto',
             }}>
               <div style={{ padding: '6px 12px', color: t.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Notifications</span>
+                <span>{tr('nav.notifications')}</span>
                 {unreadCount > 0 && (
                   <button onClick={markAllRead} style={{ background: 'none', border: 'none', color: t.info, fontSize: 10, cursor: 'pointer', padding: 0 }}>
-                    Mark all read
+                    {tr('nav.mark_all_read')}
                   </button>
                 )}
               </div>
               {notifications.length === 0 ? (
                 <div style={{ padding: '16px 12px', color: t.textDim, fontSize: 12, textAlign: 'center' }}>
-                  No notifications
+                  {tr('nav.notifications_none')}
                 </div>
               ) : (
                 notifications.map(n => (
@@ -269,7 +270,14 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
                     onMouseLeave={(e) => { e.currentTarget.style.background = n.read ? 'transparent' : ('rgba(59,130,246,0.05)'); }}
                   >
                     <div style={{ fontSize: 12, color: t.text, marginBottom: 2 }}>
-                      <strong>{n.requester?.name ?? 'Someone'}</strong> requests lock on <strong>{n.elementName}</strong>
+                      <Trans
+                        i18nKey="nav.lock_request_text"
+                        values={{
+                          requester: n.requester?.name ?? tr('nav.someone'),
+                          element: n.elementName,
+                        }}
+                        components={{ 1: <strong />, 2: <strong /> }}
+                      />
                     </div>
                     <div style={{ fontSize: 10, color: t.textMuted }}>
                       {n.projectName} / {n.fileName}
@@ -285,15 +293,16 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
         </div>
       )}
       {!onTrainingPage && (
-        <button onClick={() => navigate('/training')} style={navBtn} {...hoverHandlers} title="Open interactive SysML v2 training">
-          Training
+        <button onClick={() => navigate('/training')} style={navBtn} {...hoverHandlers} title={tr('nav.training_title')}>
+          {tr('nav.training')}
         </button>
       )}
       {!onSettingsPage && user && (
-        <button onClick={() => navigate('/settings')} style={navBtn} {...hoverHandlers} title="MCP connection settings">
-          Settings
+        <button onClick={() => navigate('/settings')} style={navBtn} {...hoverHandlers} title={tr('nav.settings_title')}>
+          {tr('nav.settings')}
         </button>
       )}
+      <LanguageSwitcher />
       {user && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: t.textSecondary, fontSize: 13 }}>{user.email}</span>
@@ -301,7 +310,7 @@ export default function Header({ title, titleExtra, showSave, onSave, saving }: 
             onClick={handleLogout}
             style={{ background: 'transparent', color: t.textSecondary, border: `1px solid ${t.btnBorder}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 12 }}
           >
-            Logout
+            {tr('nav.logout')}
           </button>
         </div>
       )}

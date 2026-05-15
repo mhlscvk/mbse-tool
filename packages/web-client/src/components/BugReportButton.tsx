@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api-client.js';
 import { useTheme } from '../store/theme.js';
 
 export default function BugReportButton() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [screenshot, setScreenshot] = useState<string | null>(null);
@@ -18,11 +20,11 @@ export default function BugReportButton() {
 
   const handleFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      setError('Only image files are accepted');
+      setError(tr('bug_report.error_image_only'));
       return;
     }
     if (file.size > MAX_SIZE) {
-      setError('Screenshot must be under 5MB');
+      setError(tr('bug_report.error_too_large'));
       return;
     }
     setError('');
@@ -33,7 +35,7 @@ export default function BugReportButton() {
   };
 
   const handleSubmit = async () => {
-    if (!description.trim()) { setError('Please describe the issue'); return; }
+    if (!description.trim()) { setError(tr('bug_report.error_no_description')); return; }
     setLoading(true);
     setError('');
     try {
@@ -44,7 +46,7 @@ export default function BugReportButton() {
       setFileName('');
       setTimeout(() => { setOpen(false); setSuccess(false); }, 2000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to submit report');
+      setError(e instanceof Error ? e.message : tr('bug_report.error_submit_failed'));
     } finally {
       setLoading(false);
     }
@@ -63,7 +65,7 @@ export default function BugReportButton() {
       {/* Floating bug button */}
       <button
         onClick={() => setOpen(true)}
-        title="Report a bug"
+        title={tr('bug_report.button_title')}
         style={{
           position: 'fixed', bottom: 20, right: 20, zIndex: 9998,
           width: 40, height: 40, borderRadius: '50%',
@@ -98,21 +100,21 @@ export default function BugReportButton() {
               border: `1px solid ${t.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
             }}
           >
-            <h3 style={{ color: t.text, margin: '0 0 16px', fontSize: 16 }}>Report a Bug</h3>
+            <h3 style={{ color: t.text, margin: '0 0 16px', fontSize: 16 }}>{tr('bug_report.title')}</h3>
 
             {success ? (
               <div style={{ color: t.success, fontSize: 14, textAlign: 'center', padding: 20 }}>
-                Thank you! Your report has been submitted.
+                {tr('bug_report.success')}
               </div>
             ) : (
               <>
                 <label style={{ color: t.textSecondary, fontSize: 11, marginBottom: 4, display: 'block' }}>
-                  Describe the issue *
+                  {tr('bug_report.description_label')}
                 </label>
                 <textarea
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="What happened? What did you expect to happen?"
+                  placeholder={tr('bug_report.description_placeholder')}
                   rows={4}
                   maxLength={5000}
                   style={inputStyle}
@@ -122,7 +124,7 @@ export default function BugReportButton() {
                 </div>
 
                 <label style={{ color: t.textSecondary, fontSize: 11, marginBottom: 4, marginTop: 12, display: 'block' }}>
-                  Screenshot (optional)
+                  {tr('bug_report.screenshot_label')}
                 </label>
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -142,11 +144,11 @@ export default function BugReportButton() {
                 >
                   {screenshot ? (
                     <div>
-                      <img src={screenshot} alt="preview" style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 4 }} />
+                      <img src={screenshot} alt={tr('bug_report.alt_preview')} style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 4 }} />
                       <div style={{ marginTop: 6, fontSize: 11, color: t.textDim }}>{fileName}</div>
                     </div>
                   ) : (
-                    <>Drop a screenshot here or click to browse</>
+                    <>{tr('bug_report.screenshot_drop')}</>
                   )}
                 </div>
                 <input
@@ -161,7 +163,7 @@ export default function BugReportButton() {
                     onClick={() => { setScreenshot(null); setFileName(''); }}
                     style={{ background: 'none', border: 'none', color: t.error, fontSize: 11, cursor: 'pointer', marginTop: 4, padding: 0 }}
                   >
-                    Remove screenshot
+                    {tr('bug_report.remove_screenshot')}
                   </button>
                 )}
 
@@ -175,7 +177,7 @@ export default function BugReportButton() {
                       padding: '8px 16px', color: t.text, fontSize: 12, cursor: 'pointer',
                     }}
                   >
-                    Cancel
+                    {tr('common.cancel')}
                   </button>
                   <button
                     onClick={handleSubmit}
@@ -186,7 +188,7 @@ export default function BugReportButton() {
                       cursor: loading ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {loading ? 'Submitting...' : 'Submit Report'}
+                    {loading ? tr('bug_report.submitting') : tr('bug_report.submit')}
                   </button>
                 </div>
               </>

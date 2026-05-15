@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { diagramClient } from '../services/diagram-client.js';
 import MonacoEditor from '../components/Editor/MonacoEditor.js';
 import type { MonacoEditorHandle } from '../components/Editor/MonacoEditor.js';
@@ -7,7 +8,8 @@ import DiagramViewer from '../components/Diagram/DiagramViewer.js';
 import ElementPanel from '../components/Diagram/ElementPanel.js';
 import LegendPanel from '../components/Training/LegendPanel.js';
 import TaskCard from '../components/Training/TaskCard.js';
-import { TRAINING_TASKS, TOTAL_LEVELS, COMPLETED_CODE } from '../training/tasks.js';
+import { TRAINING_TASKS as TRAINING_TASKS_EN, TOTAL_LEVELS, getTrainingTasks, getCompletedCode } from '../training/tasks.js';
+import { useI18nStore } from '../store/i18n.js';
 import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 import type { ValidationResult } from '../training/tasks.js';
 import { useTheme } from '../store/theme.js';
@@ -28,7 +30,7 @@ function loadProgress(): {
 } {
   try {
     const idx = parseInt(localStorage.getItem(STORAGE_KEY_INDEX) || '0', 10);
-    const taskIndex = Number.isNaN(idx) ? 0 : Math.min(idx, TRAINING_TASKS.length - 1);
+    const taskIndex = Number.isNaN(idx) ? 0 : Math.min(idx, TRAINING_TASKS_EN.length - 1);
 
     const completedRaw = localStorage.getItem(STORAGE_KEY_COMPLETED);
     const completedArr: number[] = completedRaw ? JSON.parse(completedRaw) : [];
@@ -60,6 +62,7 @@ function saveTaskCodes(codes: Record<number, string>) {
 function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onReview: () => void }) {
   const navigate = useNavigate();
   const t = useTheme();
+  const { t: tr } = useTranslation();
   return (
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
@@ -68,16 +71,13 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
     }}>
       <div style={{ fontSize: 52 }}>🎉</div>
       <div style={{ fontSize: 26, fontWeight: 700, color: t.success }}>
-        Training Complete!
+        {tr('training.complete_title')}
       </div>
       <div style={{
         fontSize: 14, color: t.textSecondary, maxWidth: 480,
         textAlign: 'center', lineHeight: 1.7,
       }}>
-        You completed 100 training tasks covering the full SysML v2 language — part definitions,
-        attributes, specialization, composition, subsetting, redefinition, ports, items,
-        enumerations, actions, states, requirements, constraints, calculations, packages,
-        use cases, allocation, views, and viewpoints. You are ready to model any system.
+        {tr('training.complete_description')}
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
         <button
@@ -90,7 +90,7 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBgHover; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBg; }}
         >
-          Review Tasks
+          {tr('training.review_tasks')}
         </button>
         <button
           onClick={onRestart}
@@ -102,7 +102,7 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBgHover; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.btnBg; }}
         >
-          Start Over
+          {tr('training.start_over')}
         </button>
         <button
           onClick={() => navigate('/projects')}
@@ -114,7 +114,7 @@ function CompletionScreen({ onRestart, onReview }: { onRestart: () => void; onRe
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accentHover; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = t.accent; }}
         >
-          Go to Projects →
+          {tr('training.go_to_projects')} →
         </button>
       </div>
     </div>
@@ -127,6 +127,9 @@ export default function TrainingPage() {
   const navigate = useNavigate();
   const monacoRef = useRef<MonacoEditorHandle>(null);
   const t = useTheme();
+  const { t: tr } = useTranslation();
+  const language = useI18nStore((s) => s.language);
+  const TRAINING_TASKS = useMemo(() => getTrainingTasks(language), [language]);
 
   // Load saved progress on mount
   const saved = useRef(loadProgress());
@@ -314,7 +317,7 @@ export default function TrainingPage() {
   // ── Next task ───────────────────────────────────────────────────────────────
   const handleNext = useCallback(() => {
     if (taskIndex + 1 >= TRAINING_TASKS.length) {
-      diagramClient.sendText(TRAINING_URI, COMPLETED_CODE);
+      diagramClient.sendText(TRAINING_URI, getCompletedCode(language));
       setCompleted(true);
     } else {
       goToTask(taskIndex + 1);
@@ -386,7 +389,7 @@ export default function TrainingPage() {
           SysteModel
         </span>
         <span style={{ color: t.textDim }}>/</span>
-        <span style={{ color: t.text, fontSize: 14 }}>Training Mode</span>
+        <span style={{ color: t.text, fontSize: 14 }}>{tr('training.mode')}</span>
         <span style={{ color: t.textDim }}>—</span>
         <span style={{ color: t.textSecondary, fontSize: 12 }}>{task.levelName}</span>
 
@@ -395,7 +398,7 @@ export default function TrainingPage() {
           {levelDots.map(({ lvl, state }) => (
             <div
               key={lvl}
-              title={`Level ${lvl}`}
+              title={tr('training.level_label', { level: lvl })}
               style={{
                 width: state === 'active' ? 11 : 7,
                 height: state === 'active' ? 11 : 7,
@@ -415,7 +418,7 @@ export default function TrainingPage() {
         </span>
 
         <span style={{ fontSize: 11, color: t.success }}>
-          {completedTasks.size} / {TRAINING_TASKS.length} done
+          {tr('training.progress_count', { completed: completedTasks.size, total: TRAINING_TASKS.length })}
         </span>
 
         <div style={{ flex: 1 }} />
@@ -430,7 +433,7 @@ export default function TrainingPage() {
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.text; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textSecondary; }}
         >
-          Exit Training
+          {tr('training.exit')}
         </button>
       </header>
 
@@ -446,8 +449,8 @@ export default function TrainingPage() {
           {/* Sidebar tab bar */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
             {([
-              { key: 'task' as const, label: 'Task' },
-              { key: 'elements' as const, label: `Elements (${allNodes.length})` },
+              { key: 'task' as const, label: tr('training.tab_task') },
+              { key: 'elements' as const, label: tr('training.tab_elements', { count: allNodes.length }) },
             ]).map(({ key, label }) => (
               <button
                 key={key}
@@ -547,9 +550,9 @@ export default function TrainingPage() {
             display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6,
           }}>
             <span style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              General View
+              {tr('training.diagram_label')}
             </span>
-            <span style={{ fontSize: 10, color: t.border }}>— live</span>
+            <span style={{ fontSize: 10, color: t.border }}>— {tr('training.diagram_subtitle')}</span>
           </div>
 
           {/* Diagram viewer */}
@@ -586,9 +589,9 @@ export default function TrainingPage() {
               display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6,
             }}>
               <span style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                SysML Editor
+                {tr('training.editor_label')}
               </span>
-              <span style={{ fontSize: 10, color: t.border }}>— type your model here</span>
+              <span style={{ fontSize: 10, color: t.border }}>— {tr('training.editor_subtitle')}</span>
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               <MonacoEditor ref={monacoRef} value={code} onChange={handleCodeChange} />
@@ -608,9 +611,9 @@ export default function TrainingPage() {
             display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6,
           }}>
             <span style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              Target Notation
+              {tr('training.target_label')}
             </span>
-            <span style={{ fontSize: 10, color: t.border }}>— reference</span>
+            <span style={{ fontSize: 10, color: t.border }}>— {tr('training.target_subtitle')}</span>
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
             <MonacoEditor
@@ -657,7 +660,7 @@ export default function TrainingPage() {
           </>
         ) : (
           <span style={{ fontSize: 12, color: t.textDim }}>
-            Edit the model in the editor, then click "Check Answer"
+            {tr('training.feedback_hint')}
           </span>
         )}
       </div>

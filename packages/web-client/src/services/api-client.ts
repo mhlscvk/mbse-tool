@@ -3,6 +3,17 @@ import { useAuthStore } from '../store/auth.js';
 const BASE_URL = '/api';
 const REQUEST_TIMEOUT_MS = 30_000;
 
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuthStore.getState().token;
   const headers: Record<string, string> = {
@@ -33,7 +44,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
           window.location.href = '/login';
         }
       }
-      throw new Error(json.message ?? `Request failed: ${res.status}`);
+      // Normalize Express error codes (e.g. "Bad Request" → "BadRequest") so they
+      // map to a stable translation key in errors.* namespace.
+      const rawCode = (json.error as string | undefined) ?? `Status${res.status}`;
+      const code = rawCode.replace(/\s+/g, '');
+      throw new ApiError(code, json.message ?? `Request failed: ${res.status}`, res.status);
     }
     return json.data as T;
   } finally {
@@ -241,6 +256,12 @@ export const api = {
       }),
     markAllRead: () =>
       request<{ success: boolean }>('/notifications/mark-all-read', { method: 'POST' }),
+  },
+  users: {
+    updatePreferences: (preferredLanguage: 'tr' | 'en') =>
+      request<{ id: string; preferredLanguage: string | null }>('/users/me/preferences', {
+        method: 'PATCH', body: JSON.stringify({ preferredLanguage }),
+      }),
   },
 };
 

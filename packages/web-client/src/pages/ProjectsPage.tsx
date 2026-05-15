@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api-client.js';
 import { useAuthStore } from '../store/auth.js';
 import { useTheme } from '../store/theme.js';
+import { useI18nStore } from '../store/i18n.js';
 import Header from '../components/Layout/Header.js';
 import type { Project, SysMLFile, Startup, ProjectType } from '@systemodel/shared-types';
 
@@ -56,6 +58,8 @@ export default function ProjectsPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
   const t = useTheme();
+  const { t: tr } = useTranslation();
+  const language = useI18nStore((s) => s.language);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<SysMLFile[]>([]);
@@ -77,7 +81,7 @@ export default function ProjectsPage() {
       const list = await api.projects.list();
       setProjects(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load projects');
+      setError(e instanceof Error ? e.message : tr('projects.err_load_projects'));
     }
   };
 
@@ -93,7 +97,7 @@ export default function ProjectsPage() {
       const f = await api.files.list(project.id);
       setFiles(f);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load files');
+      setError(e instanceof Error ? e.message : tr('projects.err_load_files'));
     }
   };
 
@@ -109,7 +113,7 @@ export default function ProjectsPage() {
       await refreshProjects();
       setNewProjectName('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create project');
+      setError(e instanceof Error ? e.message : tr('projects.err_create_project'));
     } finally {
       setCreating(false);
     }
@@ -117,14 +121,14 @@ export default function ProjectsPage() {
 
   const createFile = async () => {
     if (!selectedProject) return;
-    const baseName = prompt('File name (extension .sysml will be added automatically):');
+    const baseName = prompt(tr('projects.prompt_file_name'));
     if (!baseName || !baseName.trim()) return;
     // Strip any extension the user typed — backend enforces .sysml anyway
     let name = baseName.trim().replace(/\.sysml$/i, '');
     const dotIdx = name.lastIndexOf('.');
     if (dotIdx > 0) name = name.slice(0, dotIdx);
     name = name.replace(/^\.+/, '');
-    if (!name) { setError('Invalid file name'); return; }
+    if (!name) { setError(tr('projects.err_invalid_file_name')); return; }
     const fullName = name + '.sysml';
     try {
       const pkgName = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name) ? name : `'${name}'`;
@@ -132,7 +136,7 @@ export default function ProjectsPage() {
       const file = await api.files.create(selectedProject.id, fullName, content);
       setFiles((prev) => [...prev, file]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create file');
+      setError(e instanceof Error ? e.message : tr('projects.err_create_file'));
     }
   };
 
@@ -147,7 +151,7 @@ export default function ProjectsPage() {
         const created = await api.files.create(selectedProject.id, name, content);
         setFiles((prev) => [...prev, created]);
       } catch (e) {
-        setError(e instanceof Error ? e.message : `Failed to upload ${file.name}`);
+        setError(e instanceof Error ? e.message : tr('projects.err_upload_file', { name: file.name }));
       }
     }
   };
@@ -183,34 +187,34 @@ export default function ProjectsPage() {
   // ─── Project actions ─────────────────────────────────────────────────────
 
   const createSubproject = async (parent: Project) => {
-    const name = prompt('Subproject name:');
+    const name = prompt(tr('projects.prompt_subproject_name'));
     if (!name?.trim()) return;
     try {
       await api.projects.create(name.trim(), undefined, parent.id);
       await refreshProjects();
       setCollapsed((prev) => ({ ...prev, [parent.id]: false }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create subproject');
+      setError(e instanceof Error ? e.message : tr('projects.err_create_subproject'));
     }
   };
 
   const renameProject = async (project: Project) => {
-    const newName = prompt('Rename project:', project.name);
+    const newName = prompt(tr('projects.prompt_rename_project'), project.name);
     if (!newName || newName === project.name) return;
     try {
       const updated = await api.projects.rename(project.id, newName.trim());
       if (selectedProject?.id === project.id) setSelectedProject(updated);
       await refreshProjects();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to rename project');
+      setError(e instanceof Error ? e.message : tr('projects.err_rename_project'));
     }
   };
 
   const deleteProject = async (project: Project) => {
     const hasChildren = project.children && project.children.length > 0;
     const msg = hasChildren
-      ? `Delete project "${project.name}", its subproject(s), and all files?`
-      : `Delete project "${project.name}" and all its files?`;
+      ? tr('projects.confirm_delete_project_with_children', { name: project.name })
+      : tr('projects.confirm_delete_project', { name: project.name });
     if (!confirm(msg)) return;
     try {
       await api.projects.delete(project.id);
@@ -220,7 +224,7 @@ export default function ProjectsPage() {
         setFiles([]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete project');
+      setError(e instanceof Error ? e.message : tr('projects.err_delete_project'));
     }
   };
 
@@ -236,7 +240,7 @@ export default function ProjectsPage() {
         a.click();
         URL.revokeObjectURL(a.href);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download project'));
+      .catch((e) => setError(e instanceof Error ? e.message : tr('projects.err_download_project')));
   };
 
   const onProjectContextMenu = useCallback((e: React.MouseEvent, project: Project) => {
@@ -246,20 +250,20 @@ export default function ProjectsPage() {
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [
-          { label: 'Download', onClick: () => downloadProject(project) },
+          { label: tr('projects.menu_download'), onClick: () => downloadProject(project) },
         ],
       });
       return;
     }
     const items: ContextMenuItem[] = [
-      { label: 'Rename', onClick: () => renameProject(project) },
+      { label: tr('projects.menu_rename'), onClick: () => renameProject(project) },
     ];
     if (project.depth < 2) {
-      items.push({ label: 'New Subproject', onClick: () => createSubproject(project) });
+      items.push({ label: tr('projects.menu_new_subproject'), onClick: () => createSubproject(project) });
     }
     items.push(
-      { label: 'Download', onClick: () => downloadProject(project) },
-      { label: 'Delete', onClick: () => deleteProject(project), danger: true },
+      { label: tr('projects.menu_download'), onClick: () => downloadProject(project) },
+      { label: tr('projects.menu_delete'), onClick: () => deleteProject(project), danger: true },
     );
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   }, [projects, selectedProject, isAdmin]);
@@ -281,18 +285,18 @@ export default function ProjectsPage() {
   const moveFile = async (file: SysMLFile) => {
     if (!selectedProject) return;
     const targets = collectProjects(projects).filter((tt) => tt.id !== selectedProject.id);
-    if (targets.length === 0) { setError('No other projects to move to'); return; }
+    if (targets.length === 0) { setError(tr('projects.err_no_other_projects')); return; }
     const choice = prompt(
-      'Move to project:\n' + targets.map((tt, i) => `  ${i + 1}. ${tt.label}`).join('\n') + '\n\nEnter number:',
+      tr('projects.prompt_move_header') + '\n' + targets.map((tt, i) => `  ${i + 1}. ${tt.label}`).join('\n') + '\n\n' + tr('projects.prompt_enter_number'),
     );
     if (!choice) return;
     const idx = parseInt(choice, 10) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= targets.length) { setError('Invalid selection'); return; }
+    if (isNaN(idx) || idx < 0 || idx >= targets.length) { setError(tr('projects.err_invalid_selection')); return; }
     try {
       await api.files.move(selectedProject.id, file.id, targets[idx].id);
       setFiles((prev) => prev.filter((f) => f.id !== file.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to move file');
+      setError(e instanceof Error ? e.message : tr('projects.err_move_file'));
     }
   };
 
@@ -300,31 +304,31 @@ export default function ProjectsPage() {
     if (!selectedProject) return;
     // Show current base name (without .sysml) for editing
     const currentBase = file.name.replace(/\.sysml$/i, '');
-    const newBase = prompt('Rename file (.sysml will be added automatically):', currentBase);
+    const newBase = prompt(tr('projects.prompt_rename_file'), currentBase);
     if (!newBase || !newBase.trim()) return;
     let name = newBase.trim().replace(/\.sysml$/i, '');
     const dotIdx = name.lastIndexOf('.');
     if (dotIdx > 0) name = name.slice(0, dotIdx);
     name = name.replace(/^\.+/, '');
-    if (!name) { setError('Invalid file name'); return; }
+    if (!name) { setError(tr('projects.err_invalid_file_name')); return; }
     const fullName = name + '.sysml';
     if (fullName === file.name) return;
     try {
       const updated = await api.files.rename(selectedProject.id, file.id, fullName);
       setFiles((prev) => prev.map((f) => (f.id === file.id ? updated : f)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to rename file');
+      setError(e instanceof Error ? e.message : tr('projects.err_rename_file'));
     }
   };
 
   const deleteFile = async (file: SysMLFile) => {
     if (!selectedProject) return;
-    if (!confirm(`Delete file "${file.name}"?`)) return;
+    if (!confirm(tr('projects.confirm_delete_file', { name: file.name }))) return;
     try {
       await api.files.delete(selectedProject.id, file.id);
       setFiles((prev) => prev.filter((f) => f.id !== file.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete file');
+      setError(e instanceof Error ? e.message : tr('projects.err_delete_file'));
     }
   };
 
@@ -341,27 +345,27 @@ export default function ProjectsPage() {
         a.click();
         URL.revokeObjectURL(a.href);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to download file'));
+      .catch((e) => setError(e instanceof Error ? e.message : tr('projects.err_download_file')));
   };
 
   const copyFileToProject = async (file: SysMLFile) => {
     if (!selectedProject) return;
     // Only show user-owned (non-system) projects as targets
     const userProjects = collectProjects(projects.filter(p => !p.isSystem));
-    if (userProjects.length === 0) { setError('Create a project first, then copy the file into it'); return; }
+    if (userProjects.length === 0) { setError(tr('projects.err_create_project_first')); return; }
     const choice = prompt(
-      'Copy to project:\n' + userProjects.map((tt, i) => `  ${i + 1}. ${tt.label}`).join('\n') + '\n\nEnter number:',
+      tr('projects.prompt_copy_header') + '\n' + userProjects.map((tt, i) => `  ${i + 1}. ${tt.label}`).join('\n') + '\n\n' + tr('projects.prompt_enter_number'),
     );
     if (!choice) return;
     const idx = parseInt(choice, 10) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= userProjects.length) { setError('Invalid selection'); return; }
+    if (isNaN(idx) || idx < 0 || idx >= userProjects.length) { setError(tr('projects.err_invalid_selection')); return; }
     try {
       // Read the file content, then create a copy in the target project
       const sourceFile = await api.files.get(selectedProject.id, file.id);
       await api.files.create(userProjects[idx].id, file.name, sourceFile.content);
       refreshProjects();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to copy file');
+      setError(e instanceof Error ? e.message : tr('projects.err_copy_file'));
     }
   };
 
@@ -372,8 +376,8 @@ export default function ProjectsPage() {
       setContextMenu({
         x: e.clientX, y: e.clientY,
         items: [
-          { label: 'Copy to My Project', onClick: () => copyFileToProject(file) },
-          { label: 'Download', onClick: () => downloadFile(file) },
+          { label: tr('projects.menu_copy_to_my_project'), onClick: () => copyFileToProject(file) },
+          { label: tr('projects.menu_download'), onClick: () => downloadFile(file) },
         ],
       });
       return;
@@ -381,10 +385,10 @@ export default function ProjectsPage() {
     setContextMenu({
       x: e.clientX, y: e.clientY,
       items: [
-        { label: 'Rename', onClick: () => renameFile(file) },
-        { label: 'Move to...', onClick: () => moveFile(file) },
-        { label: 'Download', onClick: () => downloadFile(file) },
-        { label: 'Delete', onClick: () => deleteFile(file), danger: true },
+        { label: tr('projects.menu_rename'), onClick: () => renameFile(file) },
+        { label: tr('projects.menu_move_to'), onClick: () => moveFile(file) },
+        { label: tr('projects.menu_download'), onClick: () => downloadFile(file) },
+        { label: tr('projects.menu_delete'), onClick: () => deleteFile(file), danger: true },
       ],
     });
   }, [selectedProject, isAdmin]);
@@ -432,7 +436,7 @@ export default function ProjectsPage() {
             {project.name}
           </span>
           {project.projectType === 'STARTUP' && depth === 0 && (
-            <span title="Enterprise — restricted access" style={{ fontSize: 9, background: t.warning, color: '#fff', borderRadius: 3, padding: '1px 4px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 2 }}>&#128274; ENT</span>
+            <span title={tr('projects.ent_badge_title')} style={{ fontSize: 9, background: t.warning, color: '#fff', borderRadius: 3, padding: '1px 4px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 2 }}>&#128274; ENT</span>
           )}
           {(project._count?.files ?? 0) > 0 && (
             <span style={{ color: t.textDim, fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>
@@ -462,12 +466,12 @@ export default function ProjectsPage() {
           flexDirection: 'column',
         }}>
           <div style={{ padding: '16px 16px 8px', borderBottom: `1px solid ${t.border}` }}>
-            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Projects</div>
+            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{tr('projects.header')}</div>
             <form onSubmit={createProject} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
-                placeholder="New project name"
+                placeholder={tr('projects.new_placeholder')}
                 disabled={creating}
                 style={{ flex: 1, minWidth: 100, background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 4, padding: '6px 8px', color: t.text, fontSize: 12, outline: 'none' }}
               />
@@ -477,7 +481,7 @@ export default function ProjectsPage() {
                   onChange={(e) => setCreateTarget(e.target.value)}
                   style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 4, padding: '4px 6px', color: t.text, fontSize: 11 }}
                 >
-                  <option value="personal">Personal</option>
+                  <option value="personal">{tr('projects.personal_option')}</option>
                   {userStartups.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
@@ -510,16 +514,24 @@ export default function ProjectsPage() {
                   borderRadius: 12, padding: '2px 10px', fontSize: 11, cursor: 'pointer',
                 }}
               >
-                {f === 'all' ? 'All' : f === 'SYSTEM' ? 'System' : f === 'STARTUP' ? 'Enterprise' : 'Personal'}
+                {f === 'all' ? tr('projects.filter_all') : f === 'SYSTEM' ? tr('projects.filter_system') : f === 'STARTUP' ? tr('projects.filter_enterprise') : tr('projects.filter_personal')}
               </button>
             ))}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading && <div style={{ padding: 16, color: t.textMuted, fontSize: 13 }}>Loading...</div>}
+            {loading && <div style={{ padding: 16, color: t.textMuted, fontSize: 13 }}>{tr('projects.loading')}</div>}
             {(() => {
+              // Hide the system-examples root that does not match the UI
+              // language ("Examples" in TR mode, "Örnekler" in EN mode).
+              // "Standard Libraries" is always visible (language-neutral).
+              const hiddenSystemRoot = language === 'tr' ? 'Examples' : 'Örnekler';
+              const isHiddenLangSystemRoot = (p: Project) =>
+                p.projectType === 'SYSTEM' && !p.parentId && p.name === hiddenSystemRoot;
+
+              const visible = projects.filter(p => !isHiddenLangSystemRoot(p));
               const filtered = projectFilter === 'all'
-                ? projects
-                : projects.filter(p => p.projectType === projectFilter);
+                ? visible
+                : visible.filter(p => p.projectType === projectFilter);
               if (projectFilter === 'all') {
                 // Group by type
                 const system = filtered.filter(p => p.projectType === 'SYSTEM');
@@ -529,21 +541,21 @@ export default function ProjectsPage() {
                   <>
                     {system.length > 0 && (
                       <>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary }}>System</div>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary }}>{tr('projects.section_system')}</div>
                         {system.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />)}
                       </>
                     )}
                     {enterprise.length > 0 && (
                       <>
                         <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span>&#128274;</span> Enterprise <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 9 }}>(Restricted)</span>
+                          <span>&#128274;</span> {tr('projects.section_enterprise')} <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 9 }}>{tr('projects.section_enterprise_restricted')}</span>
                         </div>
                         {enterprise.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />)}
                       </>
                     )}
                     {personal.length > 0 && (
                       <>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary }}>Personal</div>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, background: t.bgTertiary }}>{tr('projects.section_personal')}</div>
                         {personal.map(p => <ProjectTreeItem key={p.id} project={p} depth={0} />)}
                       </>
                     )}
@@ -563,11 +575,11 @@ export default function ProjectsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                   <span style={{ color: t.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {selectedProject.name}
-                  {selectedProject.projectType === 'SYSTEM' && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(Read Only)</span>}
-                  {selectedProject.projectType === 'SYSTEM' && isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>(System)</span>}
+                  {selectedProject.projectType === 'SYSTEM' && !isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>{tr('projects.read_only')}</span>}
+                  {selectedProject.projectType === 'SYSTEM' && isAdmin && <span style={{ color: t.textSecondary, fontSize: 11, marginLeft: 8 }}>{tr('projects.system_tag')}</span>}
                   {selectedProject.projectType === 'STARTUP' && (
                     <span style={{ color: t.warning, fontSize: 11, marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      &#128274; Enterprise &middot; Members only
+                      &#128274; {tr('projects.enterprise_members_only')}
                     </span>
                   )}
                 </span>
@@ -588,10 +600,10 @@ export default function ProjectsPage() {
                       onMouseEnter={(e) => { e.currentTarget.style.background = t.btnBgHover; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = t.btnBg; }}
                     >
-                      Upload .sysml
+                      {tr('projects.upload_button')}
                     </button>
                     <button onClick={createFile} style={{ background: t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12 }}>
-                      + New File
+                      {tr('projects.new_file_button')}
                     </button>
                   </div>
                 )}
@@ -626,14 +638,14 @@ export default function ProjectsPage() {
                 ))}
                 {files.length === 0 && (
                   <div style={{ color: t.textMuted, fontSize: 13, textAlign: 'center', width: '100%', paddingTop: 40 }}>
-                    No files yet. Create a new file or drag & drop .sysml files here.
+                    {tr('projects.no_files')}
                   </div>
                 )}
               </div>
             </>
           ) : (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim, fontSize: 14 }}>
-              Select a project to view its files
+              {tr('projects.select_prompt')}
             </div>
           )}
         </div>

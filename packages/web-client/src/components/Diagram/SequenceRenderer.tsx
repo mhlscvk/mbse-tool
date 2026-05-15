@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SModelRoot, SNode, SEdge } from '@systemodel/shared-types';
 import { useTheme } from '../../store/theme.js';
 
@@ -71,6 +72,7 @@ const FRAME_PAD = 20;
 
 export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fitTrigger }: SequenceRendererProps) {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const svgRef = useRef<SVGSVGElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const dragging = useRef(false);
@@ -413,7 +415,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
   const llHeaderY = PAD_TOP + (hasGroups ? GROUP_HEADER_H + GROUP_PAD : 0);
 
   if (!model) {
-    return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>No model data for Sequence View</div>;
+    return <div style={{ padding: 40, color: t.textSecondary, textAlign: 'center' }}>{tr('diagram.sequence_empty_no_data')}</div>;
   }
 
   const msgColor = (kind: SeqMessage['kind']) => {
@@ -636,7 +638,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
         {/* Empty state */}
         {lifelines.length === 0 && (
           <text x={200} y={120} fill={dimText} fontSize={13} textAnchor="middle">
-            No lifelines found. Add message statements to see the sequence diagram.
+            {tr('diagram.sequence_empty_no_lifelines')}
           </text>
         )}
 
@@ -644,11 +646,11 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
         {messages.length > 0 && (
           <g transform={`translate(${FRAME_PAD},${totalH - 38})`}>
             <line x1={0} y1={0} x2={20} y2={0} stroke={syncColor} strokeWidth={1.5} markerEnd="url(#seq-sync)" />
-            <text x={24} y={4} fill={dimText} fontSize={9}>sync/send</text>
+            <text x={24} y={4} fill={dimText} fontSize={9}>{tr('diagram.sequence_legend_sync')}</text>
             <line x1={90} y1={0} x2={110} y2={0} stroke={flowColor} strokeWidth={1.5} markerEnd="url(#seq-flow)" />
-            <text x={114} y={4} fill={dimText} fontSize={9}>flow</text>
+            <text x={114} y={4} fill={dimText} fontSize={9}>{tr('diagram.sequence_legend_flow')}</text>
             <line x1={150} y1={0} x2={170} y2={0} stroke={returnColor} strokeWidth={1.5} strokeDasharray="6,3" markerEnd="url(#seq-return)" />
-            <text x={174} y={4} fill={dimText} fontSize={9}>return</text>
+            <text x={174} y={4} fill={dimText} fontSize={9}>{tr('diagram.sequence_legend_return')}</text>
           </g>
         )}
       </g>
@@ -681,7 +683,7 @@ export default function SequenceRenderer({ model, onNodeSelect, onEdgeSelect, fi
             setCtxMenu(null);
           }}
         >
-          Go to Code
+          {tr('diagram.sequence_menu_go_to_code')}
         </div>
       </div>
     )}

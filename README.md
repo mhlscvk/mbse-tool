@@ -567,6 +567,53 @@ Interactive 22-level tutorial building a Vehicle model from scratch:
 
 ---
 
+## Internationalization (i18n)
+
+The web client ships with Turkish (`tr`, default) and English (`en`). Translations live as JSON in `packages/web-client/src/i18n/`.
+
+**Language detection on first visit:**
+1. `localStorage.systemodel-i18n` (last user choice)
+2. Browser `Accept-Language` header (`tr`/`tr-TR` → Turkish, otherwise English)
+3. Fallback: Turkish
+
+Authenticated users have a `User.preferredLanguage` column; the language switcher in the header writes to both localStorage and `PATCH /api/users/me/preferences`, so the choice follows the account across devices.
+
+### Adding or editing a translation key
+
+1. Edit both `packages/web-client/src/i18n/en.json` and `packages/web-client/src/i18n/tr.json` — every key must exist in both files. The test suite enforces parity (`src/store/i18n.test.ts`: *"every key in en bundle exists in tr bundle"*).
+2. TypeScript autocompletes keys via module augmentation in `src/i18n/types.d.ts` — missing keys fail `tsc --noEmit`.
+3. Use the hook in any component:
+   ```tsx
+   import { useTranslation } from 'react-i18next';
+   const { t } = useTranslation();
+   <button>{t('common.save')}</button>
+   ```
+4. For interpolation: `t('projects.confirm_delete_file', { name: file.name })`.
+5. For inline markup (preserving `<strong>` etc.): use the `<Trans>` component — see `Header.tsx` `nav.lock_request_text` for an example.
+
+### Adding a new language
+
+1. Create `packages/web-client/src/i18n/<lang>.json` with the same key shape.
+2. Add the code to `SUPPORTED_LANGUAGES` in `src/i18n/index.ts`.
+3. Add a locale mapping in `src/utils/locale.ts` (`LOCALE_MAP`).
+4. Add a label key (e.g. `nav.language_<lang>`) to every translation file.
+5. Add the Zod enum value in `packages/api-server/src/routes/users.ts` so the preferences endpoint accepts it.
+
+### Locale-aware utilities
+
+`src/utils/locale.ts` exposes helpers that read the active language from the i18n store:
+
+- `formatDate(value)`, `formatDateTime(value)`, `formatNumber(n)` — `Intl.DateTimeFormat`/`NumberFormat`.
+- `formatRelative(timestamp)` — `Intl.RelativeTimeFormat` (replaces the old hardcoded `timeAgo`).
+- `localeLowerCase(s)`, `localeUpperCase(s)` — Türkçe-aware (`i ↔ İ`, `ı ↔ I`); see `BrowserRenderer.tsx` for the search-filter use case.
+- `emailLowerCase(s)` — always ASCII fold (emails are language-independent).
+
+### Backend error mapping
+
+Backend responses still ship English `message` fields. The frontend maps the `error` code from the response to a translation key in `errors.*` (e.g. `Unauthorized` → `errors.Unauthorized`). The `ApiError` class in `src/services/api-client.ts` carries the code and status; callers translate via the `describeError()` helper in `LoginPage.tsx`.
+
+---
+
 ## Security
 
 ### Implemented

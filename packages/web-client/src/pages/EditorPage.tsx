@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { findNodeByName, getNodeSourceRange } from '../utils/sysml-helpers.js';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api-client.js';
@@ -309,6 +310,7 @@ export default function EditorPage() {
   // AI assistant open/close
   const [aiOpen, setAiOpen] = useLocalStorage(`${lsPrefix}:aiOpen`, false);
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [projectName, setProjectName] = useState('');
   const [siblingFiles, setSiblingFiles] = useState<SysMLFile[]>([]);
   const [fileSwitcherOpen, setFileSwitcherOpen] = useState(false);
@@ -470,13 +472,13 @@ export default function EditorPage() {
       const lock = await api.elementLocks.checkOut(projectId, fileId, elementName);
       setLocks(prev => [...prev, lock]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to check out element');
+      setError(e instanceof Error ? e.message : tr('editor.err_check_out'));
     }
   };
 
   const handleCheckIn = async (elementName: string) => {
     if (!projectId || !fileId) return;
-    const save = confirm(`Save changes and check in "${elementName}"?\n\nClick OK to save & check in, or Cancel to keep editing.`);
+    const save = confirm(tr('editor.confirm_save_and_check_in', { element: elementName }));
     if (!save) return;
     try {
       clearTimeout(saveTimer.current);
@@ -487,7 +489,7 @@ export default function EditorPage() {
       setLocks(prev => prev.filter(l => l.elementName !== elementName));
     } catch (e) {
       setSaving(false);
-      setError(e instanceof Error ? e.message : 'Failed to check in element');
+      setError(e instanceof Error ? e.message : tr('editor.err_check_in'));
     }
   };
 
@@ -496,7 +498,7 @@ export default function EditorPage() {
     try {
       await api.notifications.create(elementName, fileId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to send lock request');
+      setError(e instanceof Error ? e.message : tr('editor.err_send_lock_request'));
     }
   };
 
@@ -781,19 +783,19 @@ export default function EditorPage() {
     try {
       await api.files.update(projectId, fileId, content);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      setError(e instanceof Error ? e.message : tr('editor.err_save'));
     } finally {
       setSaving(false);
     }
   };
 
   if (error) return <div style={{ padding: 32, color: '#f48771' }}>{error}</div>;
-  if (!file) return <div style={{ padding: 32, color: '#666' }}>Loading...</div>;
+  if (!file) return <div style={{ padding: 32, color: '#666' }}>{tr('common.loading')}</div>;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
       <Header
-        title={`${file.name}${readOnly ? (isStartupProject ? ' (Check out to edit)' : ' (Read Only)') : ''}`}
+        title={`${file.name}${readOnly ? (isStartupProject ? tr('editor.check_out_to_edit_suffix') : tr('editor.read_only_suffix')) : ''}`}
         titleExtra={siblingFiles.length > 1 ? (
           <div ref={fileSwitcherRef} style={{ position: 'relative', display: 'inline-flex' }}>
             <button
@@ -805,7 +807,7 @@ export default function EditorPage() {
               }}
               onMouseEnter={(e) => { e.currentTarget.style.color = t.info; }}
               onMouseLeave={(e) => { e.currentTarget.style.color = t.textSecondary; }}
-              title="Switch to another file in this project"
+              title={tr('editor.switch_file_title')}
             >{fileSwitcherOpen ? '\u25B2' : '\u25BC'}</button>
             {fileSwitcherOpen && (
               <div style={{
@@ -814,7 +816,7 @@ export default function EditorPage() {
                 boxShadow: t.shadow, minWidth: 220, maxWidth: 340, padding: '4px 0',
               }}>
                 <div style={{ padding: '6px 12px', color: t.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {projectName} — Files
+                  {tr('editor.project_files_header', { project: projectName })}
                 </div>
                 {siblingFiles.map((sf) => (
                   <div
@@ -858,7 +860,7 @@ export default function EditorPage() {
           display: 'flex', alignItems: 'center', gap: 8,
           animation: 'fadeIn 0.2s ease',
         }}>
-          &#128274; Cannot edit without check-out. Right-click an element in the diagram to check out.
+          &#128274; {tr('editor.checkout_warning')}
         </div>
       )}
       {/* ── Other users' locks bar (minimal) ─────────────────────── */}
@@ -872,7 +874,7 @@ export default function EditorPage() {
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 10, color: t.textMuted }}
             >
               <span style={{ color: t.warning }}>&#128274;</span>
-              <span>{otherLocks.length} locked by others</span>
+              <span>{tr('editor.locked_by_others_count', { count: otherLocks.length })}</span>
               <span style={{ fontSize: 8 }}>{lockBarOpen ? '\u25B2' : '\u25BC'}</span>
             </div>
             {lockBarOpen && (
@@ -884,13 +886,13 @@ export default function EditorPage() {
                     borderRadius: 4, padding: '2px 8px', fontSize: 11, color: t.warning,
                   }}>
                     <strong>{lock.elementName}</strong>
-                    <span style={{ color: t.textMuted, fontSize: 10 }}>{lock.user?.name ?? 'other'}</span>
+                    <span style={{ color: t.textMuted, fontSize: 10 }}>{lock.user?.name ?? tr('editor.lock_user_unknown')}</span>
                     <button
                       onClick={() => handleRequestLock(lock.elementName)}
                       style={{ background: 'none', border: 'none', color: t.warning, cursor: 'pointer', fontSize: 10, padding: '0 2px', textDecoration: 'underline' }}
-                      title="Request this element from the holder"
+                      title={tr('editor.request_element_title')}
                     >
-                      Request
+                      {tr('editor.request_btn')}
                     </button>
                   </span>
                 ))}
@@ -946,14 +948,16 @@ export default function EditorPage() {
                   padding: '3px 10px', background: t.bgTertiary,
                   borderBottom: `1px solid ${t.border}`, position: 'sticky', top: 0,
                 }}>
-                  <span style={{ color: t.text, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>Problems</span>
+                  <span style={{ color: t.text, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>{tr('editor.problems_panel')}</span>
                   <span style={{ color: t.textSecondary, fontSize: 11 }}>
-                    {diagnostics.filter(d => d.severity === 'error').length} errors,&nbsp;
-                    {diagnostics.filter(d => d.severity === 'warning').length} warnings
+                    {tr('editor.problems_errors_warnings', {
+                      errors: diagnostics.filter(d => d.severity === 'error').length,
+                      warnings: diagnostics.filter(d => d.severity === 'warning').length,
+                    })}
                   </span>
                 </div>
                 {diagnostics.length === 0 ? (
-                  <div style={{ padding: '8px 12px', color: t.textDim, fontStyle: 'italic' }}>No problems detected.</div>
+                  <div style={{ padding: '8px 12px', color: t.textDim, fontStyle: 'italic' }}>{tr('editor.no_problems')}</div>
                 ) : (
                   diagnostics.map((d, i) => (
                     <div key={i} style={{
@@ -968,7 +972,7 @@ export default function EditorPage() {
                           style={{ color: t.text, flex: 1, cursor: 'pointer' }}
                           onClick={() => monacoRef.current?.revealRange(d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1)}
                         >{d.message}</span>
-                        <span style={{ color: t.textDim, whiteSpace: 'nowrap' }}>Ln {d.line}, Col {d.column}</span>
+                        <span style={{ color: t.textDim, whiteSpace: 'nowrap' }}>{tr('editor.problems_line_col', { line: d.line, col: d.column })}</span>
                       </div>
                       {d.fixes && d.fixes.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 22, marginTop: 4 }}>
@@ -978,7 +982,7 @@ export default function EditorPage() {
                               onClick={() => monacoRef.current?.applyFix(
                                 d.line, d.column, d.endLine ?? d.line, d.endColumn ?? d.column + 1, fix.newText,
                               )}
-                              title={`Apply: ${fix.title}`}
+                              title={tr('editor.apply_fix_title', { title: fix.title })}
                               style={{
                                 background: t.accent, border: `1px solid ${t.accentHover}`, borderRadius: 3,
                                 color: '#fff', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
@@ -1033,7 +1037,7 @@ export default function EditorPage() {
                   setEditorOpen(true);
                 }
               }}
-              title={editorOpen ? 'Close editor' : 'Open editor'}
+              title={editorOpen ? tr('editor.close_editor_title') : tr('editor.open_editor_title')}
               style={{
                 position: 'relative', zIndex: 2,
                 marginTop: 'auto', marginBottom: 'auto',
@@ -1059,7 +1063,7 @@ export default function EditorPage() {
               background: t.bgSecondary, borderBottom: `1px solid ${t.border}`, flexShrink: 0,
             }}>
               <span style={{ fontSize: 11, color: t.text, fontWeight: 600, marginRight: 4 }}>
-                {{ 'general': 'General View', 'interconnection': 'Interconnection View', 'action-flow': 'Action Flow View', 'state-transition': 'State Transition View', 'sequence': 'Sequence View', 'grid': 'Grid View', 'browser': 'Browser View', 'geometry': 'Geometry View' }[viewType]}
+                {tr(`editor.view_${viewType.replace('-', '_')}`)}
               </span>
               <span style={{ fontSize: 10, color: t.textMuted }}>SysML v2</span>
               <span style={{ flex: 1 }} />
@@ -1074,7 +1078,7 @@ export default function EditorPage() {
                 }}
                 onMouseEnter={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBgHover; }}
                 onMouseLeave={e => { if (!aiOpen) e.currentTarget.style.background = t.btnBg; }}
-                title={aiOpen ? 'Close AI chat' : 'Open AI chat'}
+                title={aiOpen ? tr('editor.close_ai_title') : tr('editor.open_ai_title')}
               >
                 &#10022; AI
               </button>
@@ -1192,12 +1196,12 @@ export default function EditorPage() {
       }}>
         <span>SysML v2</span>
         <span style={{ opacity: 0.5 }}>|</span>
-        <span>{saving ? 'Saving...' : 'Saved'}</span>
+        <span>{saving ? tr('common.saving') : tr('common.saved')}</span>
         <span style={{ opacity: 0.5 }}>|</span>
         <button
           onClick={handleUndo}
           disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
+          title={tr('editor.undo_title')}
           style={{
             background: 'none', border: 'none', color: canUndo ? '#fff' : '#555',
             cursor: canUndo ? 'pointer' : 'default', fontSize: 16,
@@ -1208,7 +1212,7 @@ export default function EditorPage() {
         <button
           onClick={handleRedo}
           disabled={!canRedo}
-          title="Redo (Ctrl+Y)"
+          title={tr('editor.redo_title')}
           style={{
             background: 'none', border: 'none', color: canRedo ? '#fff' : '#555',
             cursor: canRedo ? 'pointer' : 'default', fontSize: 16,
@@ -1224,7 +1228,7 @@ export default function EditorPage() {
             background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
             display: 'flex', alignItems: 'center', gap: 6, padding: 0, fontSize: 12,
           }}
-          title="Toggle Problems panel"
+          title={tr('editor.toggle_problems_title')}
         >
           {diagnostics.filter(d => d.severity === 'error').length > 0 && (
             <span style={{ color: '#ffc0b0' }}>
@@ -1236,10 +1240,10 @@ export default function EditorPage() {
               {'\u26A0'} {diagnostics.filter(d => d.severity === 'warning').length}
             </span>
           )}
-          {diagnostics.length === 0 && <span style={{ opacity: 0.7 }}>{'\u2713'} No problems</span>}
+          {diagnostics.length === 0 && <span style={{ opacity: 0.7 }}>{'\u2713'} {tr('editor.status_no_problems')}</span>}
         </button>
         <span style={{ flex: 1 }} />
-        <span>{(content.match(/\n/g) ?? []).length + 1} lines</span>
+        <span>{tr('editor.status_lines_count', { count: (content.match(/\n/g) ?? []).length + 1 })}</span>
       </div>
     </div>
   );

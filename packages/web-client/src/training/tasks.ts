@@ -1,5 +1,8 @@
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+import i18n from '../i18n/index.js';
+import type { SupportedLanguage } from '../i18n/index.js';
+
 export interface ValidationResult {
   passed: boolean;
   message: string;
@@ -80,7 +83,7 @@ function vDef(keyword: string, name: string, success: string, error: string): VF
   return (code) => {
     if (new RegExp(`${keyword}\\s+${name}\\b`).test(code)) return ok(success);
     if (new RegExp(name, 'i').test(code))
-      return hint(`Use the full syntax: \`${keyword} ${name} { }\``);
+      return hint(i18n.t('training_hint.use_full_syntax', { keyword, name }));
     return err(error);
   };
 }
@@ -90,7 +93,7 @@ function vSpec(keyword: string, name: string, parent: string, success: string, e
   return (code) => {
     if (new RegExp(`${keyword}\\s+${name}\\s*:>\\s*${parent}`).test(code)) return ok(success);
     if (new RegExp(name).test(code))
-      return hint(`Add specialization: \`${keyword} ${name} :> ${parent} { }\``);
+      return hint(i18n.t('training_hint.add_specialization', { keyword, name, parent }));
     return err(error);
   };
 }
@@ -100,8 +103,8 @@ function vAttr(name: string, type: string, parent: string, success: string): VFn
   return (code) => {
     if (new RegExp(`attribute\\s+${name}\\s*:\\s*${type}`).test(code)) return ok(success);
     if (new RegExp(`\\b${name}\\b`).test(code))
-      return hint(`Add the type: \`attribute ${name} : ${type};\``);
-    return err(`Inside ${parent} { }, add: \`attribute ${name} : ${type};\``);
+      return hint(i18n.t('training_hint.add_type', { name, type }));
+    return err(i18n.t('training_hint.inside_add_attr', { parent, name, type }));
   };
 }
 
@@ -112,8 +115,8 @@ function vUsage(keyword: string, name: string, type: string, mult: string, paren
   return (code) => {
     if (new RegExp(`${keyword}\\s+${name}${multPat}\\s*:\\s*${type}`).test(code)) return ok(success);
     if (new RegExp(`\\b${name}\\b`).test(code))
-      return hint(`Use: \`${keyword} ${name}${multStr} : ${type};\``);
-    return err(`Inside ${parent} { }, add: \`${keyword} ${name}${multStr} : ${type};\``);
+      return hint(i18n.t('training_hint.use_usage', { keyword, name, mult: multStr, type }));
+    return err(i18n.t('training_hint.inside_add_usage', { parent, keyword, name, mult: multStr, type }));
   };
 }
 
@@ -122,8 +125,8 @@ function vSubset(name: string, parent: string, container: string, success: strin
   return (code) => {
     if (new RegExp(`part\\s+${name}\\s*:>\\s*${parent}`).test(code)) return ok(success);
     if (new RegExp(`\\b${name}\\b`).test(code))
-      return hint(`Use subsetting: \`part ${name} :> ${parent};\``);
-    return err(`Inside ${container} { }, add: \`part ${name} :> ${parent};\``);
+      return hint(i18n.t('training_hint.use_subsetting', { name, parent }));
+    return err(i18n.t('training_hint.inside_add_subset', { container, name, parent }));
   };
 }
 
@@ -132,8 +135,8 @@ function vRedef(name: string, parent: string, container: string, success: string
   return (code) => {
     if (new RegExp(`part\\s+${name}\\s*:>>\\s*${parent}`).test(code)) return ok(success);
     if (new RegExp(`\\b${name}\\b`).test(code))
-      return hint(`Use redefinition: \`part ${name} :>> ${parent};\``);
-    return err(`Inside ${container} { }, add: \`part ${name} :>> ${parent};\``);
+      return hint(i18n.t('training_hint.use_redefinition', { name, parent }));
+    return err(i18n.t('training_hint.inside_add_redef', { container, name, parent }));
   };
 }
 
@@ -6134,6 +6137,118 @@ individual myVehicle : Vehicle_1 {
 ];
 
 export const TOTAL_LEVELS = 22;
+
+// ─── Localization loader ─────────────────────────────────────────────────────
+// Turkish task texts live in tasks-tr.ts so this file stays the English source
+// of truth. The loader merges Turkish overrides into the English structure when
+// the active language is `tr`.
+
+import { TASK_TEXTS_TR, LEGEND_EXPLANATIONS_TR, IDENTIFIER_MAP_TR } from './tasks-tr.js';
+
+// ─── Identifier substitution (EN ↔ TR) ──────────────────────────────────────
+// SysML model identifiers (Vehicle, Engine, mass, ...) are translated by
+// substitution at load time. The validators run on English-named code, so when
+// the user submits Turkish code we reverse-translate to English first; then
+// the validator's output messages are re-translated to Turkish.
+
+const IDENTIFIER_MAP_EN: Record<string, string> = Object.fromEntries(
+  Object.entries(IDENTIFIER_MAP_TR).map(([en, tr]) => [tr, en]),
+);
+
+// Word-boundary regex over the entire identifier set. We escape regex special
+// chars in keys (e.g. Vehicle_1 contains `_` which is already a word char).
+function buildAlternation(keys: string[]): RegExp {
+  const escaped = keys
+    .slice()
+    .sort((a, b) => b.length - a.length) // prefer longer matches first
+    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`\\b(${escaped.join('|')})\\b`, 'g');
+}
+
+const EN_TO_TR_PATTERN = buildAlternation(Object.keys(IDENTIFIER_MAP_TR));
+const TR_TO_EN_PATTERN = buildAlternation(Object.keys(IDENTIFIER_MAP_EN));
+
+function translateEnToTr(text: string): string {
+  return text.replace(EN_TO_TR_PATTERN, (m) => IDENTIFIER_MAP_TR[m] ?? m);
+}
+
+function translateTrToEn(text: string): string {
+  return text.replace(TR_TO_EN_PATTERN, (m) => IDENTIFIER_MAP_EN[m] ?? m);
+}
+
+/** Wraps a validator so it can operate on Turkish input:
+ *  1. User's Turkish code → translate to English before running regex checks
+ *  2. Validator's output message (may reference English identifiers) →
+ *     translate back to Turkish for display
+ *  3. If a Turkish override provides validateSuccess/validateError, those
+ *     replace the validator's own messages (already in Turkish).
+ */
+function wrapValidate(
+  orig: TrainingTask['validate'],
+  successMsg?: string,
+  errorMsg?: string,
+): TrainingTask['validate'] {
+  return (code) => {
+    const englishCode = translateTrToEn(code);
+    const result = orig(englishCode);
+    if (result.severity === 'success' && successMsg) {
+      return { ...result, message: translateEnToTr(successMsg) };
+    }
+    if (result.severity === 'error' && errorMsg) {
+      return { ...result, message: translateEnToTr(errorMsg) };
+    }
+    // For hint messages produced by the helpers (already i18n'd) and for
+    // English fallback success/error from tasks.ts, translate identifiers.
+    return { ...result, message: translateEnToTr(result.message) };
+  };
+}
+
+export function getTrainingTasks(lang: SupportedLanguage): TrainingTask[] {
+  if (lang !== 'tr') return TRAINING_TASKS;
+  return TRAINING_TASKS.map((task) => {
+    const ov = TASK_TEXTS_TR[task.id];
+    const validateSuccess = ov?.validateSuccess;
+    const validateError = ov?.validateError;
+    const textOverride = ov ? { ...ov } : undefined;
+    if (textOverride) {
+      delete textOverride.validateSuccess;
+      delete textOverride.validateError;
+    }
+    const base: TrainingTask = textOverride
+      ? { ...task, ...textOverride }
+      : task;
+    return {
+      ...base,
+      title: translateEnToTr(base.title),
+      instruction: translateEnToTr(base.instruction),
+      hint: translateEnToTr(base.hint),
+      conceptExplanation: translateEnToTr(base.conceptExplanation),
+      starterCode: translateEnToTr(task.starterCode),
+      targetCode: translateEnToTr(task.targetCode),
+      validate: wrapValidate(task.validate, validateSuccess, validateError),
+    };
+  });
+}
+
+/** Returns the demo SysML code shown on training completion, with identifiers
+ *  translated to Turkish when the active language is `tr`. */
+export function getCompletedCode(lang: SupportedLanguage): string {
+  return lang === 'tr' ? translateEnToTr(COMPLETED_CODE) : COMPLETED_CODE;
+}
+
+export function getLegendItems(lang: SupportedLanguage): LegendItem[] {
+  if (lang !== 'tr') return LEGEND_ITEMS;
+  return LEGEND_ITEMS.map((item) => {
+    const tr = LEGEND_EXPLANATIONS_TR[item.label];
+    return {
+      ...item,
+      // Translate identifier names in the textualSyntax sample shown to the
+      // user so it matches the rest of the Turkish training experience.
+      textualSyntax: translateEnToTr(item.textualSyntax),
+      explanation: tr ?? item.explanation,
+    };
+  });
+}
 
 export const COMPLETED_CODE = `\
 // SysML v2 Training Complete!

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Header from '../components/Layout/Header.js';
+import { formatDate, formatDateTime } from '../utils/locale.js';
 import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo, type StartupInvitation } from '../services/api-client.js';
 import type { AiKeyInfo } from '../services/api-client.js';
 import { useTheme, type ThemeColors } from '../store/theme.js';
@@ -75,15 +77,16 @@ export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
   const [searchParams] = useSearchParams();
+  const { t: tr } = useTranslation();
 
   const tabs: { id: SettingsTab; label: string }[] = [
-    { id: 'account', label: 'Account' },
-    { id: 'ai-provider', label: 'AI Provider' },
-    { id: 'mcp', label: 'MCP' },
+    { id: 'account', label: tr('settings.tab_account') },
+    { id: 'ai-provider', label: tr('settings.tab_ai_provider') },
+    { id: 'mcp', label: tr('settings.tab_mcp') },
     ...(isAdmin ? [
-      { id: 'startups' as SettingsTab, label: 'Enterprises' },
-      { id: 'admin' as SettingsTab, label: 'Admin' },
-      { id: 'bug-reports' as SettingsTab, label: 'Bug Reports' },
+      { id: 'startups' as SettingsTab, label: tr('settings.tab_enterprises') },
+      { id: 'admin' as SettingsTab, label: tr('settings.tab_admin') },
+      { id: 'bug-reports' as SettingsTab, label: tr('settings.tab_bug_reports') },
     ] : []),
   ];
 
@@ -92,7 +95,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: t.bg }}>
-      <Header title="Settings" />
+      <Header title={tr('settings.page_title')} />
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', maxWidth: 800, width: '100%', margin: '0 auto' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${t.border}`, marginBottom: 24, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -130,6 +133,7 @@ export default function SettingsPage() {
 
 function AccountSection() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const user = useAuthStore(s => s.user);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -142,8 +146,8 @@ function AccountSection() {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return; }
-    if (newPassword.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (newPassword !== confirmPassword) { setError(tr('settings.passwords_mismatch')); return; }
+    if (newPassword.length < 8) { setError(tr('settings.password_too_short')); return; }
     setSaving(true);
     try {
       const result = await api.auth.changePassword(currentPassword, newPassword);
@@ -152,7 +156,7 @@ function AccountSection() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password');
+      setError(err instanceof Error ? err.message : tr('settings.err_change_password'));
     } finally {
       setSaving(false);
     }
@@ -162,30 +166,30 @@ function AccountSection() {
 
   return (
     <>
-      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>Account</h2>
+      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>{tr('settings.section_account')}</h2>
       <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
-        Your account details and password management.
+        {tr('settings.account_description')}
       </p>
 
       {/* Account info */}
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Profile</h3>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>{tr('settings.section_profile')}</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', fontSize: 13 }}>
-          <span style={{ color: t.textSecondary }}>Email</span>
+          <span style={{ color: t.textSecondary }}>{tr('settings.label_email')}</span>
           <span style={{ color: t.text }}>{user?.email ?? '—'}</span>
-          <span style={{ color: t.textSecondary }}>Name</span>
+          <span style={{ color: t.textSecondary }}>{tr('settings.label_name')}</span>
           <span style={{ color: t.text }}>{user?.name ?? '—'}</span>
-          <span style={{ color: t.textSecondary }}>Role</span>
+          <span style={{ color: t.textSecondary }}>{tr('settings.label_role')}</span>
           <span style={{ color: t.text, textTransform: 'capitalize' }}>{user?.role ?? '—'}</span>
         </div>
       </div>
 
       {/* Change password */}
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Change Password</h3>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>{tr('settings.section_change_password')}</h3>
         <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360 }}>
           <div>
-            <label style={lStyle(t)}>Current Password</label>
+            <label style={lStyle(t)}>{tr('settings.label_current_password')}</label>
             <input
               type="password"
               value={currentPassword}
@@ -195,7 +199,7 @@ function AccountSection() {
             />
           </div>
           <div>
-            <label style={lStyle(t)}>New Password</label>
+            <label style={lStyle(t)}>{tr('settings.label_new_password')}</label>
             <input
               type="password"
               value={newPassword}
@@ -206,7 +210,7 @@ function AccountSection() {
             />
           </div>
           <div>
-            <label style={lStyle(t)}>Confirm New Password</label>
+            <label style={lStyle(t)}>{tr('settings.label_confirm_new_password')}</label>
             <input
               type="password"
               value={confirmPassword}
@@ -224,7 +228,7 @@ function AccountSection() {
             cursor: saving ? 'not-allowed' : 'pointer', alignSelf: 'flex-start',
             whiteSpace: 'nowrap' as const,
           }}>
-            {saving ? 'Updating...' : 'Change Password'}
+            {saving ? tr('settings.btn_updating') : tr('settings.btn_change_password')}
           </button>
         </form>
       </div>
@@ -236,6 +240,7 @@ function AccountSection() {
 
 function McpSection() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [tokens, setTokens] = useState<McpTokenInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -256,7 +261,7 @@ function McpSection() {
       const data = await api.mcpTokens.list();
       setTokens(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tokens');
+      setError(err instanceof Error ? err.message : tr('settings.err_load_tokens'));
     } finally {
       setLoading(false);
     }
@@ -278,7 +283,7 @@ function McpSection() {
       setExpiresInDays('');
       await loadTokens();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create token');
+      setError(err instanceof Error ? err.message : tr('settings.err_create_token'));
     } finally {
       setCreating(false);
     }
@@ -290,7 +295,7 @@ function McpSection() {
       await api.mcpTokens.revoke(id);
       await loadTokens();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to revoke token');
+      setError(err instanceof Error ? err.message : tr('settings.err_revoke_token'));
     }
   };
 
@@ -308,35 +313,34 @@ function McpSection() {
 
   return (
     <>
-      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>MCP Connection</h2>
+      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>{tr('settings.section_mcp_connection')}</h2>
       <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
-        Connect your AI client (Claude Desktop, Cursor, VS Code, Windsurf) to systemodel.
-        Your AI runs on your own subscription — no API keys stored on our server.
+        {tr('settings.mcp_description')}
       </p>
 
       {error && <div style={{ color: t.error, fontSize: 13, marginBottom: 16, padding: '8px 12px', background: t.errorBg, borderRadius: 4 }}>{error}</div>}
 
       {/* Create Token */}
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Create Access Token</h3>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>{tr('settings.section_create_token')}</h3>
         <form onSubmit={handleCreate} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 180 }}>
-            <label style={lStyle(t)}>Token name</label>
+            <label style={lStyle(t)}>{tr('settings.label_token_name')}</label>
             <input
               value={newTokenName}
               onChange={e => setNewTokenName(e.target.value)}
-              placeholder="e.g. Claude Desktop"
+              placeholder={tr('settings.token_name_placeholder')}
               required
               style={iStyle}
             />
           </div>
           <div style={{ width: 140 }}>
-            <label style={lStyle(t)}>Expires in (days)</label>
+            <label style={lStyle(t)}>{tr('settings.label_expires_in_days')}</label>
             <input
               type="number"
               value={expiresInDays}
               onChange={e => setExpiresInDays(e.target.value ? parseInt(e.target.value) : '')}
-              placeholder="Never"
+              placeholder={tr('settings.placeholder_never')}
               min={1}
               max={365}
               style={iStyle}
@@ -348,7 +352,7 @@ function McpSection() {
             opacity: creating || !newTokenName ? 0.5 : 1,
             cursor: creating || !newTokenName ? 'not-allowed' : 'pointer',
           }}>
-            {creating ? 'Creating...' : 'Create Token'}
+            {creating ? tr('settings.btn_creating') : tr('settings.btn_create_token')}
           </button>
         </form>
       </div>
@@ -356,9 +360,9 @@ function McpSection() {
       {/* Newly Created Token */}
       {newlyCreated && (
         <div style={{ background: t.successBg, border: `1px solid ${t.success}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: t.success, fontSize: 14, marginBottom: 8 }}>Token Created — Copy It Now</h3>
+          <h3 style={{ color: t.success, fontSize: 14, marginBottom: 8 }}>{tr('settings.token_created_title')}</h3>
           <p style={{ color: t.textSecondary, fontSize: 12, marginBottom: 12 }}>
-            This token will not be shown again. Store it securely.
+            {tr('settings.token_warning')}
           </p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <code style={{
@@ -368,13 +372,13 @@ function McpSection() {
               {newlyCreated.token}
             </code>
             <button onClick={() => copyToClipboard(newlyCreated.token, 'token')} style={btnSecondary(t)}>
-              {copied === 'token' ? 'Copied!' : 'Copy'}
+              {copied === 'token' ? tr('settings.btn_copied') : tr('settings.btn_copy')}
             </button>
           </div>
 
           {/* Client Config Generator */}
           <div style={{ marginTop: 16 }}>
-            <label style={lStyle(t)}>Generate config for:</label>
+            <label style={lStyle(t)}>{tr('settings.generate_config_for')}</label>
             <div style={{ display: 'flex', gap: 6, marginBottom: 12, marginTop: 6 }}>
               {clients.map(c => (
                 <button
@@ -391,7 +395,7 @@ function McpSection() {
               ))}
             </div>
             <p style={{ color: t.textSecondary, fontSize: 12, marginBottom: 8 }}>
-              Paste into <code style={{ color: t.info }}>{client.file}</code>:
+              {tr('settings.paste_into')} <code style={{ color: t.info }}>{client.file}</code>
             </p>
             <div style={{ position: 'relative' }}>
               <pre style={{
@@ -405,24 +409,24 @@ function McpSection() {
                 onClick={() => copyToClipboard(client.generator(serverUrl, newlyCreated.token), 'config')}
                 style={{ ...btnSecondary(t), position: 'absolute', top: 8, right: 8 }}
               >
-                {copied === 'config' ? 'Copied!' : 'Copy Config'}
+                {copied === 'config' ? tr('settings.btn_copied') : tr('settings.btn_copy_config')}
               </button>
             </div>
           </div>
 
           <button onClick={() => setNewlyCreated(null)} style={{ ...btnSecondary(t), marginTop: 12 }}>
-            Dismiss
+            {tr('settings.btn_dismiss')}
           </button>
         </div>
       )}
 
       {/* Active Tokens */}
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>Active Tokens</h3>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>{tr('settings.section_active_tokens')}</h3>
         {loading ? (
-          <p style={{ color: t.textSecondary, fontSize: 13 }}>Loading...</p>
+          <p style={{ color: t.textSecondary, fontSize: 13 }}>{tr('settings.tokens_loading')}</p>
         ) : activeTokens.length === 0 ? (
-          <p style={{ color: t.textSecondary, fontSize: 13 }}>No active tokens. Create one above to connect your AI client.</p>
+          <p style={{ color: t.textSecondary, fontSize: 13 }}>{tr('settings.no_active_tokens')}</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {activeTokens.map(tk => (
@@ -435,16 +439,16 @@ function McpSection() {
                   <div style={{ color: t.textSecondary, fontSize: 11, marginTop: 2 }}>
                     <code style={{ fontFamily: 'monospace' }}>{tk.token}</code>
                     {' '}&middot;{' '}
-                    Created {new Date(tk.createdAt).toLocaleDateString()}
-                    {tk.lastUsed && <> &middot; Last used {new Date(tk.lastUsed).toLocaleDateString()}</>}
-                    {tk.expiresAt && <> &middot; Expires {new Date(tk.expiresAt).toLocaleDateString()}</>}
+                    {tr('settings.token_created', { date: formatDate(tk.createdAt) })}
+                    {tk.lastUsed && <> &middot; {tr('settings.token_last_used', { date: formatDate(tk.lastUsed) })}</>}
+                    {tk.expiresAt && <> &middot; {tr('settings.token_expires', { date: formatDate(tk.expiresAt) })}</>}
                   </div>
                 </div>
                 <button onClick={() => handleRevoke(tk.id)} style={{
                   background: 'transparent', color: t.error, border: `1px solid ${t.error}`, borderRadius: 4,
                   padding: '4px 10px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' as const,
                 }}>
-                  Revoke
+                  {tr('settings.btn_revoke')}
                 </button>
               </div>
             ))}
@@ -455,7 +459,7 @@ function McpSection() {
       {/* Revoked Tokens */}
       {revokedTokens.length > 0 && (
         <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-          <h3 style={{ color: t.textSecondary, fontSize: 14, marginBottom: 12 }}>Revoked Tokens</h3>
+          <h3 style={{ color: t.textSecondary, fontSize: 14, marginBottom: 12 }}>{tr('settings.section_revoked_tokens')}</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {revokedTokens.map(tk => (
               <div key={tk.id} style={{
@@ -466,7 +470,7 @@ function McpSection() {
                   <div style={{ color: t.textSecondary, fontSize: 13 }}>{tk.name}</div>
                   <div style={{ color: t.textMuted, fontSize: 11 }}>
                     <code style={{ fontFamily: 'monospace' }}>{tk.token}</code>
-                    {' '}&middot;{' '}Revoked
+                    {' '}&middot;{' '}{tr('settings.revoked_label')}
                   </div>
                 </div>
               </div>
@@ -477,36 +481,36 @@ function McpSection() {
 
       {/* How It Works */}
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
-        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>How It Works</h3>
+        <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>{tr('settings.section_how_it_works')}</h3>
         <div style={{ color: t.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
           <p style={{ marginBottom: 8 }}>
-            <strong style={{ color: t.text }}>1.</strong> Create an access token above and name it after your AI client.
+            <strong style={{ color: t.text }}>1.</strong> {tr('settings.how_step_1')}
           </p>
           <p style={{ marginBottom: 8 }}>
-            <strong style={{ color: t.text }}>2.</strong> Copy the generated config into your AI client's configuration file.
+            <strong style={{ color: t.text }}>2.</strong> {tr('settings.how_step_2')}
           </p>
           <p style={{ marginBottom: 8 }}>
-            <strong style={{ color: t.text }}>3.</strong> Your AI client connects to systemodel via MCP and can read/edit your SysML files.
+            <strong style={{ color: t.text }}>3.</strong> {tr('settings.how_step_3')}
           </p>
           <p style={{ marginBottom: 0 }}>
-            <strong style={{ color: t.text }}>4.</strong> AI inference runs on <em>your</em> subscription (Claude Pro, Cursor Pro, etc.) — zero cost to systemodel.
+            <strong style={{ color: t.text }}>4.</strong> <span dangerouslySetInnerHTML={{ __html: tr('settings.how_step_4') }} />
           </p>
         </div>
 
-        <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Available MCP Tools</h4>
+        <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>{tr('settings.section_available_tools')}</h4>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12, color: t.textSecondary }}>
-          <span><code style={{ color: t.info }}>list_projects</code> — List your projects</span>
-          <span><code style={{ color: t.info }}>list_files</code> — List files in a project</span>
-          <span><code style={{ color: t.info }}>read_file</code> — Read file content</span>
-          <span><code style={{ color: t.info }}>search_files</code> — Search across files</span>
-          <span><code style={{ color: t.info }}>update_file</code> — Replace file content</span>
-          <span><code style={{ color: t.info }}>apply_edit</code> — Precise line/col edit</span>
+          <span><code style={{ color: t.info }}>list_projects</code> — {tr('settings.tool_list_projects')}</span>
+          <span><code style={{ color: t.info }}>list_files</code> — {tr('settings.tool_list_files')}</span>
+          <span><code style={{ color: t.info }}>read_file</code> — {tr('settings.tool_read_file')}</span>
+          <span><code style={{ color: t.info }}>search_files</code> — {tr('settings.tool_search_files')}</span>
+          <span><code style={{ color: t.info }}>update_file</code> — {tr('settings.tool_update_file')}</span>
+          <span><code style={{ color: t.info }}>apply_edit</code> — {tr('settings.tool_apply_edit')}</span>
         </div>
         <p style={{ fontSize: 11, color: t.textSecondary, marginTop: 8, fontStyle: 'italic' }}>
-          MCP tools can read and edit existing .sysml files. File creation and deletion are only available through the web editor.
+          {tr('settings.tools_note')}
         </p>
 
-        <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>Supported AI Clients</h4>
+        <h4 style={{ color: t.text, fontSize: 13, marginTop: 16, marginBottom: 8 }}>{tr('settings.section_supported_clients')}</h4>
         <div style={{ color: t.textSecondary, fontSize: 12, lineHeight: 1.7 }}>
           Claude Desktop &middot; Cursor &middot; VS Code (Copilot) &middot; Windsurf &middot; JetBrains &middot; Zed &middot; Claude Code CLI
         </div>
@@ -527,6 +531,7 @@ const PROVIDERS: ProviderDef[] = [
 
 function AiProviderSection() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [storedKeys, setStoredKeys] = useState<AiKeyInfo[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDef['id']>('anthropic');
   const [newKey, setNewKey] = useState('');
@@ -557,12 +562,12 @@ function AiProviderSection() {
     setSavedMsg('');
     try {
       await api.aiKeys.save(selectedProvider, newKey.trim(), selectedModel);
-      setSavedMsg('Key saved securely. You won\'t see the full key again.');
+      setSavedMsg(tr('settings.key_saved_msg'));
       setNewKey('');
       const keys = await api.aiKeys.list();
       setStoredKeys(keys);
     } catch (err) {
-      setKeyError(err instanceof Error ? err.message : 'Failed to save key');
+      setKeyError(err instanceof Error ? err.message : tr('settings.err_save_key'));
     } finally {
       setSaving(false);
     }
@@ -590,16 +595,14 @@ function AiProviderSection() {
 
   return (
     <>
-      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>AI Chat Provider</h2>
+      <h2 style={{ color: t.info, fontSize: 18, marginBottom: 8 }}>{tr('settings.section_ai_chat_provider')}</h2>
       <p style={{ color: t.textSecondary, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
-        Connect your AI account to chat from the editor.
-        Your API key is encrypted and stored securely on the server.
-        You will only see it once when you save it.
+        {tr('settings.ai_provider_description')}
       </p>
 
       <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
         {/* Provider tabs */}
-        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 6 }}>Provider</label>
+        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 6 }}>{tr('settings.label_provider')}</label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {PROVIDERS.map(p => {
             const connected = storedKeys.some(k => k.provider === p.id);
@@ -630,7 +633,7 @@ function AiProviderSection() {
           }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.success }} />
             <div style={{ flex: 1 }}>
-              <span style={{ color: t.success, fontSize: 12 }}>Connected</span>
+              <span style={{ color: t.success, fontSize: 12 }}>{tr('settings.connected')}</span>
               <span style={{ color: t.textMuted, fontSize: 11, marginLeft: 8 }}>
                 <code style={{ fontFamily: 'monospace' }}>{existingKey.maskedKey}</code>
               </span>
@@ -638,7 +641,7 @@ function AiProviderSection() {
             <button onClick={handleDisconnect} style={{
               background: 'transparent', color: t.error, border: `1px solid ${t.error}`,
               borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
-            }}>Disconnect</button>
+            }}>{tr('settings.disconnect')}</button>
           </div>
         ) : (
           <div style={{
@@ -646,13 +649,13 @@ function AiProviderSection() {
             background: t.bgInput, borderRadius: 4, marginBottom: 16,
           }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.error }} />
-            <span style={{ color: t.textSecondary, fontSize: 12 }}>Not connected — enter your API key below</span>
+            <span style={{ color: t.textSecondary, fontSize: 12 }}>{tr('settings.not_connected')}</span>
           </div>
         )}
 
         {/* API Key input */}
         <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 4 }}>
-          {existingKey ? 'Replace API Key' : 'API Key'}
+          {existingKey ? tr('settings.label_replace_api_key') : tr('settings.label_api_key')}
         </label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           <input
@@ -665,7 +668,7 @@ function AiProviderSection() {
             spellCheck={false}
             value={newKey}
             onChange={e => setNewKey(e.target.value)}
-            placeholder={existingKey ? 'Enter new key to replace' : `Enter your ${current.label} API key`}
+            placeholder={existingKey ? tr('settings.api_key_placeholder_replace') : tr('settings.api_key_placeholder_enter', { provider: current.label })}
             style={{
               ...iStyle, fontFamily: 'monospace',
               // @ts-expect-error — WebkitTextSecurity is a non-standard CSS property for masking input
@@ -680,14 +683,14 @@ function AiProviderSection() {
               border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 12,
               cursor: saving || !newKey.trim() ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' as const,
             }}
-          >{saving ? 'Saving...' : 'Save Key'}</button>
+          >{saving ? tr('settings.btn_saving') : tr('settings.btn_save_key')}</button>
         </div>
 
         {keyError && <div style={{ color: t.error, fontSize: 12, marginBottom: 12 }}>{keyError}</div>}
         {savedMsg && <div style={{ color: t.success, fontSize: 12, marginBottom: 12 }}>{savedMsg}</div>}
 
         {/* Model selector */}
-        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 4 }}>Model</label>
+        <label style={{ display: 'block', color: t.textSecondary, fontSize: 11, marginBottom: 4 }}>{tr('settings.label_model')}</label>
         <select
           value={selectedModel}
           onChange={e => handleModelChange(e.target.value)}
@@ -724,6 +727,7 @@ const btnSecondary = (t: ThemeColors): React.CSSProperties => ({
 
 function StartupsSection() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [startups, setStartups] = useState<Startup[]>([]);
   const [selected, setSelected] = useState<Startup | null>(null);
   const [members, setMembers] = useState<StartupMember[]>([]);
@@ -741,7 +745,7 @@ function StartupsSection() {
       const list = await api.startups.list();
       setStartups(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load enterprises');
+      setError(e instanceof Error ? e.message : tr('settings.err_load_enterprises'));
     } finally {
       setLoading(false);
     }
@@ -776,32 +780,32 @@ function StartupsSection() {
       await fetchStartups();
       setNewName('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create enterprise');
+      setError(e instanceof Error ? e.message : tr('settings.err_create_enterprise'));
     } finally {
       setCreating(false);
     }
   };
 
   const deleteStartup = async (s: Startup) => {
-    if (!confirm(`Delete enterprise "${s.name}" and all its projects?`)) return;
+    if (!confirm(tr('settings.confirm_delete_enterprise', { name: s.name }))) return;
     try {
       await api.startups.delete(s.id);
       if (selected?.id === s.id) { setSelected(null); setMembers([]); }
       await fetchStartups();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete');
+      setError(e instanceof Error ? e.message : tr('settings.err_delete_enterprise'));
     }
   };
 
   const renameStartup = async (s: Startup) => {
-    const name = prompt('Rename enterprise:', s.name);
+    const name = prompt(tr('settings.prompt_rename_enterprise'), s.name);
     if (!name || name === s.name) return;
     try {
       const updated = await api.startups.update(s.id, { name: name.trim() });
       if (selected?.id === s.id) setSelected(updated);
       await fetchStartups();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to rename');
+      setError(e instanceof Error ? e.message : tr('settings.err_rename_enterprise'));
     }
   };
 
@@ -815,7 +819,7 @@ function StartupsSection() {
       await fetchMembers(selected.id);
       setAddEmail('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add member');
+      setError(e instanceof Error ? e.message : tr('settings.err_add_member'));
     } finally {
       setAddingMember(false);
     }
@@ -827,27 +831,27 @@ function StartupsSection() {
       await api.startups.members.updateRole(selected.id, userId, role);
       await fetchMembers(selected.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update role');
+      setError(e instanceof Error ? e.message : tr('settings.err_update_role'));
     }
   };
 
   const removeMember = async (userId: string, name: string) => {
-    if (!selected || !confirm(`Remove ${name} from this enterprise?`)) return;
+    if (!selected || !confirm(tr('settings.confirm_remove_member', { name }))) return;
     try {
       await api.startups.members.remove(selected.id, userId);
       await fetchMembers(selected.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to remove member');
+      setError(e instanceof Error ? e.message : tr('settings.err_remove_member'));
     }
   };
 
   const revokeInvitation = async (invId: string, email: string) => {
-    if (!selected || !confirm(`Revoke invitation for ${email}?`)) return;
+    if (!selected || !confirm(tr('settings.confirm_revoke_invitation', { email }))) return;
     try {
       await api.startups.invitations.revoke(selected.id, invId);
       setInvitations(prev => prev.filter(i => i.id !== invId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to revoke invitation');
+      setError(e instanceof Error ? e.message : tr('settings.err_revoke_invitation'));
     }
   };
 
@@ -857,22 +861,22 @@ function StartupsSection() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 12px' }}>Enterprises</h3>
+        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 12px' }}>{tr('settings.section_enterprises')}</h3>
         {error && <div style={{ color: t.error, fontSize: 12, marginBottom: 8 }}>{error}</div>}
 
         {/* Create form */}
         <form onSubmit={createStartup} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Enterprise name" style={{ ...iStyle, width: 'auto', flex: 1, minWidth: 140 }} />
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder={tr('settings.placeholder_enterprise_name')} style={{ ...iStyle, width: 'auto', flex: 1, minWidth: 140 }} />
           <button type="submit" disabled={creating || !newName.trim()} style={{ background: t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '8px 16px', fontSize: 12, cursor: creating ? 'default' : 'pointer', opacity: creating ? 0.6 : 1 }}>
-            {creating ? 'Creating...' : '+ Create'}
+            {creating ? tr('settings.btn_creating') : tr('settings.btn_create_short')}
           </button>
         </form>
 
         {/* Startup list */}
         {loading ? (
-          <div style={{ color: t.textMuted, fontSize: 13 }}>Loading...</div>
+          <div style={{ color: t.textMuted, fontSize: 13 }}>{tr('settings.tokens_loading')}</div>
         ) : startups.length === 0 ? (
-          <div style={{ color: t.textMuted, fontSize: 13 }}>No enterprises yet. Create one above.</div>
+          <div style={{ color: t.textMuted, fontSize: 13 }}>{tr('settings.no_enterprises_yet')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {startups.map(s => (
@@ -891,12 +895,12 @@ function StartupsSection() {
                 <div>
                   <div style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>{s.name}</div>
                   <div style={{ color: t.textMuted, fontSize: 11 }}>
-                    /{s.slug} &middot; {s._count?.members ?? 0} members &middot; {s._count?.projects ?? 0} projects
+                    /{s.slug} &middot; {tr('settings.members_summary', { members: s._count?.members ?? 0, projects: s._count?.projects ?? 0 })}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => renameStartup(s)} style={{ ...bStyle, fontSize: 11, padding: '4px 8px' }}>Rename</button>
-                  <button onClick={() => deleteStartup(s)} style={{ ...bStyle, fontSize: 11, padding: '4px 8px', color: t.error }}>Delete</button>
+                  <button onClick={() => renameStartup(s)} style={{ ...bStyle, fontSize: 11, padding: '4px 8px' }}>{tr('settings.btn_rename_short')}</button>
+                  <button onClick={() => deleteStartup(s)} style={{ ...bStyle, fontSize: 11, padding: '4px 8px', color: t.error }}>{tr('settings.btn_delete_short')}</button>
                 </div>
               </div>
             ))}
@@ -908,23 +912,23 @@ function StartupsSection() {
       {selected && (
         <div>
           <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 12px' }}>
-            Members of {selected.name}
+            {tr('settings.members_of', { name: selected.name })}
           </h3>
 
           {/* Add member form */}
           <form onSubmit={addMember} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            <input value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="Email address" type="email" style={{ ...iStyle, width: 'auto', flex: 1, minWidth: 160 }} />
+            <input value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder={tr('settings.placeholder_email_address')} type="email" style={{ ...iStyle, width: 'auto', flex: 1, minWidth: 160 }} />
             <select value={addRole} onChange={e => setAddRole(e.target.value as StartupRole)} style={{ ...iStyle, width: 'auto', minWidth: 120 }}>
-              <option value="STARTUP_USER">User</option>
-              <option value="STARTUP_ADMIN">Admin</option>
+              <option value="STARTUP_USER">{tr('settings.role_user')}</option>
+              <option value="STARTUP_ADMIN">{tr('settings.role_admin')}</option>
             </select>
             <button type="submit" disabled={addingMember || !addEmail.trim()} style={{ background: t.accent, color: '#fff', border: 'none', borderRadius: 4, padding: '8px 14px', fontSize: 12, cursor: addingMember ? 'default' : 'pointer', opacity: addingMember ? 0.6 : 1 }}>
-              {addingMember ? 'Adding...' : '+ Add'}
+              {addingMember ? tr('settings.btn_adding') : tr('settings.btn_add_short')}
             </button>
           </form>
 
           {members.length === 0 ? (
-            <div style={{ color: t.textMuted, fontSize: 13 }}>No members yet.</div>
+            <div style={{ color: t.textMuted, fontSize: 13 }}>{tr('settings.no_members_yet')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {members.map(m => (
@@ -938,11 +942,11 @@ function StartupsSection() {
                     onChange={e => changeRole(m.userId, e.target.value as StartupRole)}
                     style={{ background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3, padding: '3px 6px', color: t.text, fontSize: 11 }}
                   >
-                    <option value="STARTUP_USER">User</option>
-                    <option value="STARTUP_ADMIN">Admin</option>
+                    <option value="STARTUP_USER">{tr('settings.role_user')}</option>
+                    <option value="STARTUP_ADMIN">{tr('settings.role_admin')}</option>
                   </select>
-                  <button onClick={() => removeMember(m.userId, m.user?.name ?? 'this user')} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '3px 8px', fontSize: 11, color: t.error, cursor: 'pointer' }}>
-                    Remove
+                  <button onClick={() => removeMember(m.userId, m.user?.name ?? tr('settings.default_user_fallback'))} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '3px 8px', fontSize: 11, color: t.error, cursor: 'pointer' }}>
+                    {tr('settings.btn_remove')}
                   </button>
                 </div>
               ))}
@@ -953,17 +957,17 @@ function StartupsSection() {
           {invitations.length > 0 && (
             <>
               <h4 style={{ color: t.textSecondary, fontSize: 12, margin: '16px 0 8px', fontWeight: 600 }}>
-                Pending Invitations ({invitations.length})
+                {tr('settings.pending_invitations', { count: invitations.length })}
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {invitations.map(inv => (
                   <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: t.bg, border: `1px dashed ${t.warning}`, borderRadius: 4 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: t.text, fontSize: 12 }}>{inv.email}</div>
-                      <div style={{ color: t.warning, fontSize: 10 }}>Pending — will join as {inv.role === 'STARTUP_ADMIN' ? 'Admin' : 'User'} when they register</div>
+                      <div style={{ color: t.warning, fontSize: 10 }}>{inv.role === 'STARTUP_ADMIN' ? tr('settings.pending_admin') : tr('settings.pending_user')}</div>
                     </div>
                     <button onClick={() => revokeInvitation(inv.id, inv.email)} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '3px 8px', fontSize: 11, color: t.error, cursor: 'pointer' }}>
-                      Revoke
+                      {tr('settings.btn_revoke')}
                     </button>
                   </div>
                 ))}
@@ -980,6 +984,7 @@ function StartupsSection() {
 
 function AdminSection() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ message: string; error: boolean } | null>(null);
 
@@ -990,7 +995,7 @@ function AdminSection() {
       const result = await api.admin.syncExamples();
       setSyncResult({ message: result.message, error: false });
     } catch (err) {
-      setSyncResult({ message: err instanceof Error ? err.message : 'Sync failed', error: true });
+      setSyncResult({ message: err instanceof Error ? err.message : tr('settings.err_sync_failed'), error: true });
     } finally {
       setSyncing(false);
     }
@@ -999,10 +1004,9 @@ function AdminSection() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
-        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 8px' }}>System Examples</h3>
+        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 8px' }}>{tr('settings.section_system_examples')}</h3>
         <p style={{ color: t.textSecondary, fontSize: 12, margin: '0 0 12px' }}>
-          Re-import example files from the server's prisma/examples/ directory.
-          This replaces all files in the Examples project with the versions on disk.
+          {tr('settings.sync_examples_description')}
         </p>
         <button
           onClick={handleSync}
@@ -1014,7 +1018,7 @@ function AdminSection() {
             cursor: syncing ? 'default' : 'pointer',
           }}
         >
-          {syncing ? 'Syncing...' : 'Sync Examples from Disk'}
+          {syncing ? tr('settings.btn_syncing') : tr('settings.btn_sync_examples')}
         </button>
         {syncResult && (
           <div style={{ marginTop: 8, fontSize: 12, color: syncResult.error ? t.error : t.accent }}>
@@ -1024,10 +1028,9 @@ function AdminSection() {
       </div>
 
       <div>
-        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 8px' }}>System Projects</h3>
+        <h3 style={{ color: t.text, fontSize: 14, margin: '0 0 8px' }}>{tr('settings.section_system_projects')}</h3>
         <p style={{ color: t.textSecondary, fontSize: 12, margin: 0 }}>
-          System projects (isSystem) are visible to all users as read-only.
-          As admin, you can create, edit, and delete files in system projects from the Projects page.
+          {tr('settings.system_projects_description')}
         </p>
       </div>
 
@@ -1043,6 +1046,7 @@ type AdminProject = { id: string; displayId: string; name: string; _count: { fil
 
 function AdminUsersPanel() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1063,7 +1067,7 @@ function AdminUsersPanel() {
       const list = await api.admin.listUsers();
       setUsers(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load users');
+      setError(e instanceof Error ? e.message : tr('settings.err_load_users'));
     } finally {
       setLoading(false);
     }
@@ -1121,14 +1125,14 @@ function AdminUsersPanel() {
         style={{ color: t.text, fontSize: 14, margin: '0 0 8px', cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setExpanded(!expanded)}
       >
-        {expanded ? '▾' : '▸'} All Users &amp; Personal Projects
+        {expanded ? '▾' : '▸'} {tr('settings.all_users_header')}
       </h3>
       <p style={{ color: t.textSecondary, fontSize: 12, margin: '0 0 8px' }}>
-        Read-only view of all registered users, their personal projects, and .sysml files.
+        {tr('settings.all_users_description')}
       </p>
       {expanded && (
         <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          {loading && <div style={{ padding: 12, color: t.textSecondary, fontSize: 12 }}>Loading...</div>}
+          {loading && <div style={{ padding: 12, color: t.textSecondary, fontSize: 12 }}>{tr('settings.loading_users')}</div>}
           {error && <div style={{ padding: 12, color: t.error, fontSize: 12 }}>{error}</div>}
           {!loading && users.map((u, i) => (
             <div key={u.id}>
@@ -1143,7 +1147,7 @@ function AdminUsersPanel() {
                 }}
               >
                 <span style={{ color: t.textSecondary, fontSize: 10 }}>{selectedUserId === u.id ? '▾' : '▸'}</span>
-                <span style={{ color: t.text, fontWeight: 500, minWidth: 140 }}>{u.name || '(no name)'}</span>
+                <span style={{ color: t.text, fontWeight: 500, minWidth: 140 }}>{u.name || tr('settings.no_name')}</span>
                 <span style={{ color: t.textSecondary, flex: 1 }}>{u.email}</span>
                 <span style={{
                   color: u.role === 'admin' ? t.accent : t.textSecondary,
@@ -1154,9 +1158,9 @@ function AdminUsersPanel() {
               {selectedUserId === u.id && (
                 <div style={{ padding: '4px 0 8px 28px', background: t.bgSecondary }}>
                   {projectsLoading ? (
-                    <div style={{ color: t.textSecondary, fontSize: 11, padding: '4px 12px' }}>Loading projects...</div>
+                    <div style={{ color: t.textSecondary, fontSize: 11, padding: '4px 12px' }}>{tr('settings.loading_projects')}</div>
                   ) : userProjects.length === 0 ? (
-                    <div style={{ color: t.textSecondary, fontSize: 11, fontStyle: 'italic', padding: '4px 12px' }}>No personal projects</div>
+                    <div style={{ color: t.textSecondary, fontSize: 11, fontStyle: 'italic', padding: '4px 12px' }}>{tr('settings.no_personal_projects')}</div>
                   ) : userProjects.map(p => (
                     <div key={p.id}>
                       {/* Project row */}
@@ -1167,15 +1171,15 @@ function AdminUsersPanel() {
                         <span style={{ color: t.textSecondary, fontSize: 9 }}>{selectedProjectId === p.id ? '▾' : '▸'}</span>
                         <span style={{ color: t.textSecondary, fontFamily: 'monospace', fontSize: 10 }}>{p.displayId}</span>
                         <span style={{ fontWeight: 500 }}>{p.name}</span>
-                        <span style={{ color: t.textSecondary }}>({p._count.files} files)</span>
+                        <span style={{ color: t.textSecondary }}>{tr('settings.files_count', { count: p._count.files })}</span>
                       </div>
                       {/* Project's files */}
                       {selectedProjectId === p.id && (
                         <div style={{ padding: '2px 0 4px 44px' }}>
                           {filesLoading ? (
-                            <div style={{ color: t.textSecondary, fontSize: 10 }}>Loading files...</div>
+                            <div style={{ color: t.textSecondary, fontSize: 10 }}>{tr('settings.loading_files')}</div>
                           ) : projectFiles.length === 0 ? (
-                            <div style={{ color: t.textSecondary, fontSize: 10, fontStyle: 'italic' }}>No files</div>
+                            <div style={{ color: t.textSecondary, fontSize: 10, fontStyle: 'italic' }}>{tr('settings.no_files')}</div>
                           ) : projectFiles.map(f => (
                             <div key={f.id}>
                               <div
@@ -1195,7 +1199,7 @@ function AdminUsersPanel() {
                                   maxHeight: 300, overflow: 'auto',
                                 }}>
                                   {fileLoading ? (
-                                    <div style={{ color: t.textSecondary, fontSize: 10 }}>Loading...</div>
+                                    <div style={{ color: t.textSecondary, fontSize: 10 }}>{tr('settings.loading_content')}</div>
                                   ) : (
                                     <pre style={{
                                       margin: 0, fontSize: 11, fontFamily: 'monospace',
@@ -1224,6 +1228,7 @@ function AdminUsersPanel() {
 
 function BugReportsSection() {
   const t = useTheme();
+  const { t: tr } = useTranslation();
   const [reports, setReports] = useState<BugReportInfo[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -1251,7 +1256,7 @@ function BugReportsSection() {
   };
 
   const deleteReport = async (id: string) => {
-    if (!confirm('Delete this bug report?')) return;
+    if (!confirm(tr('settings.confirm_delete_bug_report'))) return;
     try {
       await api.bugReports.delete(id);
       fetchReports();
@@ -1264,23 +1269,23 @@ function BugReportsSection() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 style={{ color: t.text, fontSize: 14, margin: 0 }}>Bug Reports ({total})</h3>
+        <h3 style={{ color: t.text, fontSize: 14, margin: 0 }}>{tr('settings.bug_reports_header', { total })}</h3>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           style={{ background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 4, padding: '4px 8px', color: t.text, fontSize: 12 }}
         >
-          <option value="">All</option>
-          <option value="OPEN">Open</option>
-          <option value="RESOLVED">Resolved</option>
-          <option value="CLOSED">Closed</option>
+          <option value="">{tr('settings.filter_all')}</option>
+          <option value="OPEN">{tr('settings.filter_open')}</option>
+          <option value="RESOLVED">{tr('settings.filter_resolved')}</option>
+          <option value="CLOSED">{tr('settings.filter_closed')}</option>
         </select>
       </div>
 
       {loading ? (
-        <div style={{ color: t.textMuted, fontSize: 13 }}>Loading...</div>
+        <div style={{ color: t.textMuted, fontSize: 13 }}>{tr('settings.tokens_loading')}</div>
       ) : reports.length === 0 ? (
-        <div style={{ color: t.textMuted, fontSize: 13 }}>No bug reports found.</div>
+        <div style={{ color: t.textMuted, fontSize: 13 }}>{tr('settings.no_bug_reports')}</div>
       ) : (
         reports.map(r => (
           <div key={r.id} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6, padding: 14 }}>
@@ -1291,11 +1296,11 @@ function BugReportsSection() {
                   fontSize: 10, padding: '2px 6px', borderRadius: 3, fontWeight: 600,
                 }}>{r.status}</span>
                 <span style={{ color: t.textSecondary, fontSize: 11 }}>
-                  {r.user?.name ?? 'Unknown'} ({r.user?.email})
+                  {r.user?.name ?? tr('settings.user_unknown')} ({r.user?.email})
                 </span>
               </div>
               <span style={{ color: t.textDim, fontSize: 10 }}>
-                {new Date(r.createdAt).toLocaleString()}
+                {formatDateTime(r.createdAt)}
               </span>
             </div>
 
@@ -1304,13 +1309,13 @@ function BugReportsSection() {
             </p>
 
             <div style={{ color: t.textDim, fontSize: 10, marginBottom: 8 }}>
-              Page: {r.pageUrl}
+              {tr('settings.page_label')} {r.pageUrl}
             </div>
 
             {r.screenshot && (
               <img
                 src={r.screenshot}
-                alt="screenshot"
+                alt={tr('settings.alt_screenshot')}
                 onClick={() => setPreviewImg(r.screenshot)}
                 style={{ maxWidth: 200, maxHeight: 100, borderRadius: 4, cursor: 'pointer', border: `1px solid ${t.border}` }}
               />
@@ -1318,15 +1323,15 @@ function BugReportsSection() {
 
             <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
               {r.status !== 'OPEN' && (
-                <button onClick={() => updateStatus(r.id, 'OPEN')} style={{ background: '#e07040', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Open</button>
+                <button onClick={() => updateStatus(r.id, 'OPEN')} style={{ background: '#e07040', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>{tr('settings.btn_open')}</button>
               )}
               {r.status !== 'RESOLVED' && (
-                <button onClick={() => updateStatus(r.id, 'RESOLVED')} style={{ background: '#40a060', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Resolve</button>
+                <button onClick={() => updateStatus(r.id, 'RESOLVED')} style={{ background: '#40a060', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>{tr('settings.action_resolve')}</button>
               )}
               {r.status !== 'CLOSED' && (
-                <button onClick={() => updateStatus(r.id, 'CLOSED')} style={{ background: '#808080', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Close</button>
+                <button onClick={() => updateStatus(r.id, 'CLOSED')} style={{ background: '#808080', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>{tr('settings.action_close')}</button>
               )}
-              <button onClick={() => deleteReport(r.id)} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: t.error, marginLeft: 'auto' }}>Delete</button>
+              <button onClick={() => deleteReport(r.id)} style={{ background: 'none', border: `1px solid ${t.error}`, borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: t.error, marginLeft: 'auto' }}>{tr('settings.action_delete')}</button>
             </div>
           </div>
         ))
@@ -1334,9 +1339,9 @@ function BugReportsSection() {
 
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ background: t.btnBg, border: `1px solid ${t.border}`, borderRadius: 3, padding: '4px 12px', fontSize: 11, cursor: page <= 1 ? 'default' : 'pointer', color: t.text, opacity: page <= 1 ? 0.4 : 1 }}>Prev</button>
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ background: t.btnBg, border: `1px solid ${t.border}`, borderRadius: 3, padding: '4px 12px', fontSize: 11, cursor: page <= 1 ? 'default' : 'pointer', color: t.text, opacity: page <= 1 ? 0.4 : 1 }}>{tr('settings.btn_prev')}</button>
           <span style={{ color: t.textSecondary, fontSize: 11, lineHeight: '28px' }}>{page} / {totalPages}</span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ background: t.btnBg, border: `1px solid ${t.border}`, borderRadius: 3, padding: '4px 12px', fontSize: 11, cursor: page >= totalPages ? 'default' : 'pointer', color: t.text, opacity: page >= totalPages ? 0.4 : 1 }}>Next</button>
+          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ background: t.btnBg, border: `1px solid ${t.border}`, borderRadius: 3, padding: '4px 12px', fontSize: 11, cursor: page >= totalPages ? 'default' : 'pointer', color: t.text, opacity: page >= totalPages ? 0.4 : 1 }}>{tr('settings.btn_next')}</button>
         </div>
       )}
 
@@ -1346,7 +1351,7 @@ function BugReportsSection() {
           onClick={() => setPreviewImg(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
         >
-          <img src={previewImg} alt="full screenshot" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+          <img src={previewImg} alt={tr('settings.alt_full_screenshot')} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
         </div>
       )}
     </div>
