@@ -6143,7 +6143,23 @@ export const TOTAL_LEVELS = 22;
 // of truth. The loader merges Turkish overrides into the English structure when
 // the active language is `tr`.
 
-import { TASK_TEXTS_TR, LEGEND_EXPLANATIONS_TR, IDENTIFIER_MAP_TR } from './tasks-tr.js';
+import { TASK_TEXTS_TR, LEGEND_EXPLANATIONS_TR, IDENTIFIER_MAP_TR, COMMENT_PHRASES_TR } from './tasks-tr.js';
+
+// English comment phrases inside starterCode/targetCode templates that
+// identifier substitution does not cover. Replaced before identifier
+// substitution so the phrase map can keep English identifier names.
+const COMMENT_PHRASE_KEYS_SORTED = Object.keys(COMMENT_PHRASES_TR).sort(
+  (a, b) => b.length - a.length,
+);
+function translateCommentsToTr(text: string): string {
+  let result = text;
+  for (const key of COMMENT_PHRASE_KEYS_SORTED) {
+    if (result.includes(key)) {
+      result = result.split(key).join(COMMENT_PHRASES_TR[key]);
+    }
+  }
+  return result;
+}
 
 // ─── Identifier substitution (EN ↔ TR) ──────────────────────────────────────
 // SysML model identifiers (Vehicle, Engine, mass, ...) are translated by
@@ -6223,8 +6239,8 @@ export function getTrainingTasks(lang: SupportedLanguage): TrainingTask[] {
       instruction: translateEnToTr(base.instruction),
       hint: translateEnToTr(base.hint),
       conceptExplanation: translateEnToTr(base.conceptExplanation),
-      starterCode: translateEnToTr(task.starterCode),
-      targetCode: translateEnToTr(task.targetCode),
+      starterCode: translateEnToTr(translateCommentsToTr(task.starterCode)),
+      targetCode: translateEnToTr(translateCommentsToTr(task.targetCode)),
       validate: wrapValidate(task.validate, validateSuccess, validateError),
     };
   });
@@ -6233,7 +6249,7 @@ export function getTrainingTasks(lang: SupportedLanguage): TrainingTask[] {
 /** Returns the demo SysML code shown on training completion, with identifiers
  *  translated to Turkish when the active language is `tr`. */
 export function getCompletedCode(lang: SupportedLanguage): string {
-  return lang === 'tr' ? translateEnToTr(COMPLETED_CODE) : COMPLETED_CODE;
+  return lang === 'tr' ? translateEnToTr(translateCommentsToTr(COMPLETED_CODE)) : COMPLETED_CODE;
 }
 
 export function getLegendItems(lang: SupportedLanguage): LegendItem[] {

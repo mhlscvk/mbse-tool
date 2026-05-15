@@ -256,6 +256,74 @@ export const IDENTIFIER_MAP_TR: Record<string, string> = {
   shutdown: 'kapanis',
 };
 
+// ─── Comment phrase translations ─────────────────────────────────────────────
+// Comments inside starterCode/targetCode templates only get identifier
+// substitution by default — English prose like "Add this below:" or "<-- NEW"
+// would otherwise leak into the Turkish UI. Keys are English; values keep
+// English identifier names so the identifier map can substitute them after.
+// Applied in tasks.ts before identifier substitution.
+export const COMMENT_PHRASES_TR: Record<string, string> = {
+  // Header lines
+  '// Vehicle System — SysML v2 Training': '// Vehicle Sistemi — SysML v2 Eğitim',
+  '// A «part def» defines a class of systems.': '// Bir «part def» sistem sınıfı tanımlar.',
+  '// Spacecraft Mission — Behavioral Model': '// Uzay Aracı Görevi — Davranışsal Model',
+  '// Spacecraft Launch — Concurrent Behaviors': '// Uzay Aracı Fırlatma — Eş Zamanlı Davranışlar',
+  '// Vehicle States — Lifecycle Model': '// Vehicle Durumları — Yaşam Döngüsü Modeli',
+  '// Vehicle Requirements Model': '// Vehicle Gereksinim Modeli',
+  '// Vehicle Constraints Model': '// Vehicle Kısıt Modeli',
+  '// System Architecture — Packages': '// Sistem Mimarisi — Paketler',
+  '// System Usage & Allocation Model': '// Sistem Kullanım ve Atama Modeli',
+  '// action def defines a step or behavior.': '// action def bir adımı veya davranışı tanımlar.',
+  '// state def defines a state machine.': '// state def bir durum makinesi tanımlar.',
+
+  // Inline hints (longer variants must precede shorter for split/join match order)
+  '// <-- NEW (composition)': '// <-- YENİ (kompozisyon)',
+  '// <-- NEW (redefines)': '// <-- YENİ (yeniden tanımlar)',
+  '// <-- NEW definition': '// <-- YENİ tanım',
+  '// <-- NEW usage': '// <-- YENİ kullanım',
+  '// <-- UPDATED': '// <-- GÜNCELLENDİ',
+  '// <-- NEW': '// <-- YENİ',
+
+  // Placeholders
+  '// ...existing definitions...': '// ...mevcut tanımlar...',
+  '// ...existing parts...': '// ...mevcut parçalar...',
+  '// ...existing defs...': '// ...mevcut tanımlar...',
+  '// ...actions and first succession...': '// ...eylemler ve ilk ardışıklık...',
+
+  // Concept notes
+  '// :> means "specializes":': '// :> "özelleştirir" anlamına gelir:',
+  '// :>> replaces the inherited eng': '// :>> miras alınan eng\'i değiştirir',
+  '// Chained: SportsCar → PoweredVehicle → Vehicle': '// Zincirleme: SportsCar → PoweredVehicle → Vehicle',
+  '// Add a port definition:': '// Bir port tanımı ekle:',
+  '// Add this below:': '// Aşağıya ekle:',
+  '// Traceability:': '// İzlenebilirlik:',
+
+  // Completion banner
+  '// SysML v2 Training Complete!': '// SysML v2 Eğitimi Tamamlandı!',
+  '// You have mastered:': '// Şunlarda uzmanlaştınız:',
+  '// - Part definitions & usages': '// - Parça tanımları ve kullanımları',
+  '// - Attributes (Real, Integer, Boolean, String)': '// - Öznitelikler (Real, Integer, Boolean, String)',
+  '// - Specialization (:>)': '// - Özelleştirme (:>)',
+  '// - Composition & multiplicity': '// - Kompozisyon ve çokluk',
+  '// - Subsetting (:> on usages)': '// - Alt küme (:> kullanımlarda)',
+  '// - Redefinition (:>>)': '// - Yeniden tanımlama (:>>)',
+  '// - Ports & directed features (in, out, inout)': '// - Portlar ve yönlü özellikler (in, out, inout)',
+  '// - Items & connections': '// - Öğeler ve bağlantılar',
+  '// - Enumerations': '// - Numaralandırmalar',
+  '// - Actions, successions, fork/join, decide/merge': '// - Eylemler, ardışıklıklar, çatal/birleştir, karar/birleşim',
+  '// - States & transitions': '// - Durumlar ve geçişler',
+  '// - Requirements, satisfy, verify': '// - Gereksinimler, karşıla, doğrula',
+  '// - Constraints & calculations': '// - Kısıtlar ve hesaplamalar',
+  '// - Packages & imports': '// - Paketler ve içe aktarmalar',
+  '// - Use cases, allocation, views & viewpoints': '// - Kullanım senaryoları, atama, görünümler ve bakış açıları',
+  '// - Flows (streaming, succession, message)': '// - Akışlar (akış, ardışıklık, mesaj)',
+  '// - Perform & exhibit (entry/do/exit actions)': '// - Yürüt ve sergile (entry/do/exit eylemleri)',
+  '// - Comments, documentation, aliases': '// - Yorumlar, belgeler, takma adlar',
+  '// - Conjugated ports, interfaces, bindings': '// - Eşlenik portlar, arayüzler, bağlamalar',
+  '// - Conditional guards, if-then-else, fork/join/decide/merge': '// - Koşullu korumalar, if-then-else, çatal/birleştir/karar/birleşim',
+  '// - Occurrences, event occurrences': '// - Oluşumlar, olay oluşumları',
+  '// - Individual definitions, snapshots, timeslices, temporal modeling': '// - Bireysel tanımlar, anlık görüntüler, zaman dilimleri, zamansal modelleme',
+};
 
 
 type TaskTextOverride = Pick<
