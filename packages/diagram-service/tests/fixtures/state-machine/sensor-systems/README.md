@@ -3,10 +3,18 @@
 **Status:** scaffolding only. Real content lands with Phase 1.
 
 This is the first fixture that will exercise the actual state-machine
-renderer (not the no-op). It mirrors the `SensorSystem` example from the
-audit document (`state_machine_conformance_audit.md`), the model that
-surfaced the original bugs — wrong trigger labels, dropped `via port`
-clauses, missing pseudo-states — that motivated the whole refactor.
+renderer (not the no-op). It mirrors the `SensorSystem` example from
+[`claude_md_files/state_machine_conformance_audit.md`](../../../../../../claude_md_files/state_machine_conformance_audit.md),
+the model that surfaced the original bugs — wrong trigger labels,
+dropped `via port` clauses, missing pseudo-states — that motivated the
+whole refactor.
+
+The audit catalogues 10 bugs (Bug-SM-01 .. Bug-SM-10) with priority
+tags: 6 P0 (must fix in Phase 1), 3 P1 (preferred in Phase 1), 1 P2
+(stretch). It also includes a verbal description of the correct render
+that Phase 1's `expected-ir.json` and `expected-smodel.json` must
+satisfy. Use it as the regression checklist when reviewing Phase 1's
+renderer output against `reference/pilot-screenshot.png`.
 
 ## Contents (to be populated in Phase 1)
 

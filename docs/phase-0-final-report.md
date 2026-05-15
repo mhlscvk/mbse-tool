@@ -298,11 +298,14 @@ For each, Phase 1's PR generates `expected-ir.json` and
    the audit source. The README documents the format and acceptance
    hook.
 
-5. **Audit document path.** The strategy references
-   `state_machine_conformance_audit.md` as the regression checklist
-   for Phase 1. I haven't located it in the repo — it may live in
-   `claude_md_files/` or need to be created at Phase 1 kickoff.
-   Worth confirming before Phase 1 work starts.
+5. ~~**Audit document path.**~~ Resolved — lives at
+   `claude_md_files/state_machine_conformance_audit.md`. Documents 10
+   bugs (Bug-SM-01 .. SM-10) on the SensorSystems model with
+   P0/P1/P2 prioritisation, a verbal description of the correct
+   render, and explicit guidance to use each bug as a Phase 1
+   regression test fixture. This is the direct source for
+   `sensor-systems/`'s `model.sysml`, `expected-ir.json`, and
+   `reference/notes.md`.
 
 6. **No `HierarchicalFlagProvider` class in code.** The interface and
    env layer exist; the wrapping class that composes env + DB is
