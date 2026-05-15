@@ -1,8 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
 import type { SysMLModel, DiagramMessage, ViewType } from '@systemodel/shared-types';
-import { transformToBDD } from './transformer/bdd-transformer.js';
 import { parseSysMLText } from './parser/sysml-text-parser.js';
+import { renderDiagramWedge } from './rendering/pipeline.js';
 
 // Incoming message from browser
 type DiagramRequest =
@@ -102,10 +102,25 @@ export function createDiagramWebSocketServer(server: Server, allowedOrigins: str
           return;
         }
 
-        // Transform AST to diagram model; client handles compound layout
+        // Transform AST to diagram model; client handles compound layout.
+        // The wedge sits between us and `transformToBDD` so that future
+        // view-specific renderers can be opted into per request without
+        // touching this handler. In Phase 0 the wedge always returns
+        // `rendererUsed === 'old-default'`.
         const showInherited = request.showInherited === true;
-        const sModel = transformToBDD(model, viewType, showInherited);
-        send({ kind: 'model', model: sModel, diagnostics, viewType });
+        const { result: sModel, rendererUsed } = await renderDiagramWedge(
+          model,
+          viewType,
+          showInherited,
+          {}, // WebSocket isn't authenticated yet — context.userId stays undefined
+        );
+        send({
+          kind: 'model',
+          model: sModel,
+          diagnostics,
+          viewType,
+          _meta: { rendererUsed },
+        });
 
       } catch (err) {
         // Sanitize error — never leak internal details to client

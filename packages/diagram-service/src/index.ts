@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createDiagramWebSocketServer } from './websocket-server.js';
 import { parseSysMLText } from './parser/sysml-text-parser.js';
+import { rendererStats } from './rendering/renderer-stats.js';
 
 const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 
@@ -40,6 +41,20 @@ app.get('/health', (_req, res) => {
     version: pkg.version,
     uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
   });
+});
+
+// Phase 0 renderer-refactor observability — proxied by api-server's
+// /api/admin/renderer-stats so the public surface has an admin-auth check.
+// Optional shared-secret check: if INTERNAL_API_TOKEN is set, the caller
+// must echo it back in `x-internal-token`; if unset, the endpoint is open
+// (relies on the port not being exposed publicly).
+app.get('/internal/renderer-stats', (req, res) => {
+  const expected = process.env.INTERNAL_API_TOKEN;
+  if (expected && req.header('x-internal-token') !== expected) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  res.json(rendererStats.snapshot());
 });
 
 app.get('/ready', (_req, res) => {

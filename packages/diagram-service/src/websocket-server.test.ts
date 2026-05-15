@@ -286,9 +286,15 @@ describe('WebSocket Server: rate limiting', () => {
     }
 
     await collectPromise;
-    const lastMsg = messages[messages.length - 1] as { kind: string; message?: string };
-    expect(lastMsg.kind).toBe('error');
-    expect(lastMsg.message).toContain('Rate limit');
+    // The rate-limit error is emitted synchronously from the message handler,
+    // but the transform path is async (Phase 0 wedge), so successful 'model'
+    // responses for earlier messages may interleave with — or trail — the
+    // error frame. Assert the rate-limit error appears somewhere in the
+    // stream rather than pinning it to a specific index.
+    const rateLimitMsg = (messages as { kind: string; message?: string }[]).find(
+      (m) => m.kind === 'error' && (m.message ?? '').includes('Rate limit'),
+    );
+    expect(rateLimitMsg).toBeDefined();
     ws.close();
   });
 });

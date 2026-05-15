@@ -143,22 +143,34 @@ router.get('/files/:fileId', asyncHandler(async (req: AuthRequest, res) => {
 }));
 
 // GET /api/admin/renderer-stats — Phase 0 renderer-refactor observability.
-// Surface (route + response shape) is fixed here in Slice 2 so the frontend
-// admin view can integrate against a stable contract. The wedge + counter
-// that produces the data lives in diagram-service and lands in Slice 3.
-//
-// Until then we return zeroed counts plus a `pending` flag so callers can
-// distinguish "no renders happened" from "stats not wired yet".
+// Proxies diagram-service's /internal/renderer-stats so the public surface
+// gets admin auth. Network failure (diagram-service down or misconfigured)
+// degrades to `status: 'unavailable'` rather than 5xx so the admin UI can
+// distinguish "outage" from "no traffic".
 router.get('/renderer-stats', asyncHandler(async (_req: AuthRequest, res) => {
-  res.json({
-    data: {
-      totalRenders: 0,
-      byViewType: {} as Record<string, Record<string, number>>,
-      unmapped: 0,
-      pending: true,
-      note: 'Renderer stats collection lands in Slice 3 (wedge + RendererStats).',
-    },
-  });
+  const target = process.env.DIAGRAM_SERVICE_INTERNAL_URL
+    ?? 'http://localhost:3002/internal/renderer-stats';
+  const token = process.env.INTERNAL_API_TOKEN;
+
+  try {
+    const upstream = await fetch(target, {
+      headers: token ? { 'x-internal-token': token } : {},
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!upstream.ok) {
+      res.json({ data: { status: 'unavailable', upstreamStatus: upstream.status } });
+      return;
+    }
+    const snapshot = await upstream.json() as {
+      totalRenders: number;
+      byViewType: Record<string, Record<string, number>>;
+      unmapped: number;
+    };
+    res.json({ data: { status: 'live', ...snapshot } });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    res.json({ data: { status: 'unavailable', error: reason } });
+  }
 }));
 
 export default router;
