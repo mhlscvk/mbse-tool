@@ -377,6 +377,13 @@ export default function DiagramViewer({
 }: DiagramViewerProps) {
   const t = useTheme();
   const { t: tr } = useTranslation();
+  // Phase 1 (KARAR-1): renderer-produced SLabels may carry data.i18nKey for
+  // structural strings (e.g. 'state_machine.compartment_entry'). Translate
+  // at display time; fall back to label.text (English) when no key is set.
+  const labelText = (label: { text: string; data?: Record<string, unknown> }): string => {
+    const key = label.data?.i18nKey;
+    return typeof key === 'string' ? tr(key) : label.text;
+  };
   const NODE_COLORS = NODE_COLORS_LIGHT;
   // Themed SVG text/stroke colors
   const svgText = '#1a1a2e';
@@ -2639,7 +2646,7 @@ export default function DiagramViewer({
                           fontSize={10}
                           fontFamily="monospace"
                         >
-                          {label.text}
+                          {labelText(label)}
                         </text>
                       ))}
                       {hasInherited && (
@@ -2656,7 +2663,7 @@ export default function DiagramViewer({
                               fontStyle="italic"
                               opacity={0.6}
                             >
-                              {label.text}
+                              {labelText(label)}
                             </text>
                           ))}
                         </>

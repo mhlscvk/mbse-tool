@@ -35,6 +35,7 @@ export interface SLabel {
   id: string;
   text: string;
   position?: { x: number; y: number };
+  data?: Record<string, unknown>;
 }
 
 export interface DiagnosticFix {

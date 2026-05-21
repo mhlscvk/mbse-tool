@@ -323,6 +323,25 @@ describe('Transition usage — named', () => {
     expect(transition!.name).toContain('startDriving');
   });
 
+  it('preserves qualified-name trigger and via port (Bug-SM-01 regression)', () => {
+    const code = `
+      state def S {
+        state Off;
+        state On;
+        transition first Off accept ItemDefs::PowerOn via sensor2Platform then On;
+      }
+    `;
+    const { model } = parse(code);
+    const off = model.nodes.find(n => n.name === 'Off');
+    const on = model.nodes.find(n => n.name === 'On');
+    const transition = model.connections.find(
+      c => c.kind === 'transition' && c.sourceId === off!.id && c.targetId === on!.id
+    );
+    expect(transition).toBeDefined();
+    expect(transition!.name).toContain('ItemDefs::PowerOn');
+    expect(transition!.name).toContain('via sensor2Platform');
+  });
+
   it('parses named transition with guard', () => {
     const code = `
       state def S {

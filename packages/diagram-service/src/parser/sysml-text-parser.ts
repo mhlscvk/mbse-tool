@@ -2735,7 +2735,7 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const firstMatch = body.match(/\bfirst\s+(\w+)/);
       const thenMatch = body.match(/\bthen\s+(\w+)/);
       // Accept: "accept TriggerName [via port]" or "accept after 5[min]"
-      const acceptMatch = body.match(/\baccept\s+(after\s+[\d[\].\w]+|\w+)(?:\s+via\s+(\w+))?/);
+      const acceptMatch = body.match(/\baccept\s+(after\s+[\d[\].\w]+|[\w:]+)(?:\s+via\s+(\w+))?/);
       const ifMatch = body.match(/\bif\s+([\w.]+)/);
       const doMatch = body.match(/\bdo\s+(?:action\s+)?(\w+)/);
 
