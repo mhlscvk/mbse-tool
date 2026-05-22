@@ -1,0 +1,372 @@
+{
+  "type": "graph",
+  "id": "state-machine__fixture://sensor-systems/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "state__Off",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 60 },
+      "children": [
+        { "type": "label", "id": "state__Off__kind", "text": "«state»" },
+        { "type": "label", "id": "state__Off__label", "text": "Off" }
+      ],
+      "cssClasses": ["stateusage"]
+    },
+    {
+      "type": "node",
+      "id": "state__On",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 60 },
+      "children": [
+        { "type": "label", "id": "state__On__kind", "text": "«state»" },
+        { "type": "label", "id": "state__On__label", "text": "On" }
+      ],
+      "cssClasses": ["stateusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__On_entry_activation",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__On_entry_activation__kind", "text": "«entry action»" },
+        { "type": "label", "id": "behavior__On_entry_activation__label", "text": "activation" }
+      ],
+      "cssClasses": ["entryactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__On_do_controlHealth",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__On_do_controlHealth__kind", "text": "«do action»" },
+        { "type": "label", "id": "behavior__On_do_controlHealth__label", "text": "controlHealth" }
+      ],
+      "cssClasses": ["doactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__On_exit_checkPowerStatus",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__On_exit_checkPowerStatus__kind", "text": "«exit action»" },
+        { "type": "label", "id": "behavior__On_exit_checkPowerStatus__label", "text": "checkPowerStatus" }
+      ],
+      "cssClasses": ["exitactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "state__Normal",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 60 },
+      "children": [
+        { "type": "label", "id": "state__Normal__kind", "text": "«state»" },
+        { "type": "label", "id": "state__Normal__label", "text": "Normal" }
+      ],
+      "cssClasses": ["stateusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Normal_entry_checkPowerSource",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__Normal_entry_checkPowerSource__kind", "text": "«entry action»" },
+        { "type": "label", "id": "behavior__Normal_entry_checkPowerSource__label", "text": "checkPowerSource" }
+      ],
+      "cssClasses": ["entryactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Normal_do_operationActions",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__Normal_do_operationActions__kind", "text": "«do action»" },
+        { "type": "label", "id": "behavior__Normal_do_operationActions__label", "text": "operationActions" }
+      ],
+      "cssClasses": ["doactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Normal_exit_TBD",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__Normal_exit_TBD__kind", "text": "«exit action»" },
+        { "type": "label", "id": "behavior__Normal_exit_TBD__label", "text": "TBD" }
+      ],
+      "cssClasses": ["exitactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "state__Degraded",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 60 },
+      "children": [
+        { "type": "label", "id": "state__Degraded__kind", "text": "«state»" },
+        { "type": "label", "id": "state__Degraded__label", "text": "Degraded" }
+      ],
+      "cssClasses": ["stateusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Degraded_entry_decreasePowerConsumption",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__Degraded_entry_decreasePowerConsumption__kind", "text": "«entry action»" },
+        { "type": "label", "id": "behavior__Degraded_entry_decreasePowerConsumption__label", "text": "decreasePowerConsumption" }
+      ],
+      "cssClasses": ["entryactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Degraded_do_restrictedOperations",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 50 },
+      "children": [
+        { "type": "label", "id": "behavior__Degraded_do_restrictedOperations__kind", "text": "«do action»" },
+        { "type": "label", "id": "behavior__Degraded_do_restrictedOperations__label", "text": "restrictedOperations" }
+      ],
+      "cssClasses": ["doactionusage"]
+    },
+    {
+      "type": "node",
+      "id": "pseudo-initial__on",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 24, "height": 24 },
+      "children": [
+        { "type": "label", "id": "pseudo-initial__on__kind", "text": "«start»" },
+        { "type": "label", "id": "pseudo-initial__on__label", "text": "start" }
+      ],
+      "cssClasses": ["startnode"]
+    },
+    {
+      "type": "node",
+      "id": "state__Error",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 140, "height": 60 },
+      "children": [
+        { "type": "label", "id": "state__Error__kind", "text": "«state»" },
+        { "type": "label", "id": "state__Error__label", "text": "Error" }
+      ],
+      "cssClasses": ["stateusage"]
+    },
+    {
+      "type": "node",
+      "id": "pseudo-initial__top",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 24, "height": 24 },
+      "children": [
+        { "type": "label", "id": "pseudo-initial__top__kind", "text": "«start»" },
+        { "type": "label", "id": "pseudo-initial__top__label", "text": "start" }
+      ],
+      "cssClasses": ["startnode"]
+    },
+    {
+      "type": "node",
+      "id": "pseudo-final__top",
+      "position": { "x": 0, "y": 0 },
+      "size": { "width": 24, "height": 24 },
+      "children": [
+        { "type": "label", "id": "pseudo-final__top__kind", "text": "«done»" },
+        { "type": "label", "id": "pseudo-final__top__label", "text": "done" }
+      ],
+      "cssClasses": ["donenode"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__on_initial_to_normal",
+      "sourceId": "pseudo-initial__on",
+      "targetId": "state__Normal",
+      "children": [
+        { "type": "label", "id": "edge__on_initial_to_normal__label", "text": "HealthOK" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__normal_to_degraded",
+      "sourceId": "state__Normal",
+      "targetId": "state__Degraded",
+      "children": [
+        { "type": "label", "id": "edge__normal_to_degraded__label", "text": "BatteryPower via sensor2Platform" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__degraded_to_normal",
+      "sourceId": "state__Degraded",
+      "targetId": "state__Normal",
+      "children": [
+        { "type": "label", "id": "edge__degraded_to_normal__label", "text": "MainPower via sensor2Platform" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__off_to_on",
+      "sourceId": "state__Off",
+      "targetId": "state__On",
+      "children": [
+        { "type": "label", "id": "edge__off_to_on__label", "text": "PowerOn via sensor2Platform" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__on_to_off",
+      "sourceId": "state__On",
+      "targetId": "state__Off",
+      "children": [
+        { "type": "label", "id": "edge__on_to_off__label", "text": "PowerOff via sensor2Platform" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__on_to_error",
+      "sourceId": "state__On",
+      "targetId": "state__Error",
+      "children": [
+        { "type": "label", "id": "edge__on_to_error__label", "text": "HealthNotOK" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__error_to_top_final",
+      "sourceId": "state__Error",
+      "targetId": "pseudo-final__top",
+      "children": [],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__top_initial_to_off",
+      "sourceId": "pseudo-initial__top",
+      "targetId": "state__Off",
+      "children": [],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__error_to_off_notrigger",
+      "sourceId": "state__Error",
+      "targetId": "state__Off",
+      "children": [],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__error_to_off_poweroff",
+      "sourceId": "state__Error",
+      "targetId": "state__Off",
+      "children": [
+        { "type": "label", "id": "edge__error_to_off_poweroff__label", "text": "PowerOff" }
+      ],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "edge__on_to_top_final",
+      "sourceId": "state__On",
+      "targetId": "pseudo-final__top",
+      "children": [],
+      "cssClasses": ["transition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_entry_activation",
+      "sourceId": "state__On",
+      "targetId": "behavior__On_entry_activation",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_do_controlHealth",
+      "sourceId": "state__On",
+      "targetId": "behavior__On_do_controlHealth",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_exit_checkPowerStatus",
+      "sourceId": "state__On",
+      "targetId": "behavior__On_exit_checkPowerStatus",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_normal",
+      "sourceId": "state__On",
+      "targetId": "state__Normal",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__normal_to_entry_checkPowerSource",
+      "sourceId": "state__Normal",
+      "targetId": "behavior__Normal_entry_checkPowerSource",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__normal_to_do_operationActions",
+      "sourceId": "state__Normal",
+      "targetId": "behavior__Normal_do_operationActions",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__normal_to_exit_TBD",
+      "sourceId": "state__Normal",
+      "targetId": "behavior__Normal_exit_TBD",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_degraded",
+      "sourceId": "state__On",
+      "targetId": "state__Degraded",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__degraded_to_entry_decreasePowerConsumption",
+      "sourceId": "state__Degraded",
+      "targetId": "behavior__Degraded_entry_decreasePowerConsumption",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__degraded_to_do_restrictedOperations",
+      "sourceId": "state__Degraded",
+      "targetId": "behavior__Degraded_do_restrictedOperations",
+      "children": [],
+      "cssClasses": ["composition"]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_pseudo_initial",
+      "sourceId": "state__On",
+      "targetId": "pseudo-initial__on",
+      "children": [],
+      "cssClasses": ["composition"]
+    }
+  ]
+}

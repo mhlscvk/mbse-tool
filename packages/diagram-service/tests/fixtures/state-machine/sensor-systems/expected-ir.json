@@ -2,7 +2,8 @@
   "viewType": "state-machine",
   "metadata": {
     "generatedAt": "2026-05-21T00:00:00.000Z",
-    "rendererVersion": "state-machine-1.0.0"
+    "rendererVersion": "state-machine-1.0.0",
+    "sourceFile": "fixture://sensor-systems/model.sysml"
   },
   "nodes": [
     {

@@ -5,6 +5,7 @@ export interface IRMetadata {
   generatedAt: string;          // ISO datetime
   rendererVersion: string;
   modelChecksum?: string;       // sha256 of source SysML; optional cache key
+  sourceFile?: string;          // source URI; the renderer uses it to build SModelRoot.id
 }
 
 export interface IRPosition {

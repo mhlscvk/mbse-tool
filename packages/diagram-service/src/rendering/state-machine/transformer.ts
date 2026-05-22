@@ -332,6 +332,7 @@ export function transformAstToStateMachineIR(
     metadata: {
       generatedAt: new Date().toISOString(),
       rendererVersion: RENDERER_VERSION,
+      sourceFile: model.uri,
     },
     nodes: irNodes,
     edges,
