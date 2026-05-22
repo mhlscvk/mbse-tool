@@ -1,0 +1,276 @@
+{
+  "viewType": "state-machine",
+  "metadata": {
+    "generatedAt": "2026-05-21T00:00:00.000Z",
+    "rendererVersion": "state-machine-1.0.0"
+  },
+  "nodes": [
+    {
+      "id": "state__Off",
+      "kind": "state",
+      "name": "Off",
+      "semanticRef": {
+        "astNodeId": "StateUsage__Off",
+        "qualifiedName": "SensorSystemStates::Off"
+      },
+      "compartments": []
+    },
+    {
+      "id": "state__On",
+      "kind": "state",
+      "name": "On",
+      "semanticRef": {
+        "astNodeId": "StateUsage__On",
+        "qualifiedName": "SensorSystemStates::On"
+      },
+      "compartments": [
+        {
+          "kind": "entry",
+          "actions": [
+            {
+              "name": "activation",
+              "semanticRef": { "astNodeId": "EntryActionUsage__activation" }
+            }
+          ]
+        },
+        {
+          "kind": "do",
+          "actions": [
+            {
+              "name": "controlHealth",
+              "semanticRef": { "astNodeId": "DoActionUsage__controlHealth" }
+            }
+          ]
+        },
+        {
+          "kind": "exit",
+          "actions": [
+            {
+              "name": "checkPowerStatus",
+              "semanticRef": { "astNodeId": "ExitActionUsage__checkPowerStatus" }
+            }
+          ]
+        }
+      ],
+      "containedNodes": [
+        "state__Normal",
+        "state__Degraded",
+        "pseudo-initial__on"
+      ],
+      "containedEdges": [
+        "edge__on_initial_to_normal",
+        "edge__normal_to_degraded",
+        "edge__degraded_to_normal"
+      ]
+    },
+    {
+      "id": "state__Normal",
+      "kind": "state",
+      "name": "Normal",
+      "semanticRef": {
+        "astNodeId": "StateUsage__Normal",
+        "qualifiedName": "SensorSystemStates::On::Normal"
+      },
+      "compartments": [
+        {
+          "kind": "entry",
+          "actions": [
+            {
+              "name": "checkPowerSource",
+              "semanticRef": { "astNodeId": "EntryActionUsage__checkPowerSource" }
+            }
+          ]
+        },
+        {
+          "kind": "do",
+          "actions": [
+            {
+              "name": "operationActions",
+              "semanticRef": { "astNodeId": "DoActionUsage__operationActions" }
+            }
+          ]
+        },
+        {
+          "kind": "exit",
+          "actions": [
+            {
+              "name": "TBD",
+              "semanticRef": { "astNodeId": "ExitActionUsage__TBD" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "state__Degraded",
+      "kind": "state",
+      "name": "Degraded",
+      "semanticRef": {
+        "astNodeId": "StateUsage__Degraded",
+        "qualifiedName": "SensorSystemStates::On::Degraded"
+      },
+      "compartments": [
+        {
+          "kind": "entry",
+          "actions": [
+            {
+              "name": "decreasePowerConsumption",
+              "semanticRef": { "astNodeId": "EntryActionUsage__decreasePowerConsumption" }
+            }
+          ]
+        },
+        {
+          "kind": "do",
+          "actions": [
+            {
+              "name": "restrictedOperations",
+              "semanticRef": { "astNodeId": "DoActionUsage__restrictedOperations" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pseudo-initial__on",
+      "kind": "pseudo-initial",
+      "semanticRef": {
+        "astNodeId": "StartNode__start__on",
+        "qualifiedName": "SensorSystemStates::On::start"
+      }
+    },
+    {
+      "id": "state__Error",
+      "kind": "state",
+      "name": "Error",
+      "semanticRef": {
+        "astNodeId": "StateUsage__Error",
+        "qualifiedName": "SensorSystemStates::Error"
+      },
+      "compartments": []
+    },
+    {
+      "id": "pseudo-initial__top",
+      "kind": "pseudo-initial",
+      "semanticRef": {
+        "astNodeId": "StartNode__start__top",
+        "qualifiedName": "SensorSystemStates::start"
+      }
+    },
+    {
+      "id": "pseudo-final__top",
+      "kind": "pseudo-final",
+      "semanticRef": {
+        "astNodeId": "DoneNode__done__top",
+        "qualifiedName": "SensorSystemStates::done"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge__on_initial_to_normal",
+      "kind": "transition",
+      "sourceId": "pseudo-initial__on",
+      "targetId": "state__Normal",
+      "semanticRef": { "astNodeId": "TransitionUsage__on_initial_to_normal" },
+      "label": {
+        "trigger": "HealthOK"
+      }
+    },
+    {
+      "id": "edge__normal_to_degraded",
+      "kind": "transition",
+      "sourceId": "state__Normal",
+      "targetId": "state__Degraded",
+      "semanticRef": { "astNodeId": "TransitionUsage__normal_to_degraded" },
+      "label": {
+        "trigger": "BatteryPower",
+        "modifier": "via sensor2Platform"
+      }
+    },
+    {
+      "id": "edge__degraded_to_normal",
+      "kind": "transition",
+      "sourceId": "state__Degraded",
+      "targetId": "state__Normal",
+      "semanticRef": { "astNodeId": "TransitionUsage__degraded_to_normal" },
+      "label": {
+        "trigger": "MainPower",
+        "modifier": "via sensor2Platform"
+      }
+    },
+    {
+      "id": "edge__off_to_on",
+      "kind": "transition",
+      "sourceId": "state__Off",
+      "targetId": "state__On",
+      "semanticRef": { "astNodeId": "TransitionUsage__off_to_on" },
+      "label": {
+        "trigger": "PowerOn",
+        "modifier": "via sensor2Platform"
+      }
+    },
+    {
+      "id": "edge__on_to_off",
+      "kind": "transition",
+      "sourceId": "state__On",
+      "targetId": "state__Off",
+      "semanticRef": { "astNodeId": "TransitionUsage__on_to_off" },
+      "label": {
+        "trigger": "PowerOff",
+        "modifier": "via sensor2Platform"
+      }
+    },
+    {
+      "id": "edge__on_to_error",
+      "kind": "transition",
+      "sourceId": "state__On",
+      "targetId": "state__Error",
+      "semanticRef": { "astNodeId": "TransitionUsage__on_to_error" },
+      "label": {
+        "trigger": "HealthNotOK"
+      }
+    },
+    {
+      "id": "edge__error_to_top_final",
+      "kind": "transition",
+      "sourceId": "state__Error",
+      "targetId": "pseudo-final__top",
+      "semanticRef": { "astNodeId": "TransitionUsage__error_to_final" },
+      "label": {}
+    },
+    {
+      "id": "edge__top_initial_to_off",
+      "kind": "transition",
+      "sourceId": "pseudo-initial__top",
+      "targetId": "state__Off",
+      "semanticRef": { "astNodeId": "TransitionUsage__top_initial_to_off" },
+      "label": {}
+    },
+    {
+      "id": "edge__error_to_off_notrigger",
+      "kind": "transition",
+      "sourceId": "state__Error",
+      "targetId": "state__Off",
+      "semanticRef": { "astNodeId": "TransitionUsage__error_to_off_notrigger" },
+      "label": {}
+    },
+    {
+      "id": "edge__error_to_off_poweroff",
+      "kind": "transition",
+      "sourceId": "state__Error",
+      "targetId": "state__Off",
+      "semanticRef": { "astNodeId": "TransitionUsage__error_to_off_poweroff" },
+      "label": {
+        "trigger": "PowerOff"
+      }
+    },
+    {
+      "id": "edge__on_to_top_final",
+      "kind": "transition",
+      "sourceId": "state__On",
+      "targetId": "pseudo-final__top",
+      "semanticRef": { "astNodeId": "TransitionUsage__on_to_final" },
+      "label": {}
+    }
+  ]
+}
