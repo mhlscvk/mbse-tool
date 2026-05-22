@@ -117,6 +117,49 @@ describe('State usages', () => {
     const { model } = parse(code);
     expect(model.nodes.some(n => n.name === 'parked' && n.kind === 'StateUsage')).toBe(true);
   });
+
+  it('nests state usages under their enclosing state usage, not the surrounding def (M3-A regression)', () => {
+    // Before the fix, `state Normal { ... }` nested inside `state On { ... }` got
+    // its composition edge pointed at the enclosing StateDefinition because the
+    // pre-create container block ignored enclosing usages. M3-A teaches it to
+    // prefer the enclosing usage when one exists, matching the behavior of every
+    // other usage-creation path in the parser.
+    const code = `
+      state def S {
+        state On {
+          state Normal {
+            entry action enterNormal;
+          }
+          state Degraded {
+            entry action enterDegraded;
+          }
+        }
+      }
+    `;
+    const { model } = parse(code);
+    const on = model.nodes.find(n => n.name === 'On' && n.kind === 'StateUsage');
+    const normal = model.nodes.find(n => n.name === 'Normal' && n.kind === 'StateUsage');
+    const degraded = model.nodes.find(n => n.name === 'Degraded' && n.kind === 'StateUsage');
+    const s = model.nodes.find(n => n.name === 'S' && n.kind === 'StateDefinition');
+    expect(on).toBeDefined();
+    expect(normal).toBeDefined();
+    expect(degraded).toBeDefined();
+
+    // Composition edge for Normal must point to On, not S.
+    const normalOwners = model.connections.filter(
+      c => c.kind === 'composition' && c.targetId === normal!.id
+    );
+    expect(normalOwners.length).toBe(1);
+    expect(normalOwners[0].sourceId).toBe(on!.id);
+    expect(normalOwners[0].sourceId).not.toBe(s!.id);
+
+    // Same check for Degraded.
+    const degradedOwners = model.connections.filter(
+      c => c.kind === 'composition' && c.targetId === degraded!.id
+    );
+    expect(degradedOwners.length).toBe(1);
+    expect(degradedOwners[0].sourceId).toBe(on!.id);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -184,6 +227,28 @@ describe('State entry/exit/do behaviors', () => {
     expect(stateDef!.attributes.some(a => a.name === 'entry action / startEngine')).toBe(true);
     expect(stateDef!.attributes.some(a => a.name === 'do action / monitor')).toBe(true);
     expect(stateDef!.attributes.some(a => a.name === 'exit action / stopEngine')).toBe(true);
+  });
+
+  it('does not match `do` inside `done` qualified name (M5-A regression)', () => {
+    // Before the fix, STATE_BEHAVIOR_RE saw `do` inside `States::StateAction::done`
+    // as a behavior keyword and captured `ne` as the action name, producing
+    // phantom `do action / ne` DoActionUsage nodes. M5-A anchors the keyword
+    // with `\b` so it only matches as a whole word.
+    const code = `
+      state def S {
+        state On;
+        transition first On then States::StateAction::done;
+      }
+    `;
+    const { model } = parse(code);
+    const phantom = model.nodes.find(
+      n => n.kind === 'DoActionUsage' && n.name?.includes('/ ne')
+    );
+    expect(phantom).toBeUndefined();
+    // No `do` behavior attribute should have leaked onto the state def either.
+    const s = model.nodes.find(n => n.name === 'S' && n.kind === 'StateDefinition');
+    expect(s).toBeDefined();
+    expect(s!.attributes.some(a => a.name?.includes('do action / ne'))).toBe(false);
   });
 
   it('stores behavior attributes with special value markers', () => {
@@ -340,6 +405,65 @@ describe('Transition usage — named', () => {
     expect(transition).toBeDefined();
     expect(transition!.name).toContain('ItemDefs::PowerOn');
     expect(transition!.name).toContain('via sensor2Platform');
+  });
+
+  it('keeps parallel transitions between the same states when labels differ (M6-A regression)', () => {
+    // Before the fix, the parser's terminal `uniqueConnections` dedup keyed on
+    // `${src}→${tgt}:${kind}`, collapsing two semantically distinct edges
+    // (e.g. an unconditional one and a triggered one) down to one. SysML v2
+    // state machines explicitly allow parallel transitions; M6-A includes
+    // the edge label in the dedup key so both survive.
+    const code = `
+      state def S {
+        state Error;
+        state Off;
+        transition first Error then Off;
+        transition first Error accept ItemDefs::PowerOff then Off;
+      }
+    `;
+    const { model } = parse(code);
+    const error = model.nodes.find(n => n.name === 'Error');
+    const off = model.nodes.find(n => n.name === 'Off');
+    const errorToOff = model.connections.filter(
+      c => c.kind === 'transition' && c.sourceId === error!.id && c.targetId === off!.id
+    );
+    expect(errorToOff.length).toBe(2);
+    expect(errorToOff.some(c => c.name === '')).toBe(true);
+    expect(errorToOff.some(c => c.name?.includes('ItemDefs::PowerOff'))).toBe(true);
+  });
+
+  it('resolves qualified pseudo-state references in first/then (M4-A regression)', () => {
+    // Before the fix, the `\w+` capture in parseTransitionBody truncated
+    // `States::StateAction::start` to `States`, which never resolves, so the
+    // transition was silently dropped. M4-A widens the capture to `[\w:]+`
+    // and resolves the last `::` segment for ensureSpecialNode lookup.
+    const code = `
+      state def S {
+        state Off;
+        state On;
+        transition first States::StateAction::start then On;
+        transition first On then States::StateAction::done;
+      }
+    `;
+    const { model } = parse(code);
+    const on = model.nodes.find(n => n.name === 'On' && n.kind === 'StateUsage');
+    expect(on).toBeDefined();
+
+    // start → On
+    const start = model.nodes.find(n => n.name === 'start' && n.kind === 'StartNode');
+    expect(start).toBeDefined();
+    const fromStart = model.connections.find(
+      c => c.kind === 'transition' && c.sourceId === start!.id && c.targetId === on!.id
+    );
+    expect(fromStart).toBeDefined();
+
+    // On → done
+    const done = model.nodes.find(n => n.name === 'done' && n.kind === 'DoneNode');
+    expect(done).toBeDefined();
+    const toDone = model.connections.find(
+      c => c.kind === 'transition' && c.sourceId === on!.id && c.targetId === done!.id
+    );
+    expect(toDone).toBeDefined();
   });
 
   it('parses named transition with guard', () => {

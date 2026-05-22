@@ -1048,8 +1048,15 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       const usagePos = cm.index;
       const blockEnd = findBlockEnd(clean, cm.index + cm[0].length - 1);
 
-      // Find owner (def or package)
+      // Find owner: prefer enclosing usage over enclosing def (nested usages
+      // like `state On { state Normal { ... } }` must own Normal under On, not
+      // under the surrounding def).
       let ownerNode: SysMLNode | undefined = findOwnerDef(usagePos);
+      const ownerDefPos = ownerNode ? defPositions.find(d => d.name === ownerNode!.name)?.start ?? -1 : -1;
+      const enclosingUsage = findOwnerUsage(usagePos, cm.index);
+      if (enclosingUsage && enclosingUsage.start > ownerDefPos) {
+        ownerNode = enclosingUsage.node;
+      }
       const usagePkg = findOwnerPackage(usagePos);
       const ownerName = ownerNode ? ownerNode.name : usagePkg ? usagePkg.name : '_top';
 
@@ -1193,7 +1200,10 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   // ── 1c. Extract entry/exit/do behaviors inside state defs and state usages ──
   // These appear as compartment attributes like "entry / actionName" in the diagram.
   {
-    const STATE_BEHAVIOR_RE = /\b(entry|exit|do)\s*(?:action\s+)?(\w+)?(?:\s*:\s*([\w:]+))?\s*[;{]/g;
+    // `\b` after the keyword group prevents the inner `do` of words like
+    // `done` from matching — otherwise `States::StateAction::done;` parses as
+    // `do` + actionName `ne`, producing phantom `do action / ne` nodes.
+    const STATE_BEHAVIOR_RE = /\b(entry|exit|do)\b\s*(?:action\s+)?(\w+)?(?:\s*:\s*([\w:]+))?\s*[;{]/g;
     STATE_BEHAVIOR_RE.lastIndex = 0;
     let sbm: RegExpExecArray | null;
     while ((sbm = STATE_BEHAVIOR_RE.exec(clean)) !== null) {
@@ -2732,8 +2742,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   {
     // Helper to parse a transition body and create the succession edge
     function parseTransitionBody(body: string, pos: number, transName: string | null): void {
-      const firstMatch = body.match(/\bfirst\s+(\w+)/);
-      const thenMatch = body.match(/\bthen\s+(\w+)/);
+      // `[\w:]+` (not `\w+`) so qualified pseudo-state references like
+      // `States::StateAction::start` and `States::StateAction::done` survive
+      // the match. The last `::` segment is what the rest of the parser
+      // resolves against (e.g. `start` for ensureSpecialNode lookup).
+      const firstMatch = body.match(/\bfirst\s+([\w:]+)/);
+      const thenMatch = body.match(/\bthen\s+([\w:]+)/);
       // Accept: "accept TriggerName [via port]" or "accept after 5[min]"
       const acceptMatch = body.match(/\baccept\s+(after\s+[\d[\].\w]+|[\w:]+)(?:\s+via\s+(\w+))?/);
       const ifMatch = body.match(/\bif\s+([\w.]+)/);
@@ -2741,6 +2755,8 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
 
       const sourceName = firstMatch?.[1] ? dequote(firstMatch[1], nameMap) : undefined;
       const targetName = thenMatch?.[1] ? dequote(thenMatch[1], nameMap) : undefined;
+      const sourceSimple = sourceName?.includes('::') ? sourceName.split('::').pop()! : sourceName;
+      const targetSimple = targetName?.includes('::') ? targetName.split('::').pop()! : targetName;
       const triggerText = acceptMatch?.[1] ? dequote(acceptMatch[1], nameMap) : undefined;
       const viaPort = acceptMatch?.[2] ? dequote(acceptMatch[2], nameMap) : undefined;
       const guardExpr = ifMatch?.[1];
@@ -2755,11 +2771,11 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
       if (effectName) labelParts.push(`/ ${effectName}`);
       const edgeLabel = labelParts.length > 0 ? labelParts.join(' ') : '';
 
-      if (sourceName && targetName) {
-        if (SPECIAL_NAMES.has(sourceName)) ensureSpecialNode(sourceName, pos);
-        if (SPECIAL_NAMES.has(targetName)) ensureSpecialNode(targetName, pos);
-        const fromNode = resolveNodeAtOffset(sourceName, pos);
-        const toNode = resolveNodeAtOffset(targetName, pos);
+      if (sourceSimple && targetSimple) {
+        if (SPECIAL_NAMES.has(sourceSimple)) ensureSpecialNode(sourceSimple, pos);
+        if (SPECIAL_NAMES.has(targetSimple)) ensureSpecialNode(targetSimple, pos);
+        const fromNode = resolveNodeAtOffset(sourceSimple, pos);
+        const toNode = resolveNodeAtOffset(targetSimple, pos);
         if (fromNode && toNode) {
           connections.push({
             id: makeId('transition', `${transName ?? 'anon'}_${pos}`),
@@ -3102,7 +3118,12 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
   // Deduplicate connections (same source+target+kind)
   const seen = new Set<string>();
   const uniqueConnections = connections.filter((c) => {
-    const key = `${c.sourceId}→${c.targetId}:${c.kind}`;
+    // Include `name` in the dedup key so parallel transitions between the
+    // same source/target pair survive when they carry distinct labels (e.g.
+    // an unconditional `Error → Off` alongside `Error → Off on PowerOff`).
+    // Composition / containment edges always carry `name=""`, so they keep
+    // their existing dedup behavior.
+    const key = `${c.sourceId}→${c.targetId}:${c.kind}:${c.name ?? ''}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
