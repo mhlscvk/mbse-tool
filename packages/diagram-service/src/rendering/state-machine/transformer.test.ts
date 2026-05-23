@@ -135,3 +135,80 @@ describe('state-machine transformer × sensor-systems fixture', () => {
     expect(normalize(ir)).toEqual(normalize(expectedIr));
   });
 });
+
+// ── Multi-root (Slice 2d.1) ──────────────────────────────────────────────────
+// The crash fixture: two independent state machines modelled as `state` USAGES
+// nested in a part hierarchy, with no StateDefinition at all. Drives the
+// multi-seed root-finding that replaced the single find(isStateDef) seed.
+
+const MULTI_ROOT_DIR = resolve(here, '../../../tests/fixtures/state-machine/multi-root-part-states');
+
+function loadMultiRoot() {
+  const sysml = readFileSync(resolve(MULTI_ROOT_DIR, 'model.sysml'), 'utf-8');
+  const { model } = parseSysMLText('fixture://multi-root-part-states/model.sysml', sysml);
+  const expectedIr: StateMachineIR = JSON.parse(
+    readFileSync(resolve(MULTI_ROOT_DIR, 'expected-ir.json'), 'utf-8'),
+  );
+  return { model, expectedIr };
+}
+
+describe('state-machine transformer × multi-root-part-states fixture', () => {
+  it('has zero StateDefinitions (the Slice 2d crash precondition)', () => {
+    const { model } = loadMultiRoot();
+    expect(model.nodes.some(n => n.kind === 'StateDefinition')).toBe(false);
+    expect(model.nodes.some(n => n.kind === 'StateUsage')).toBe(true);
+  });
+
+  it('seeds both machines: emits the six sub-states, not the two container states', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const stateNames = ir.nodes.filter(n => n.kind === 'state').map(n => n.name).sort();
+    expect(stateNames).toEqual(['Active', 'Closed', 'Idle', 'Open', 'Paused', 'Running']);
+    // The two top-level container usages play the `state def` role and are
+    // never drawn as state nodes.
+    expect(stateNames).not.toContain('ModeAlpha');
+    expect(stateNames).not.toContain('ModeBeta');
+  });
+
+  it('omits the enclosing part name from qualified names', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const running = ir.nodes.find(n => n.name === 'Running')!;
+    expect(running.semanticRef.qualifiedName).toBe('ModeAlpha::Active::Running');
+    // `part unit` must never leak into a state's qualified name.
+    expect(ir.nodes.every(n => !(n.semanticRef.qualifiedName ?? '').includes('unit'))).toBe(true);
+  });
+
+  it('keeps Active composite: entry/do/exit compartments + nested Running/Paused', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const active = ir.nodes.find(n => n.name === 'Active')!;
+    expect((active.compartments ?? []).map(c => c.kind)).toEqual(['entry', 'do', 'exit']);
+    const childNames = (active.containedNodes ?? [])
+      .map(id => ir.nodes.find(n => n.id === id)?.name);
+    expect(childNames).toEqual(expect.arrayContaining(['Running', 'Paused']));
+  });
+
+  it('emits all six declared transitions', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    expect(ir.edges).toHaveLength(6);
+    expect(ir.edges.every(e => e.kind === 'transition')).toBe(true);
+  });
+
+  it('matches expected-ir.json structurally (normalized astNodeId + generatedAt)', () => {
+    const { model, expectedIr } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    expect(normalize(ir)).toEqual(normalize(expectedIr));
+  });
+});
+
+describe('state-machine transformer — defensive edge cases (Slice 2d.1)', () => {
+  it('returns a valid empty IR for a model with no state nodes (no crash)', () => {
+    const { model } = parseSysMLText('fixture://empty', 'package Empty { part p; }');
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    expect(ir.viewType).toBe('state-machine');
+    expect(ir.nodes).toEqual([]);
+    expect(ir.edges).toEqual([]);
+  });
+});

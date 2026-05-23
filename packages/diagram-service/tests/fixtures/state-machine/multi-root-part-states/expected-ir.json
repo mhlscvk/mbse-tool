@@ -1,0 +1,174 @@
+{
+  "viewType": "state-machine",
+  "metadata": {
+    "generatedAt": "2026-05-24T00:00:00.000Z",
+    "rendererVersion": "state-machine-1.0.0",
+    "sourceFile": "fixture://multi-root-part-states/model.sysml"
+  },
+  "nodes": [
+    {
+      "id": "state__Idle",
+      "kind": "state",
+      "name": "Idle",
+      "semanticRef": {
+        "astNodeId": "usage__ModeAlpha_Idle",
+        "qualifiedName": "ModeAlpha::Idle"
+      },
+      "compartments": []
+    },
+    {
+      "id": "state__Active",
+      "kind": "state",
+      "name": "Active",
+      "semanticRef": {
+        "astNodeId": "usage__ModeAlpha_Active",
+        "qualifiedName": "ModeAlpha::Active"
+      },
+      "compartments": [
+        {
+          "kind": "entry",
+          "actions": [
+            {
+              "name": "begin",
+              "semanticRef": {
+                "astNodeId": "behavior__Active_entry_begin"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "do",
+          "actions": [
+            {
+              "name": "run",
+              "semanticRef": {
+                "astNodeId": "behavior__Active_do_run"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "exit",
+          "actions": [
+            {
+              "name": "stop",
+              "semanticRef": {
+                "astNodeId": "behavior__Active_exit_stop"
+              }
+            }
+          ]
+        }
+      ],
+      "containedNodes": [
+        "state__Running",
+        "state__Paused"
+      ],
+      "containedEdges": [
+        "edge__running_to_paused",
+        "edge__paused_to_running"
+      ]
+    },
+    {
+      "id": "state__Running",
+      "kind": "state",
+      "name": "Running",
+      "semanticRef": {
+        "astNodeId": "usage__Active_Running",
+        "qualifiedName": "ModeAlpha::Active::Running"
+      },
+      "compartments": []
+    },
+    {
+      "id": "state__Paused",
+      "kind": "state",
+      "name": "Paused",
+      "semanticRef": {
+        "astNodeId": "usage__Active_Paused",
+        "qualifiedName": "ModeAlpha::Active::Paused"
+      },
+      "compartments": []
+    },
+    {
+      "id": "state__Open",
+      "kind": "state",
+      "name": "Open",
+      "semanticRef": {
+        "astNodeId": "usage__ModeBeta_Open",
+        "qualifiedName": "ModeBeta::Open"
+      },
+      "compartments": []
+    },
+    {
+      "id": "state__Closed",
+      "kind": "state",
+      "name": "Closed",
+      "semanticRef": {
+        "astNodeId": "usage__ModeBeta_Closed",
+        "qualifiedName": "ModeBeta::Closed"
+      },
+      "compartments": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge__running_to_paused",
+      "kind": "transition",
+      "sourceId": "state__Running",
+      "targetId": "state__Paused",
+      "semanticRef": {
+        "astNodeId": "transition__anon_824"
+      },
+      "label": {}
+    },
+    {
+      "id": "edge__paused_to_running",
+      "kind": "transition",
+      "sourceId": "state__Paused",
+      "targetId": "state__Running",
+      "semanticRef": {
+        "astNodeId": "transition__anon_882"
+      },
+      "label": {}
+    },
+    {
+      "id": "edge__idle_to_active",
+      "kind": "transition",
+      "sourceId": "state__Idle",
+      "targetId": "state__Active",
+      "semanticRef": {
+        "astNodeId": "transition__anon_954"
+      },
+      "label": {}
+    },
+    {
+      "id": "edge__active_to_idle",
+      "kind": "transition",
+      "sourceId": "state__Active",
+      "targetId": "state__Idle",
+      "semanticRef": {
+        "astNodeId": "transition__anon_1005"
+      },
+      "label": {}
+    },
+    {
+      "id": "edge__open_to_closed",
+      "kind": "transition",
+      "sourceId": "state__Open",
+      "targetId": "state__Closed",
+      "semanticRef": {
+        "astNodeId": "transition__anon_1231"
+      },
+      "label": {}
+    },
+    {
+      "id": "edge__closed_to_open",
+      "kind": "transition",
+      "sourceId": "state__Closed",
+      "targetId": "state__Open",
+      "semanticRef": {
+        "astNodeId": "transition__anon_1282"
+      },
+      "label": {}
+    }
+  ]
+}

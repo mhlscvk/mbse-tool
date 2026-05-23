@@ -1,0 +1,359 @@
+{
+  "type": "graph",
+  "id": "state-machine__fixture://multi-root-part-states/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "state__Idle",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__Idle__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__Idle__label",
+          "text": "Idle"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "state__Active",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__Active__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__Active__label",
+          "text": "Active"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Active_entry_begin",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "behavior__Active_entry_begin__kind",
+          "text": "«entry action»"
+        },
+        {
+          "type": "label",
+          "id": "behavior__Active_entry_begin__label",
+          "text": "begin"
+        }
+      ],
+      "cssClasses": [
+        "entryactionusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Active_do_run",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "behavior__Active_do_run__kind",
+          "text": "«do action»"
+        },
+        {
+          "type": "label",
+          "id": "behavior__Active_do_run__label",
+          "text": "run"
+        }
+      ],
+      "cssClasses": [
+        "doactionusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "behavior__Active_exit_stop",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "behavior__Active_exit_stop__kind",
+          "text": "«exit action»"
+        },
+        {
+          "type": "label",
+          "id": "behavior__Active_exit_stop__label",
+          "text": "stop"
+        }
+      ],
+      "cssClasses": [
+        "exitactionusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "state__Running",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__Running__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__Running__label",
+          "text": "Running"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "state__Paused",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__Paused__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__Paused__label",
+          "text": "Paused"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "state__Open",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__Open__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__Open__label",
+          "text": "Open"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
+      "id": "state__Closed",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__Closed__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__Closed__label",
+          "text": "Closed"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__running_to_paused",
+      "sourceId": "state__Running",
+      "targetId": "state__Paused",
+      "children": [],
+      "cssClasses": [
+        "transition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__paused_to_running",
+      "sourceId": "state__Paused",
+      "targetId": "state__Running",
+      "children": [],
+      "cssClasses": [
+        "transition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__idle_to_active",
+      "sourceId": "state__Idle",
+      "targetId": "state__Active",
+      "children": [],
+      "cssClasses": [
+        "transition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__active_to_idle",
+      "sourceId": "state__Active",
+      "targetId": "state__Idle",
+      "children": [],
+      "cssClasses": [
+        "transition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__open_to_closed",
+      "sourceId": "state__Open",
+      "targetId": "state__Closed",
+      "children": [],
+      "cssClasses": [
+        "transition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__closed_to_open",
+      "sourceId": "state__Closed",
+      "targetId": "state__Open",
+      "children": [],
+      "cssClasses": [
+        "transition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__active_to_entry_begin",
+      "sourceId": "state__Active",
+      "targetId": "behavior__Active_entry_begin",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__active_to_do_run",
+      "sourceId": "state__Active",
+      "targetId": "behavior__Active_do_run",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__active_to_exit_stop",
+      "sourceId": "state__Active",
+      "targetId": "behavior__Active_exit_stop",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__active_to_running",
+      "sourceId": "state__Active",
+      "targetId": "state__Running",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__active_to_paused",
+      "sourceId": "state__Active",
+      "targetId": "state__Paused",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    }
+  ]
+}

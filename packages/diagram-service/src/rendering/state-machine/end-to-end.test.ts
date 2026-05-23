@@ -32,6 +32,8 @@ const FIXTURE_DIR = resolve(here, '../../../tests/fixtures/state-machine/sensor-
 const MODEL_PATH = resolve(FIXTURE_DIR, 'model.sysml');
 const EXPECTED_SMODEL_PATH = resolve(FIXTURE_DIR, 'expected-smodel.json');
 
+const MULTI_ROOT_DIR = resolve(here, '../../../tests/fixtures/state-machine/multi-root-part-states');
+
 const STV_SPEC: ViewSpec = { viewType: 'state-transition' as ViewType, showInherited: false };
 
 function loadModel() {
@@ -41,6 +43,15 @@ function loadModel() {
 
 function loadExpectedSModel(): SModelRoot {
   return JSON.parse(readFileSync(EXPECTED_SMODEL_PATH, 'utf-8')) as SModelRoot;
+}
+
+function loadMultiRootModel() {
+  const sysml = readFileSync(resolve(MULTI_ROOT_DIR, 'model.sysml'), 'utf-8');
+  return parseSysMLText('fixture://multi-root-part-states/model.sysml', sysml).model;
+}
+
+function loadMultiRootExpectedSModel(): SModelRoot {
+  return JSON.parse(readFileSync(resolve(MULTI_ROOT_DIR, 'expected-smodel.json'), 'utf-8')) as SModelRoot;
 }
 
 // Mirrors what packages/diagram-service/src/index.ts does at bootstrap.
@@ -121,5 +132,45 @@ describe('state-machine end-to-end (Slice 2c wiring)', () => {
     expect(out.rendererUsed).toBe('old-default');
     expect(legacyCalls).toBe(1);
     expect(stats.snapshot().byViewType['state-machine']).toEqual({ 'old-default': 1 });
+  });
+
+  // ── Multi-root (Slice 2d.1) — the regression that crashed Slice 2d ──────────
+  // A real-world model: two `state` machines nested in a part, no StateDefinition.
+
+  it('registry → transformer → renderer produces the expected SModelRoot for the multi-root fixture', async () => {
+    const renderer = await viewRegistry.get('state-machine');
+    expect(renderer).toBeDefined();
+
+    const ir = renderer!.transformAstToIR(loadMultiRootModel(), STV_SPEC);
+    const sModelRoot = renderer!.toSModelRoot(ir);
+
+    expect(sModelRoot).toEqual(loadMultiRootExpectedSModel());
+  });
+
+  it('wedge with flag=true renders the multi-root fixture through the new renderer (rendererUsed=new, no fallback)', async () => {
+    const stats = new RendererStats();
+    let legacyCalls = 0;
+    const flagsAlwaysOn: FlagProvider = {
+      isEnabled: async (_flag: RendererFlag, _ctx: FlagContext) => true,
+    };
+
+    const wedge = makeWedge({
+      registry: viewRegistry,
+      flags: flagsAlwaysOn,
+      stats,
+      runOldPipeline: (model, viewType, showInherited) => {
+        legacyCalls += 1;
+        return transformToBDD(model, viewType, showInherited);
+      },
+    });
+
+    const out = await wedge(loadMultiRootModel(), 'state-transition', false);
+
+    // The crash path: pre-Slice-2d.1 this threw and recorded
+    // 'old-fallback-from-new'. It must now render natively with no fallback.
+    expect(out.rendererUsed).toBe('new');
+    expect(legacyCalls).toBe(0);
+    expect(out.result).toEqual(loadMultiRootExpectedSModel());
+    expect(stats.snapshot().byViewType['state-machine']).toEqual({ new: 1 });
   });
 });
