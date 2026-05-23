@@ -165,6 +165,18 @@ export function transformAstToStateMachineIR(
     emitContainer(stateDef.id);
   }
 
+  // Defense-in-depth (Slice 2d.1): a state machine modelled as a `state`
+  // usage nested in a part has no StateDefinition, so emitContainer never
+  // runs and irNodes stays empty. Multi-root seeding (Slice 2d.1 §4) will
+  // populate it; until then we must not crash the passes below. Return a
+  // valid empty IR rather than throwing on the lying find()! assertions.
+  if (irNodes.length === 0 && model.nodes.some(isState)) {
+    console.warn(
+      '[Transformer] State usages present but no StateDefinition root was ' +
+        'emitted — returning empty state-machine IR (no-op, wedge handles fallback)',
+    );
+  }
+
   // ── Compartments ─────────────────────────────────────────────────────────
   // Behavior nodes are named like "entry action / checkPowerSource". A bare
   // "exit action" (no slash) is the empty-action form (`exit action ;`),
@@ -178,7 +190,11 @@ export function transformAstToStateMachineIR(
 
   for (const stateAst of model.nodes) {
     if (!isState(stateAst)) continue;
-    const irNode = irNodes.find(n => n.id === stateIrIdByAstId.get(stateAst.id))!;
+    // Guarded: a StateUsage that was never emitted (no root reached it) has
+    // no entry in stateIrIdByAstId, so find() returns undefined. Skip rather
+    // than dereference — the old find()! crashed here (Slice 2d bug).
+    const irNode = irNodes.find(n => n.id === stateIrIdByAstId.get(stateAst.id));
+    if (!irNode) continue;
     const children = childrenByParent.get(stateAst.id) ?? [];
 
     const buildCompartment = (
@@ -305,7 +321,9 @@ export function transformAstToStateMachineIR(
   // ── Containment (composite states) ───────────────────────────────────────
   for (const stateAst of model.nodes) {
     if (!isState(stateAst)) continue;
-    const irNode = irNodes.find(n => n.id === stateIrIdByAstId.get(stateAst.id))!;
+    // Guarded (same rationale as the compartment pass above).
+    const irNode = irNodes.find(n => n.id === stateIrIdByAstId.get(stateAst.id));
+    if (!irNode) continue;
     const childIrIds: string[] = [];
     for (const ch of childrenByParent.get(stateAst.id) ?? []) {
       const childIr = irIdForAst(ch.id);
