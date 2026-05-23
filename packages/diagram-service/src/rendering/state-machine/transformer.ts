@@ -59,6 +59,11 @@ export function transformAstToStateMachineIR(
   const isStateDef = (n: SysMLNode) => n.kind === 'StateDefinition';
   const isPseudoInitial = (n: SysMLNode) => n.kind === 'StartNode';
   const isPseudoFinal = (n: SysMLNode) => n.kind === 'DoneNode' || n.kind === 'TerminateNode';
+  // State-like = anything that can own a sub-state machine and so participate
+  // in the container chain: a state usage, a state definition, or an exhibited
+  // state. Used by both the root seed and the qualified-name walk.
+  const isStateLike = (n: SysMLNode) =>
+    isState(n) || isStateDef(n) || n.kind === 'ExhibitStateUsage';
 
   // Container tag for a pseudo-state: the lowercase name of the enclosing
   // state usage, or 'top' when it sits directly under the state definition.
@@ -71,13 +76,18 @@ export function transformAstToStateMachineIR(
     return 'top';
   }
 
-  // qualifiedName walks the composition chain upward, stopping at the
-  // enclosing Package (which we don't include — `SensorSystemStates::On`,
-  // not `SensorSystems::SensorSystemStates::On`).
+  // qualifiedName walks the composition chain upward through state-like
+  // ancestors only, stopping at the first non-state owner (a part or the
+  // package). This yields `SensorSystemStates::On` for a `state def` root and
+  // `ModeAlpha::Active` for a `state` usage nested in a part — the part name
+  // never leaks into the state's qualified name. (Slice 2d.1: this previously
+  // walked up to the Package, which was equivalent while every root was a
+  // top-level `state def`, but would have prefixed part names once roots
+  // became nested `state` usages.)
   function qualifiedName(n: SysMLNode): string {
     const chain: string[] = [n.name];
     let current = parentByChild.get(n.id);
-    while (current && current.kind !== 'Package') {
+    while (current && isStateLike(current)) {
       chain.unshift(current.name);
       current = parentByChild.get(current.id);
     }
@@ -159,21 +169,41 @@ export function transformAstToStateMachineIR(
     }
   }
 
-  // Find the diagram root (StateDefinition) and walk from there.
-  const stateDef = model.nodes.find(isStateDef);
-  if (stateDef) {
-    emitContainer(stateDef.id);
+  // Seed emitContainer from every top-level state container, then walk down.
+  //
+  // A top-level state container is a state-like node whose composition parent
+  // is NOT itself state-like — i.e. it sits directly under a part or package,
+  // not inside another state. This covers both shapes seen in the wild:
+  //   • a standalone `state def Foo { state A; … }` — its parent is the
+  //     Package (one root; behaviour identical to the old find(isStateDef))
+  //   • one or more `state Foo { … }` usages nested in a part hierarchy with
+  //     no StateDefinition at all (idiomatic SysML v2 / MagicGrid). Two such
+  //     machines in one part is the multi-root case that crashed Slice 2d.
+  // emitContainer emits a container's *children* (not the container itself),
+  // matching how a standalone `state def` is never drawn as a node.
+  //
+  // This reads the raw AST. View-filter integration (feeding the transformer a
+  // state-transition-filtered model) is deliberately deferred to Slice 2d.2:
+  // the filter's start→entry remap would change the shipped sensor-systems
+  // render, a product decision out of scope for this hotfix. Multi-seeding
+  // works correctly on the raw model without it.
+  const topLevelContainers = model.nodes.filter(n => {
+    if (!isStateLike(n)) return false;
+    const parent = parentByChild.get(n.id);
+    return !parent || !isStateLike(parent);
+  });
+  for (const container of topLevelContainers) {
+    emitContainer(container.id);
   }
 
-  // Defense-in-depth (Slice 2d.1): a state machine modelled as a `state`
-  // usage nested in a part has no StateDefinition, so emitContainer never
-  // runs and irNodes stays empty. Multi-root seeding (Slice 2d.1 §4) will
-  // populate it; until then we must not crash the passes below. Return a
-  // valid empty IR rather than throwing on the lying find()! assertions.
-  if (irNodes.length === 0 && model.nodes.some(isState)) {
+  // Defense-in-depth (Slice 2d.1, kept permanently): if state-like nodes are
+  // present but nothing was emitted, return a valid empty IR rather than
+  // crashing the (now guarded) find() lookups below. The wedge renders the
+  // empty result or its caller falls back — no user-visible crash either way.
+  if (irNodes.length === 0 && model.nodes.some(isStateLike)) {
     console.warn(
-      '[Transformer] State usages present but no StateDefinition root was ' +
-        'emitted — returning empty state-machine IR (no-op, wedge handles fallback)',
+      '[Transformer] No top-level state container produced any nodes — ' +
+        'returning empty state-machine IR (no-op)',
     );
   }
 
