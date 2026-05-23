@@ -25,6 +25,9 @@ module.exports = {
       cwd: './packages/diagram-service',
       env: {
         NODE_ENV: 'production',
+        // Slice 2d.1: state-machine new renderer enabled globally after a
+        // clean self-dogfood (counter state-machine.new=6, 0 fallback).
+        FF_STATE_MACHINE_NEW_RENDERER: 'true',
       },
     },
   ],
