@@ -508,6 +508,12 @@
     "btn_change_password": "Parolayı değiştir",
     "btn_updating": "Güncelleniyor...",
 
+    "renderer_beta": {
+      "title": "Render Beta",
+      "state_machine_label": "Durum Makinesi (yeni)",
+      "state_machine_description": "Audit raporunda tanımlı 10 hata için yeni durum makinesi render motoru. Beta — denenmekte."
+    },
+
     "mcp_description": "AI istemcinizi (Claude Desktop, Cursor, VS Code, Windsurf) systemodel'e bağlayın. AI kendi aboneliğiniz üzerinden çalışır — sunucumuzda API anahtarı saklanmaz.",
     "token_name_placeholder": "örn. Claude Desktop",
     "btn_create_token": "Token oluştur",

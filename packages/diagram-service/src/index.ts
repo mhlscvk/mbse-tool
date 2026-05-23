@@ -7,6 +7,14 @@ import { join } from 'path';
 import { createDiagramWebSocketServer } from './websocket-server.js';
 import { parseSysMLText } from './parser/sysml-text-parser.js';
 import { rendererStats } from './rendering/renderer-stats.js';
+import { viewRegistry } from './rendering/view-registry.js';
+
+// Phase 1 — register the state-machine renderer. The loader is lazy so the
+// transformer/renderer code only loads when the first state-transition view
+// is requested with the flag enabled; until then this is a single Map.set.
+viewRegistry.register('state-machine', () =>
+  import('./rendering/state-machine/index.js').then(m => m.stateMachineRenderer),
+);
 
 const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 

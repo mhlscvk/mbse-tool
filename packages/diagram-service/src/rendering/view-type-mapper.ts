@@ -4,15 +4,15 @@
 // 'block-definition' | ...` — what view-specific renderers are registered
 // under).
 //
-// Phase 0: no mappings yet — every legacy value returns null and the wedge
-// falls through to the old pipeline. Phase 1 wires
-// `'state-transition' → 'state-machine'`; later phases follow.
+// Phase 1 wires `'state-transition' → 'state-machine'`; later phases follow.
+// Legacy view types with no IR equivalent still return null and the wedge
+// falls through to the old pipeline.
 
 import type { ViewType, DiagramViewType } from '@systemodel/shared-types';
 
 export function mapToDiagramViewType(legacy: ViewType): DiagramViewType | null {
   switch (legacy) {
-    // Phase 1: case 'state-transition': return 'state-machine';
+    case 'state-transition': return 'state-machine';
     // Phase 2+: other view kinds...
     default:
       return null;

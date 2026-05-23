@@ -262,6 +262,16 @@ export const api = {
       request<{ id: string; preferredLanguage: string | null }>('/users/me/preferences', {
         method: 'PATCH', body: JSON.stringify({ preferredLanguage }),
       }),
+    // Renderer feature flags. PATCH semantics: `true`/`false` set the override,
+    // `null` clears it so the next read falls back to the global default. Send
+    // null on toggle-off rather than false to preserve "ben kararsızım, global'i
+    // kullan" semantics if the global default ever flips to true.
+    getFeatureFlags: () =>
+      request<import('@systemodel/shared-types').FeatureFlags>('/users/me/feature-flags'),
+    setFeatureFlags: (patch: Partial<Record<import('@systemodel/shared-types').RendererFlag, boolean | null>>) =>
+      request<import('@systemodel/shared-types').FeatureFlags>('/users/me/feature-flags', {
+        method: 'PATCH', body: JSON.stringify(patch),
+      }),
   },
 };
 

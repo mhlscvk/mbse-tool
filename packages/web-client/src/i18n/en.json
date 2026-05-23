@@ -508,6 +508,12 @@
     "btn_change_password": "Change Password",
     "btn_updating": "Updating...",
 
+    "renderer_beta": {
+      "title": "Renderer Beta",
+      "state_machine_label": "State Machine (new)",
+      "state_machine_description": "New state machine renderer addressing 10 bugs catalogued in the audit report. Beta — currently in dogfooding."
+    },
+
     "mcp_description": "Connect your AI client (Claude Desktop, Cursor, VS Code, Windsurf) to systemodel. Your AI runs on your own subscription — no API keys stored on our server.",
     "token_name_placeholder": "e.g. Claude Desktop",
     "btn_create_token": "Create Token",

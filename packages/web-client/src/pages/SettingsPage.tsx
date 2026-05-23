@@ -7,7 +7,7 @@ import { api, type McpTokenInfo, type McpTokenCreated, type BugReportInfo, type 
 import type { AiKeyInfo } from '../services/api-client.js';
 import { useTheme, type ThemeColors } from '../store/theme.js';
 import { useAuthStore } from '../store/auth.js';
-import type { Startup, StartupMember, StartupRole, User } from '@systemodel/shared-types';
+import type { Startup, StartupMember, StartupRole, User, FeatureFlags } from '@systemodel/shared-types';
 
 // ─── MCP client config templates ─────────────────────────────────────────────
 
@@ -232,7 +232,71 @@ function AccountSection() {
           </button>
         </form>
       </div>
+
+      <RendererBetaSection />
     </>
+  );
+}
+
+// ─── Renderer Beta Section ──────────────────────────────────────────────────
+//
+// Per-user opt-in for view-specific renderers under dogfooding. Off sends a
+// null payload (delete the override, fall back to global default) rather than
+// false — that way once a global default flips to true, users who never opted
+// out still get the new renderer.
+
+function RendererBetaSection() {
+  const t = useTheme();
+  const { t: tr } = useTranslation();
+  const [flags, setFlags] = useState<FeatureFlags>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.users.getFeatureFlags()
+      .then(setFlags)
+      .catch(err => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleToggle = async (next: boolean) => {
+    setSaving(true);
+    setError('');
+    try {
+      const merged = await api.users.setFeatureFlags({
+        'state-machine-new-renderer': next ? true : null,
+      });
+      setFlags(merged);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const enabled = flags['state-machine-new-renderer'] === true;
+
+  return (
+    <div style={{ background: t.bgSecondary, border: `1px solid ${t.border}`, borderRadius: 6, padding: 20, marginBottom: 24 }}>
+      <h3 style={{ color: t.text, fontSize: 14, marginBottom: 12 }}>{tr('settings.renderer_beta.title')}</h3>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: loading || saving ? 'default' : 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={loading || saving}
+          onChange={e => handleToggle(e.target.checked)}
+          style={{ marginTop: 3 }}
+        />
+        <span style={{ flex: 1 }}>
+          <span style={{ color: t.text, fontSize: 13, fontWeight: 500 }}>{tr('settings.renderer_beta.state_machine_label')}</span>
+          <span style={{ display: 'block', color: t.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>
+            {tr('settings.renderer_beta.state_machine_description')}
+          </span>
+        </span>
+      </label>
+      {error && <div style={{ color: t.error, fontSize: 12, marginTop: 8 }}>{error}</div>}
+    </div>
   );
 }
 
