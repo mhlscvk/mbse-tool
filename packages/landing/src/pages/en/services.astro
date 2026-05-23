@@ -1,0 +1,107 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import ServiceCard from '../../components/ServiceCard.astro';
+import FAQ from '../../components/FAQ.astro';
+import CTASection from '../../components/CTASection.astro';
+import { routeMap } from '../../i18n/utils';
+
+const lang = 'en';
+
+// Conversion-critical page: prominent CTAs to the contact form with a
+// pre-filled subject.
+const contactConsulting = `${routeMap.contact[lang]}?subject=Consulting request`;
+const contactTraining = `${routeMap.contact[lang]}?subject=Training request`;
+
+const faqItems = [
+  {
+    q: 'Who are the trainings for?',
+    a: 'Designed for SME technical leaders and engineering teams. (TODO: final copy)',
+  },
+  {
+    q: 'How does consulting work?',
+    a: 'It runs through needs analysis, a pilot project, and implementation. (TODO: final copy)',
+  },
+  {
+    q: 'Remote or on-site?',
+    a: 'Both options are available. (TODO: final copy)',
+  },
+];
+---
+
+<PageLayout
+  title="Consulting & Training — System2Product"
+  description="SysML v2 and model-to-product engineering training and consulting for SME technical leaders."
+  lang={lang}
+  pageKey="services"
+>
+  <!-- Hero with prominent CTA -->
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Consulting & Training</p>
+      <h1>Take your team from model to product</h1>
+      <p class="lead">
+        <!-- TODO: final services copy -->
+        SysML v2 and systems engineering training plus end-to-end consulting for SME
+        technical leaders.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href={contactConsulting}>Consulting request</a>
+        <a class="btn btn-secondary" href={contactTraining}>Training request</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Services -->
+  <section class="section">
+    <div class="container">
+      <h2>Services</h2>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        <ServiceCard
+          icon="🎓"
+          title="SysML v2 Training"
+          description="Hands-on training that builds your team's SysML v2 modeling practice. (TODO)"
+        />
+        <ServiceCard
+          icon="🧭"
+          title="Engineering Consulting"
+          description="Consulting for system architecture and model-to-product process design. (TODO)"
+        />
+        <ServiceCard
+          icon="⚙️"
+          title="Process Integration"
+          description="Integrating Systemodel and AI-assisted flows into your existing toolchain. (TODO)"
+        />
+        <ServiceCard
+          icon="🚀"
+          title="Pilot Projects"
+          description="We model a small subsystem we select for you together, apply MBSE processes end-to-end. The working example stays with you, scaling is up to you. (TODO: final copy)"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section">
+    <div class="container">
+      <FAQ heading="Frequently Asked Questions" items={faqItems} />
+    </div>
+  </section>
+
+  <CTASection
+    title="Let's discuss your project"
+    text="Reach out for a training or consulting package that fits you."
+    ctaLabel="Send a consulting request"
+    ctaHref={contactConsulting}
+    secondaryLabel="Send a training request"
+    secondaryHref={contactTraining}
+  />
+</PageLayout>
+
+<style>
+  .hero-actions {
+    margin-top: var(--space-5);
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+</style>

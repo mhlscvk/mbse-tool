@@ -1,0 +1,20 @@
+{
+  "name": "@systemodel/landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "clean": "rm -rf dist .astro",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^4.16.18",
+    "@astrojs/mdx": "~3.1.9",
+    "@astrojs/sitemap": "3.2.1"
+  }
+}

@@ -1,0 +1,81 @@
+---
+import { useTranslations, type Lang } from '../i18n/utils';
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+// Modelle → Köprüle → Üret (Model → Bridge → Produce)
+const steps = [
+  { label: t('flow.model'), num: '01' },
+  { label: t('flow.bridge'), num: '02' },
+  { label: t('flow.produce'), num: '03' },
+];
+---
+
+<div class="flow" role="img" aria-label={steps.map((s) => s.label).join(' → ')}>
+  {
+    steps.map((step, i) => (
+      <>
+        <div class="flow-step">
+          <span class="flow-num">{step.num}</span>
+          <span class="flow-label">{step.label}</span>
+        </div>
+        {i < steps.length - 1 && <span class="flow-arrow" aria-hidden="true">→</span>}
+      </>
+    ))
+  }
+</div>
+
+<style>
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    background: var(--bg-card);
+    border: 2px solid var(--color-ink);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4) var(--space-5);
+    min-width: 140px;
+  }
+  .flow-num {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-copper);
+  }
+  .flow-label {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--color-ink);
+  }
+  .flow-arrow {
+    font-size: 2rem;
+    color: var(--color-amber);
+    font-weight: 700;
+  }
+
+  /* Stack the three steps vertically on mobile; turn the arrows downward. */
+  @media (max-width: 767px) {
+    .flow {
+      flex-direction: column;
+    }
+    .flow-step {
+      width: 100%;
+      max-width: 280px;
+    }
+    .flow-arrow {
+      transform: rotate(90deg);
+    }
+  }
+</style>

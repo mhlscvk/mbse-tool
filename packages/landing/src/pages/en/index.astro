@@ -1,0 +1,88 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import FlowDiagram from '../../components/FlowDiagram.astro';
+import PlatformCard from '../../components/PlatformCard.astro';
+import CTASection from '../../components/CTASection.astro';
+import { routeMap } from '../../i18n/utils';
+
+const lang = 'en';
+---
+
+<PageLayout
+  title="System2Product — From model to product, end to end"
+  description="An engineering atelier that turns SysML v2 system models into mechanical, software, and hardware production documents through an AI-powered chain."
+  lang={lang}
+  pageKey="home"
+>
+  <!-- Hero -->
+  <section class="section">
+    <div class="container hero">
+      <p class="eyebrow">System2Product</p>
+      <h1>From model to product, end to end</h1>
+      <p class="lead">
+        <!-- TODO: final hero copy -->
+        We turn the system an engineer models in SysML v2 into mechanical, software,
+        and hardware production documents through an AI-powered chain.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href={routeMap.services[lang]}>Explore Services</a>
+        <a class="btn btn-secondary" href={routeMap.platform[lang]}>See the Platform</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Flow: Model → Bridge → Produce -->
+  <section class="section">
+    <div class="container">
+      <h2 style="text-align:center">From model to product, one chain</h2>
+      <div style="margin-top: var(--space-6)">
+        <FlowDiagram lang={lang} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Two platforms -->
+  <section class="section">
+    <div class="container">
+      <h2>Two platforms, one vision</h2>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        <PlatformCard
+          title="Systemodel"
+          status="Live"
+          description="A SysML v2, AI-assisted web modeling platform. Build, manage, and share your system models in the browser."
+          href="https://systemodel.com"
+          ctaLabel="Open Systemodel"
+          external={true}
+        />
+        <PlatformCard
+          title="System2Product Platform"
+          status="In development"
+          description="The bridge platform from model to production documents. This brand site doubles as its landing page."
+          href={routeMap.platform[lang]}
+          ctaLabel="Learn more"
+        />
+      </div>
+    </div>
+  </section>
+
+  <CTASection
+    title="Let's talk to your team"
+    text="Explore our training and consulting services for SME technical leaders."
+    ctaLabel="Get in Touch"
+    ctaHref={routeMap.contact[lang]}
+    secondaryLabel="Services"
+    secondaryHref={routeMap.services[lang]}
+  />
+</PageLayout>
+
+<style>
+  .hero {
+    max-width: 820px;
+  }
+  .hero-actions {
+    margin-top: var(--space-5);
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+</style>

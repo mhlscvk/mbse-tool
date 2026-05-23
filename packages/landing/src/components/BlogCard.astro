@@ -1,0 +1,49 @@
+---
+import { useTranslations, type Lang } from '../i18n/utils';
+
+interface Props {
+  lang: Lang;
+  slug: string;
+  title: string;
+  description: string;
+  publishedAt: Date;
+}
+
+const { lang, slug, title, description, publishedAt } = Astro.props;
+const t = useTranslations(lang);
+
+const href = lang === 'tr' ? `/blog/${slug}` : `/en/blog/${slug}`;
+const dateFmt = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+  dateStyle: 'medium',
+}).format(publishedAt);
+---
+
+<article class="blog-card">
+  <p class="eyebrow">{dateFmt}</p>
+  <h3><a href={href}>{title}</a></h3>
+  <p>{description}</p>
+  <a class="read-more" href={href}>{t('cta.readMore')} →</a>
+</article>
+
+<style>
+  .blog-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    height: 100%;
+  }
+  .blog-card h3 a {
+    color: var(--color-ink);
+  }
+  .blog-card h3 a:hover {
+    color: var(--color-copper);
+  }
+  .read-more {
+    margin-top: auto;
+    font-weight: 600;
+  }
+</style>

@@ -1,0 +1,32 @@
+{
+  "site.name": "System2Product",
+  "site.tagline": "Mühendisliği uçtan uca düşünen atölye",
+
+  "nav.home": "Ana Sayfa",
+  "nav.vision": "Vizyon",
+  "nav.systemodel": "Systemodel",
+  "nav.platform": "Platform",
+  "nav.services": "Danışmanlık",
+  "nav.contact": "İletişim",
+  "nav.blog": "Blog",
+  "nav.menu": "Menü",
+
+  "cta.contact": "İletişime Geçin",
+  "cta.services": "Hizmetleri Keşfedin",
+  "cta.systemodel": "Systemodel'i Açın",
+  "cta.readMore": "Devamını oku",
+
+  "lang.switch": "English",
+
+  "flow.model": "Modelle",
+  "flow.bridge": "Köprüle",
+  "flow.produce": "Üret",
+
+  "footer.rights": "Tüm hakları saklıdır.",
+  "footer.privacy": "Gizlilik",
+  "footer.terms": "Kullanım Koşulları",
+  "footer.tagline": "Modelden ürüne, uçtan uca mühendislik.",
+
+  "blog.title": "Blog",
+  "blog.empty": "Henüz yazı yok. Yakında burada olacak."
+}

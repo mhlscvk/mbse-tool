@@ -1,0 +1,53 @@
+---
+interface Props {
+  heading?: string;
+  buttonLabel?: string;
+  placeholder?: string;
+}
+
+const {
+  heading = 'Güncel kalın',
+  buttonLabel = 'Kaydol',
+  placeholder = 'E-posta adresiniz',
+} = Astro.props;
+---
+
+<!-- TODO: wire up to Formspree (or chosen provider) — action="#" is a stub. -->
+<form class="email-capture" action="#" method="post">
+  {heading && <label for="email-capture-input">{heading}</label>}
+  <div class="row">
+    <input
+      id="email-capture-input"
+      type="email"
+      name="email"
+      placeholder={placeholder}
+      autocomplete="email"
+      required
+    />
+    <button class="btn btn-primary" type="submit">{buttonLabel}</button>
+  </div>
+</form>
+
+<style>
+  .email-capture {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 480px;
+  }
+  .email-capture label {
+    font-weight: 600;
+  }
+  .row {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .email-capture input {
+    flex: 1 1 220px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-anthracite);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+  }
+</style>

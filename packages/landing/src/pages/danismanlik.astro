@@ -1,0 +1,107 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import ServiceCard from '../components/ServiceCard.astro';
+import FAQ from '../components/FAQ.astro';
+import CTASection from '../components/CTASection.astro';
+import { routeMap } from '../i18n/utils';
+
+const lang = 'tr';
+
+// Conversion-critical page: prominent CTAs to the contact form with a
+// pre-filled subject.
+const contactConsulting = `${routeMap.contact[lang]}?subject=Danışmanlık talebi`;
+const contactTraining = `${routeMap.contact[lang]}?subject=Eğitim talebi`;
+
+const faqItems = [
+  {
+    q: 'Eğitimler kimlere yönelik?',
+    a: 'KOBİ teknik liderleri ve mühendislik ekipleri için tasarlanmıştır. (TODO: nihai metin)',
+  },
+  {
+    q: 'Danışmanlık nasıl ilerliyor?',
+    a: 'İhtiyaç analizi, pilot proje ve uygulama aşamalarından oluşur. (TODO: nihai metin)',
+  },
+  {
+    q: 'Uzaktan mı, yerinde mi?',
+    a: 'Her iki seçenek de mümkündür. (TODO: nihai metin)',
+  },
+];
+---
+
+<PageLayout
+  title="Danışmanlık ve Eğitim — System2Product"
+  description="KOBİ teknik liderleri için SysML v2 ve modelden ürüne mühendislik eğitim ve danışmanlık hizmetleri."
+  lang={lang}
+  pageKey="services"
+>
+  <!-- Hero with prominent CTA -->
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Danışmanlık ve Eğitim</p>
+      <h1>Ekibinizi modelden ürüne taşıyın</h1>
+      <p class="lead">
+        <!-- TODO: nihai hizmet metni -->
+        KOBİ teknik liderleri için SysML v2 ve sistem mühendisliği eğitimleri ile
+        uçtan uca danışmanlık.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href={contactConsulting}>Danışmanlık talebi</a>
+        <a class="btn btn-secondary" href={contactTraining}>Eğitim talebi</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Services -->
+  <section class="section">
+    <div class="container">
+      <h2>Hizmetler</h2>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        <ServiceCard
+          icon="🎓"
+          title="SysML v2 Eğitimi"
+          description="Ekibinize SysML v2 ile modelleme pratiği kazandıran uygulamalı eğitim. (TODO)"
+        />
+        <ServiceCard
+          icon="🧭"
+          title="Mühendislik Danışmanlığı"
+          description="Sistem mimarisi ve modelden ürüne süreç tasarımı için danışmanlık. (TODO)"
+        />
+        <ServiceCard
+          icon="⚙️"
+          title="Süreç Entegrasyonu"
+          description="Mevcut araç zincirinize Systemodel ve AI destekli akışların entegrasyonu. (TODO)"
+        />
+        <ServiceCard
+          icon="🚀"
+          title="Pilot Projeler"
+          description="Sizin için seçilmiş küçük bir alt sistemi birlikte modelliyoruz, MBSE süreçlerini uçtan uca uyguluyoruz. Çalışan örnek size kalır, ölçeklemek size kalır. (TODO: nihai metin)"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section">
+    <div class="container">
+      <FAQ heading="Sıkça Sorulan Sorular" items={faqItems} />
+    </div>
+  </section>
+
+  <CTASection
+    title="Projenizi konuşalım"
+    text="Size uygun bir eğitim veya danışmanlık paketi için bize ulaşın."
+    ctaLabel="Danışmanlık talebi gönder"
+    ctaHref={contactConsulting}
+    secondaryLabel="Eğitim talebi gönder"
+    secondaryHref={contactTraining}
+  />
+</PageLayout>
+
+<style>
+  .hero-actions {
+    margin-top: var(--space-5);
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+</style>

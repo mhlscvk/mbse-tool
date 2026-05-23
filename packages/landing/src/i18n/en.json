@@ -1,0 +1,32 @@
+{
+  "site.name": "System2Product",
+  "site.tagline": "From model to product, end to end",
+
+  "nav.home": "Home",
+  "nav.vision": "Vision",
+  "nav.systemodel": "Systemodel",
+  "nav.platform": "Platform",
+  "nav.services": "Services",
+  "nav.contact": "Contact",
+  "nav.blog": "Blog",
+  "nav.menu": "Menu",
+
+  "cta.contact": "Get in Touch",
+  "cta.services": "Explore Services",
+  "cta.systemodel": "Open Systemodel",
+  "cta.readMore": "Read more",
+
+  "lang.switch": "Türkçe",
+
+  "flow.model": "Model",
+  "flow.bridge": "Bridge",
+  "flow.produce": "Produce",
+
+  "footer.rights": "All rights reserved.",
+  "footer.privacy": "Privacy",
+  "footer.terms": "Terms",
+  "footer.tagline": "From model to product, end-to-end engineering.",
+
+  "blog.title": "Blog",
+  "blog.empty": "No posts yet. Check back soon."
+}

@@ -1,0 +1,177 @@
+---
+import { routeMap, useTranslations, type Lang, type PageKey } from '../i18n/utils';
+import LanguageSwitcher from './LanguageSwitcher.astro';
+
+interface Props {
+  lang: Lang;
+  pageKey?: PageKey;
+}
+
+const { lang, pageKey } = Astro.props;
+const t = useTranslations(lang);
+
+const nav: { key: PageKey; label: string }[] = [
+  { key: 'vision', label: t('nav.vision') },
+  { key: 'systemodel', label: t('nav.systemodel') },
+  { key: 'platform', label: t('nav.platform') },
+  { key: 'services', label: t('nav.services') },
+  { key: 'blog', label: t('nav.blog') },
+  { key: 'contact', label: t('nav.contact') },
+];
+---
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href={routeMap.home[lang]}>System2Product</a>
+
+    {/* CSS-only toggle: the label below flips this checkbox, the sibling nav reacts.
+        Astro is an MPA, so clicking any link reloads the page and resets the state. */}
+    <input type="checkbox" id="nav-toggle" class="nav-toggle visually-hidden" aria-label={t('nav.menu')} />
+    <label class="hamburger" for="nav-toggle" aria-label={t('nav.menu')}>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </label>
+
+    <nav class="primary-nav" aria-label={t('nav.menu')}>
+      <ul>
+        {
+          nav.map((n) => (
+            <li>
+              <a href={routeMap[n.key][lang]} aria-current={pageKey === n.key ? 'page' : undefined}>
+                {n.label}
+              </a>
+            </li>
+          ))
+        }
+        <li class="nav-lang">
+          <LanguageSwitcher lang={lang} pageKey={pageKey} />
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    background: var(--color-ink);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    box-shadow: var(--shadow-sm);
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding-block: var(--space-3);
+  }
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--text-inverse);
+    margin-inline-end: auto; /* push nav (and hamburger) to the right */
+  }
+  .brand:hover {
+    color: var(--color-amber);
+  }
+
+  /* Hamburger button — hidden on desktop */
+  .hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    cursor: pointer;
+  }
+  .hamburger span {
+    display: block;
+    height: 3px;
+    width: 100%;
+    background: var(--text-inverse);
+    border-radius: 2px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  /* Desktop nav */
+  .primary-nav ul {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .primary-nav a {
+    color: var(--text-inverse);
+    font-size: 0.95rem;
+  }
+  .primary-nav a:hover,
+  .primary-nav a[aria-current='page'] {
+    color: var(--color-amber);
+  }
+
+  /* Tablet (768–1023): tighten spacing so 6 links + switcher fit one row */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .header-inner {
+      gap: var(--space-3);
+    }
+    .primary-nav ul {
+      gap: var(--space-3);
+    }
+    .primary-nav a {
+      font-size: 0.9rem;
+    }
+  }
+
+  /* Mobile (<768): hamburger + slide-down overlay menu */
+  @media (max-width: 767px) {
+    .hamburger {
+      display: flex;
+    }
+    .primary-nav {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--color-ink);
+      box-shadow: var(--shadow-md);
+      display: none;
+      max-height: calc(100vh - 100%);
+      overflow-y: auto;
+    }
+    .nav-toggle:checked ~ .primary-nav {
+      display: block;
+    }
+    .primary-nav ul {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      padding: var(--space-2) var(--space-4) var(--space-5);
+    }
+    .primary-nav li {
+      padding-block: var(--space-3);
+      border-bottom: 1px solid rgba(244, 241, 234, 0.12);
+    }
+    .primary-nav a {
+      font-size: 1.05rem;
+    }
+    .nav-lang {
+      border-bottom: none;
+      padding-top: var(--space-4);
+    }
+
+    /* Animate hamburger → X when open */
+    .nav-toggle:checked ~ .hamburger span:nth-child(1) {
+      transform: translateY(9px) rotate(45deg);
+    }
+    .nav-toggle:checked ~ .hamburger span:nth-child(2) {
+      opacity: 0;
+    }
+    .nav-toggle:checked ~ .hamburger span:nth-child(3) {
+      transform: translateY(-9px) rotate(-45deg);
+    }
+  }
+</style>

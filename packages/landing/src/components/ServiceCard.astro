@@ -1,0 +1,35 @@
+---
+interface Props {
+  title: string;
+  description: string;
+  icon?: string;
+}
+
+const { title, description, icon } = Astro.props;
+---
+
+<article class="service-card">
+  {icon && <div class="icon" aria-hidden="true">{icon}</div>}
+  <h3>{title}</h3>
+  <p>{description}</p>
+  <!-- Optional bullet list / extra detail -->
+  <slot />
+</article>
+
+<style>
+  .service-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-md);
+    border-top: 4px solid var(--color-amber);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    height: 100%;
+  }
+  .icon {
+    font-size: 2rem;
+    line-height: 1;
+  }
+</style>

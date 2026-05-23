@@ -1,0 +1,52 @@
+---
+interface FaqItem {
+  q: string;
+  a: string;
+}
+
+interface Props {
+  heading?: string;
+  items: FaqItem[];
+}
+
+const { heading, items } = Astro.props;
+---
+
+<section class="faq">
+  {heading && <h2>{heading}</h2>}
+  <div class="faq-list">
+    {
+      items.map((item) => (
+        <details class="faq-item">
+          <summary>{item.q}</summary>
+          <p>{item.a}</p>
+        </details>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    max-width: var(--max-width-prose);
+  }
+  .faq-item {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    box-shadow: var(--shadow-sm);
+  }
+  .faq-item summary {
+    font-weight: 600;
+    font-family: var(--font-display);
+    cursor: pointer;
+    color: var(--color-ink);
+  }
+  .faq-item p {
+    margin-top: var(--space-2);
+  }
+</style>

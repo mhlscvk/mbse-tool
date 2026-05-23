@@ -184,7 +184,8 @@ ssh "$SERVER" "cd $SERVER_DIR && \
   cd packages/api-server && npx tsc || true; \
   cd $SERVER_DIR && \
   pnpm --filter @systemodel/diagram-service build && \
-  pnpm --filter @systemodel/web-client build"
+  pnpm --filter @systemodel/web-client build && \
+  pnpm --filter @systemodel/landing build"
 info "Built."
 
 # ═══════════════════════════════════════════════════════════════════════════════

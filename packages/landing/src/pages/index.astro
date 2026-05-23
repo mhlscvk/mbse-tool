@@ -1,0 +1,88 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import FlowDiagram from '../components/FlowDiagram.astro';
+import PlatformCard from '../components/PlatformCard.astro';
+import CTASection from '../components/CTASection.astro';
+import { routeMap } from '../i18n/utils';
+
+const lang = 'tr';
+---
+
+<PageLayout
+  title="System2Product — Mühendisliği uçtan uca düşünen atölye"
+  description="SysML v2 sistem modellerini AI destekli bir zincirle mekanik, yazılım ve donanım üretim dokümanlarına dönüştüren mühendislik atölyesi."
+  lang={lang}
+  pageKey="home"
+>
+  <!-- Hero -->
+  <section class="section">
+    <div class="container hero">
+      <p class="eyebrow">System2Product</p>
+      <h1>Mühendisliği uçtan uca düşünen atölye</h1>
+      <p class="lead">
+        <!-- TODO: nihai hero metni -->
+        Mühendisin SysML v2'de modellediği sistemi, AI destekli bir zincirle mekanik,
+        yazılım ve donanım üretim dokümanlarına dönüştürüyoruz.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href={routeMap.services[lang]}>Hizmetleri Keşfedin</a>
+        <a class="btn btn-secondary" href={routeMap.platform[lang]}>Platformu Görün</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Flow: Modelle → Köprüle → Üret -->
+  <section class="section">
+    <div class="container">
+      <h2 style="text-align:center">Modelden ürüne, tek bir zincir</h2>
+      <div style="margin-top: var(--space-6)">
+        <FlowDiagram lang={lang} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Two platforms -->
+  <section class="section">
+    <div class="container">
+      <h2>İki platform, tek vizyon</h2>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        <PlatformCard
+          title="Systemodel"
+          status="Aktif"
+          description="SysML v2 tabanlı, AI destekli web modelleme platformu. Sistem modellerinizi tarayıcıda oluşturun, yönetin ve paylaşın."
+          href="https://systemodel.com"
+          ctaLabel="Systemodel'i Açın"
+          external={true}
+        />
+        <PlatformCard
+          title="System2Product Platform"
+          status="Geliştiriliyor"
+          description="Modelden üretim dokümanlarına geçişi sağlayan köprü platform. Bu marka sitesi aynı zamanda platformun tanıtım sayfasıdır."
+          href={routeMap.platform[lang]}
+          ctaLabel="Daha fazlası"
+        />
+      </div>
+    </div>
+  </section>
+
+  <CTASection
+    title="Ekibinizle konuşalım"
+    text="KOBİ teknik liderleri için eğitim ve danışmanlık hizmetlerimizi keşfedin."
+    ctaLabel="İletişime Geçin"
+    ctaHref={routeMap.contact[lang]}
+    secondaryLabel="Danışmanlık"
+    secondaryHref={routeMap.services[lang]}
+  />
+</PageLayout>
+
+<style>
+  .hero {
+    max-width: 820px;
+  }
+  .hero-actions {
+    margin-top: var(--space-5);
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+</style>

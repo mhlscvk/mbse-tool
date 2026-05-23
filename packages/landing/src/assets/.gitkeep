@@ -1,0 +1,3 @@
+# Placeholder for illustrations and icons.
+# Drop optimizable images here and import them in components/pages so Astro
+# can process them (e.g. `import hero from '../assets/hero.png'`).

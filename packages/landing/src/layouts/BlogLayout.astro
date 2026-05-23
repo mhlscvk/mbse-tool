@@ -1,0 +1,31 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import type { Lang } from '../i18n/utils';
+
+interface Props {
+  title: string;
+  description: string;
+  lang: Lang;
+  publishedAt: Date;
+  author: string;
+}
+
+const { title, description, lang, publishedAt, author } = Astro.props;
+const dateFmt = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+  dateStyle: 'long',
+}).format(publishedAt);
+---
+
+<BaseLayout title={`${title} — System2Product`} description={description} lang={lang} pageKey="blog">
+  <Header lang={lang} pageKey="blog" />
+  <main class="container">
+    <article class="prose section">
+      <p class="eyebrow">{dateFmt} · {author}</p>
+      <h1>{title}</h1>
+      <slot />
+    </article>
+  </main>
+  <Footer lang={lang} />
+</BaseLayout>

@@ -1,0 +1,133 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+
+const lang = 'tr';
+
+// Pre-fill the subject field from a ?subject= query param when present
+// (the services page links here with "Danışmanlık talebi" / "Eğitim talebi").
+const subject = Astro.url.searchParams.get('subject') ?? '';
+
+const subjectOptions = [
+  'Danışmanlık talebi',
+  'Eğitim talebi',
+  'Pilot proje',
+  'Genel bilgi',
+  'Diğer',
+];
+---
+
+<PageLayout
+  title="İletişim — System2Product"
+  description="System2Product ile iletişime geçin: eğitim ve danışmanlık talepleri için."
+  lang={lang}
+  pageKey="contact"
+>
+  <section class="section">
+    <div class="container prose">
+      <p class="eyebrow">İletişim</p>
+      <h1>İletişime geçin</h1>
+      <p class="lead">
+        Eğitim ve danışmanlık talepleriniz için aşağıdaki formu doldurun.
+      </p>
+
+      <!-- TODO: wire up to Formspree (or chosen provider) — action="#" is a stub. -->
+      <form class="contact-form" action="#" method="post">
+        <label>
+          Ad Soyad
+          <input type="text" name="name" autocomplete="name" required />
+        </label>
+        <label>
+          E-posta
+          <input type="email" name="email" autocomplete="email" required />
+        </label>
+        <label>
+          Konu
+          <select name="subject">
+            {
+              subjectOptions.map((opt) => (
+                <option value={opt} selected={opt === subject}>
+                  {opt}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label>
+          Mesaj
+          <textarea name="message" rows="5" required></textarea>
+        </label>
+        <button class="btn btn-primary" type="submit">Gönder</button>
+      </form>
+    </div>
+  </section>
+
+  {/*
+    Static build: Astro.url.searchParams is empty at build time, so the subject
+    must be applied in the browser from the real URL. Matches an option only.
+  */}
+  <script is:inline>
+    (function () {
+      var subject = new URLSearchParams(window.location.search).get('subject');
+      if (!subject) return;
+      var select = document.querySelector('select[name="subject"]');
+      if (!select) return;
+      var match = Array.prototype.some.call(select.options, function (o) {
+        return o.value === subject;
+      });
+      if (match) select.value = subject;
+    })();
+  </script>
+</PageLayout>
+
+<style>
+  .contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-width: 520px;
+    margin-top: var(--space-5);
+  }
+  .contact-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-weight: 600;
+  }
+  .contact-form input,
+  .contact-form textarea,
+  .contact-form select {
+    padding: var(--space-3);
+    border: 1px solid var(--color-anthracite);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    font-family: var(--font-body);
+    font-weight: 400;
+  }
+  /* Match the native <select> to the other fields + custom chevron. */
+  .contact-form select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    padding-right: var(--space-6);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232A2D34' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-3) center;
+    background-size: 14px;
+  }
+  .contact-form input:hover,
+  .contact-form textarea:hover,
+  .contact-form select:hover {
+    border-color: var(--color-ink);
+  }
+  .contact-form input:focus,
+  .contact-form textarea:focus,
+  .contact-form select:focus {
+    outline: none;
+    border-color: var(--color-amber);
+    box-shadow: 0 0 0 3px rgba(212, 162, 76, 0.3);
+  }
+  .contact-form button {
+    align-self: flex-start;
+  }
+</style>

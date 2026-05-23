@@ -1,0 +1,36 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import FlowDiagram from '../../components/FlowDiagram.astro';
+
+const lang = 'en';
+---
+
+<PageLayout
+  title="Vision — System2Product"
+  description="The System2Product vision: turning SysML v2 system models into production documents through an AI-powered chain."
+  lang={lang}
+  pageKey="vision"
+>
+  <section class="section">
+    <div class="container prose">
+      <p class="eyebrow">Vision</p>
+      <h1>From model to product, end to end</h1>
+      <p class="lead">
+        <!-- TODO: final vision copy -->
+        An engineering atelier that turns SysML v2 system models into mechanical,
+        software, and hardware production documents through an AI-powered chain.
+      </p>
+      <p>
+        <!-- TODO: vision details -->
+        We aim to manage every step from design to production through a single model.
+        This page describes the brand vision and the platform roadmap.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <FlowDiagram lang={lang} />
+    </div>
+  </section>
+</PageLayout>

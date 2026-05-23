@@ -1,0 +1,25 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import { routeMap } from '../i18n/utils';
+
+const lang = 'tr';
+---
+
+<PageLayout
+  title="Sayfa bulunamadı — System2Product"
+  description="Aradığınız sayfa bulunamadı."
+  lang={lang}
+>
+  <section class="section">
+    <div class="container prose" style="text-align:center">
+      <p class="eyebrow">404</p>
+      <h1>Sayfa bulunamadı</h1>
+      <p class="lead" style="margin-inline:auto">
+        Aradığınız sayfa taşınmış veya hiç var olmamış olabilir.
+      </p>
+      <p style="margin-top: var(--space-5)">
+        <a class="btn btn-primary" href={routeMap.home[lang]}>Ana sayfaya dön</a>
+      </p>
+    </div>
+  </section>
+</PageLayout>

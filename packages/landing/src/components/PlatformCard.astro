@@ -1,0 +1,57 @@
+---
+interface Props {
+  title: string;
+  description: string;
+  status?: string;
+  href?: string;
+  ctaLabel?: string;
+  external?: boolean;
+}
+
+const { title, description, status, href, ctaLabel, external = false } = Astro.props;
+---
+
+<article class="platform-card">
+  {status && <span class="status">{status}</span>}
+  <h3>{title}</h3>
+  <p>{description}</p>
+  {
+    href && ctaLabel && (
+      <a
+        class="btn btn-secondary"
+        href={href}
+        {...external ? { target: '_blank', rel: 'noopener' } : {}}
+      >
+        {ctaLabel}
+      </a>
+    )
+  }
+</article>
+
+<style>
+  .platform-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    height: 100%;
+  }
+  .status {
+    align-self: flex-start;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-copper);
+    background: rgba(180, 114, 66, 0.1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+  }
+  .platform-card .btn {
+    align-self: flex-start;
+    margin-top: auto;
+  }
+</style>

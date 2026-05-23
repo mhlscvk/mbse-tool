@@ -1,0 +1,35 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import CTASection from '../../components/CTASection.astro';
+
+const lang = 'en';
+---
+
+<PageLayout
+  title="Systemodel — System2Product"
+  description="Systemodel: a SysML v2, AI-assisted web modeling platform."
+  lang={lang}
+  pageKey="systemodel"
+>
+  <section class="section">
+    <div class="container prose">
+      <p class="eyebrow">Sibling platform</p>
+      <h1>Systemodel</h1>
+      <p class="lead">
+        <!-- TODO: final Systemodel copy -->
+        A web-based modeling platform that parses SysML v2 text, generates an AST, lays
+        out diagrams, and provides AI-assisted editing via chat and MCP.
+      </p>
+      <p>
+        Systemodel is live today and is the sibling platform in the System2Product family.
+      </p>
+    </div>
+  </section>
+
+  <CTASection
+    title="Try Systemodel"
+    text="Start modeling SysML v2 in your browser."
+    ctaLabel="Open Systemodel"
+    ctaHref="https://systemodel.com"
+  />
+</PageLayout>

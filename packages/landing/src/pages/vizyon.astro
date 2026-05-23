@@ -1,0 +1,36 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import FlowDiagram from '../components/FlowDiagram.astro';
+
+const lang = 'tr';
+---
+
+<PageLayout
+  title="Vizyon — System2Product"
+  description="System2Product vizyonu: SysML v2 sistem modellerini AI destekli bir zincirle üretim dokümanlarına dönüştürmek."
+  lang={lang}
+  pageKey="vision"
+>
+  <section class="section">
+    <div class="container prose">
+      <p class="eyebrow">Vizyon</p>
+      <h1>Modelden ürüne, uçtan uca</h1>
+      <p class="lead">
+        <!-- TODO: nihai vizyon metni -->
+        Mühendisin SysML v2'de modellediği sistemi, AI destekli bir zincirle mekanik,
+        yazılım ve donanım üretim dokümanlarına dönüştüren uçtan uca mühendislik atölyesi.
+      </p>
+      <p>
+        <!-- TODO: vizyonun detayları -->
+        Tasarımdan üretime giden yolda her adımı tek bir model üzerinden yönetmeyi
+        hedefliyoruz. Bu sayfa marka vizyonunu ve platformun yol haritasını anlatır.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <FlowDiagram lang={lang} />
+    </div>
+  </section>
+</PageLayout>

@@ -4,3 +4,4 @@ packages:
   - 'packages/diagram-service'
   - 'packages/api-server'
   - 'packages/web-client'
+  - 'packages/landing'

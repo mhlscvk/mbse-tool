@@ -1,0 +1,90 @@
+---
+import { routeMap, useTranslations, type Lang } from '../i18n/utils';
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div>
+      <p class="brand">System2Product</p>
+      <p class="muted">{t('footer.tagline')}</p>
+    </div>
+    <nav aria-label="Footer">
+      <ul>
+        <li><a href={routeMap.vision[lang]}>{t('nav.vision')}</a></li>
+        <li><a href={routeMap.platform[lang]}>{t('nav.platform')}</a></li>
+        <li><a href={routeMap.services[lang]}>{t('nav.services')}</a></li>
+        <li><a href={routeMap.contact[lang]}>{t('nav.contact')}</a></li>
+        <li><a href={routeMap.privacy[lang]}>{t('footer.privacy')}</a></li>
+        <li><a href={routeMap.terms[lang]}>{t('footer.terms')}</a></li>
+      </ul>
+    </nav>
+  </div>
+  <div class="container">
+    <p class="muted small">© {year} System2Product. {t('footer.rights')}</p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    background: var(--color-ink);
+    color: var(--text-inverse);
+    padding-block: var(--space-7) var(--space-4);
+    margin-top: var(--space-8);
+  }
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid rgba(244, 241, 234, 0.15);
+    margin-bottom: var(--space-4);
+  }
+  .brand {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    color: var(--text-inverse);
+  }
+  .site-footer .muted {
+    color: var(--text-inverse);
+    opacity: 0.7;
+  }
+  nav ul {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  nav a {
+    color: var(--text-inverse);
+    font-size: 0.9rem;
+  }
+  nav a:hover {
+    color: var(--color-amber);
+  }
+  .small {
+    font-size: 0.8rem;
+  }
+
+  /* Stack footer columns and tighten padding on mobile. */
+  @media (max-width: 767px) {
+    .site-footer {
+      padding-block: var(--space-5) var(--space-3);
+      margin-top: var(--space-6);
+    }
+    .footer-inner {
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+    nav ul {
+      gap: var(--space-3);
+    }
+  }
+</style>

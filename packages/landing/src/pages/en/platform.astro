@@ -1,0 +1,42 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import FlowDiagram from '../../components/FlowDiagram.astro';
+import EmailCapture from '../../components/EmailCapture.astro';
+
+const lang = 'en';
+---
+
+<PageLayout
+  title="Platform — System2Product"
+  description="System2Product Platform: the bridge from model to production documents."
+  lang={lang}
+  pageKey="platform"
+>
+  <section class="section">
+    <div class="container prose">
+      <p class="eyebrow">In development</p>
+      <h1>System2Product Platform</h1>
+      <p class="lead">
+        <!-- TODO: final platform copy -->
+        The bridge platform from model to production documents. It turns SysML v2 models
+        into mechanical, software, and hardware production outputs.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <FlowDiagram lang={lang} />
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>Get early-access updates</h2>
+      <p class="muted" style="margin-block: var(--space-3)">
+        The platform is in development. Sign up to hear about the launch.
+      </p>
+      <EmailCapture heading="" buttonLabel="Notify me" placeholder="Your email" />
+    </div>
+  </section>
+</PageLayout>
