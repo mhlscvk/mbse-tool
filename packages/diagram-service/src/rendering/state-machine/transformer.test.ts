@@ -159,15 +159,17 @@ describe('state-machine transformer × multi-root-part-states fixture', () => {
     expect(model.nodes.some(n => n.kind === 'StateUsage')).toBe(true);
   });
 
-  it('seeds both machines: emits the six sub-states, not the two container states', () => {
+  it('seeds both machines and emits the two container usages as their own state nodes', () => {
     const { model } = loadMultiRoot();
     const ir = transformAstToStateMachineIR(model, STV_SPEC);
     const stateNames = ir.nodes.filter(n => n.kind === 'state').map(n => n.name).sort();
-    expect(stateNames).toEqual(['Active', 'Closed', 'Idle', 'Open', 'Paused', 'Running']);
-    // The two top-level container usages play the `state def` role and are
-    // never drawn as state nodes.
-    expect(stateNames).not.toContain('ModeAlpha');
-    expect(stateNames).not.toContain('ModeBeta');
+    // Slice 2d.3 (Bug-RENDER-02): the two top-level `state` USAGES are concrete
+    // states and are now drawn as labelled containers alongside their six
+    // sub-states (pre-2d.3 they were silently dropped, leaving sub-states with
+    // no visible owner).
+    expect(stateNames).toEqual([
+      'Active', 'Closed', 'Idle', 'ModeAlpha', 'ModeBeta', 'Open', 'Paused', 'Running',
+    ]);
   });
 
   it('omits the enclosing part name from qualified names', () => {

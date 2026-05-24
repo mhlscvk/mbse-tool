@@ -193,6 +193,33 @@ export function transformAstToStateMachineIR(
     return !parent || !isStateLike(parent);
   });
   for (const container of topLevelContainers) {
+    // Slice 2d.3 (Bug-RENDER-02): a top-level `state` USAGE is a *concrete*
+    // state and must be drawn as its own labelled container, so the user can
+    // tell which machine a sub-state belongs to (two `On`s, two `Off`s in the
+    // real SensorSystem). Emit it as a normal composite `state` node *before*
+    // its children — mirroring how a nested composite (`Active`) precedes its
+    // Running/Paused. The existing compartment + containment passes then fill
+    // its containedNodes/containedEdges, and the renderer's generic
+    // composite-state path (composition edges → title-bar frame) draws it with
+    // zero renderer / IR-schema / frontend change.
+    //
+    // A top-level `state def` (StateDefinition) is an *abstract* scope — like
+    // sensor-systems' `state def SensorSystemStates` — and stays undrawn,
+    // exactly as before (byte-identical snapshot). The split mirrors SysML v2
+    // semantics: definition = type (not instantiated → not drawn), usage =
+    // instance (drawn). Pre-Slice-2d.1 every root was a `state def`, so this
+    // distinction was invisible; multi-root usages made it matter.
+    if (isState(container)) {
+      const irId = deriveStateIrId(container);
+      stateIrIdByAstId.set(container.id, irId);
+      irNodes.push({
+        id: irId,
+        kind: 'state',
+        name: container.name,
+        semanticRef: { astNodeId: container.id, qualifiedName: qualifiedName(container) },
+        compartments: [],
+      });
+    }
     emitContainer(container.id);
   }
 

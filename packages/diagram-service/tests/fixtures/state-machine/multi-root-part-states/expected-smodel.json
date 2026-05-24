@@ -4,6 +4,33 @@
   "children": [
     {
       "type": "node",
+      "id": "state__ModeAlpha",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__ModeAlpha__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__ModeAlpha__label",
+          "text": "ModeAlpha"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
       "id": "state__Idle",
       "position": {
         "x": 0,
@@ -193,6 +220,33 @@
     },
     {
       "type": "node",
+      "id": "state__ModeBeta",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "state__ModeBeta__kind",
+          "text": "«state»"
+        },
+        {
+          "type": "label",
+          "id": "state__ModeBeta__label",
+          "text": "ModeBeta"
+        }
+      ],
+      "cssClasses": [
+        "stateusage"
+      ]
+    },
+    {
+      "type": "node",
       "id": "state__Open",
       "position": {
         "x": 0,
@@ -307,6 +361,16 @@
     },
     {
       "type": "edge",
+      "id": "comp__modealpha_to_active",
+      "sourceId": "state__ModeAlpha",
+      "targetId": "state__Active",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
       "id": "comp__active_to_entry_begin",
       "sourceId": "state__Active",
       "targetId": "behavior__Active_entry_begin",
@@ -350,6 +414,36 @@
       "id": "comp__active_to_paused",
       "sourceId": "state__Active",
       "targetId": "state__Paused",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__modealpha_to_idle",
+      "sourceId": "state__ModeAlpha",
+      "targetId": "state__Idle",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__modebeta_to_open",
+      "sourceId": "state__ModeBeta",
+      "targetId": "state__Open",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__modebeta_to_closed",
+      "sourceId": "state__ModeBeta",
+      "targetId": "state__Closed",
       "children": [],
       "cssClasses": [
         "composition"

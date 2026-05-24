@@ -7,6 +7,24 @@
   },
   "nodes": [
     {
+      "id": "state__ModeAlpha",
+      "kind": "state",
+      "name": "ModeAlpha",
+      "semanticRef": {
+        "astNodeId": "usage__unit_ModeAlpha",
+        "qualifiedName": "ModeAlpha"
+      },
+      "compartments": [],
+      "containedNodes": [
+        "state__Active",
+        "state__Idle"
+      ],
+      "containedEdges": [
+        "edge__idle_to_active",
+        "edge__active_to_idle"
+      ]
+    },
+    {
       "id": "state__Idle",
       "kind": "state",
       "name": "Idle",
@@ -87,6 +105,24 @@
         "qualifiedName": "ModeAlpha::Active::Paused"
       },
       "compartments": []
+    },
+    {
+      "id": "state__ModeBeta",
+      "kind": "state",
+      "name": "ModeBeta",
+      "semanticRef": {
+        "astNodeId": "usage__unit_ModeBeta",
+        "qualifiedName": "ModeBeta"
+      },
+      "compartments": [],
+      "containedNodes": [
+        "state__Open",
+        "state__Closed"
+      ],
+      "containedEdges": [
+        "edge__open_to_closed",
+        "edge__closed_to_open"
+      ]
     },
     {
       "id": "state__Open",
