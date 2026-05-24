@@ -3,17 +3,31 @@ interface Props {
   title: string;
   description: string;
   icon?: string;
+  /** Optional bullet list of what the service includes. */
+  items?: string[];
+  /** Optional format/delivery line shown at the bottom (mono, muted). */
+  formatTag?: string;
 }
 
-const { title, description, icon } = Astro.props;
+const { title, description, icon, items, formatTag } = Astro.props;
 ---
 
 <article class="service-card">
   {icon && <div class="icon" aria-hidden="true">{icon}</div>}
   <h3>{title}</h3>
   <p>{description}</p>
+  {
+    items && items.length > 0 && (
+      <ul class="service-list">
+        {items.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
+    )
+  }
   <!-- Optional bullet list / extra detail -->
   <slot />
+  {formatTag && <p class="format-tag">{formatTag}</p>}
 </article>
 
 <style>
@@ -31,5 +45,32 @@ const { title, description, icon } = Astro.props;
   .icon {
     font-size: 2rem;
     line-height: 1;
+  }
+  .service-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .service-list li {
+    position: relative;
+    padding-left: var(--space-4);
+    font-size: 0.98rem;
+    color: var(--color-anthracite);
+  }
+  .service-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--color-amber);
+    font-weight: 700;
+  }
+  /* Push the format line to the bottom so unequal-length cards align. */
+  .format-tag {
+    margin-top: auto;
+    padding-top: var(--space-3);
+    border-top: 1px solid rgba(26, 34, 56, 0.1);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-copper);
   }
 </style>

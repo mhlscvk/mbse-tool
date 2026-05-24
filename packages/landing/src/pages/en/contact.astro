@@ -4,10 +4,13 @@ import PageLayout from '../../layouts/PageLayout.astro';
 const lang = 'en';
 
 // Pre-fill the subject field from a ?subject= query param when present
-// (the services page links here with "Consulting request" / "Training request").
+// (the services page links here with "Intro call"; older links may still use
+// "Consulting request" / "Training request"). Keep these values in sync with
+// the CTA query strings on en/services.astro.
 const subject = Astro.url.searchParams.get('subject') ?? '';
 
 const subjectOptions = [
+  'Intro call',
   'Consulting request',
   'Training request',
   'Pilot project',

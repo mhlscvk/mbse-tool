@@ -1,81 +1,250 @@
 ---
 import PageLayout from '../layouts/PageLayout.astro';
+import ProblemCard from '../components/ProblemCard.astro';
 import ServiceCard from '../components/ServiceCard.astro';
+import ProcessSteps from '../components/ProcessSteps.astro';
 import FAQ from '../components/FAQ.astro';
 import CTASection from '../components/CTASection.astro';
 import { routeMap } from '../i18n/utils';
 
 const lang = 'tr';
 
-// Conversion-critical page: prominent CTAs to the contact form with a
-// pre-filled subject.
-const contactConsulting = `${routeMap.contact[lang]}?subject=Danışmanlık talebi`;
-const contactTraining = `${routeMap.contact[lang]}?subject=Eğitim talebi`;
+// Conversion-critical page. The primary action everywhere is "schedule an
+// intro call" — the contact form pre-fills this subject (kept in sync with the
+// option list in iletisim.astro).
+const contactIntro = `${routeMap.contact[lang]}?subject=Tanışma görüşmesi`;
+
+const problems = [
+  {
+    quote:
+      'Ekibimiz mekanik, yazılım, donanım olarak çalışıyor — entegrasyonda her şey patlıyor.',
+    body: 'Disiplinler birbirini geç tanıyor. Tasarım kararları diğer ekibi bağladığında iş işten geçmiş oluyor.',
+  },
+  {
+    quote: 'Modelleme yapıyoruz ama gerçek ürün başka bir yerden çıkıyor.',
+    body: 'Model bir dökümanda kalıyor, mühendisler kendi araçlarıyla sıfırdan başlıyor. “Bu kadar plan yaptık, neden yine sıfırdan?” sorusu havada kalıyor.',
+  },
+  {
+    quote: 'MBSE’ye geçmek istiyoruz ama nereden başlayacağımızı bilmiyoruz.',
+    body: 'Konferanslarda dinliyoruz, makaleler okuyoruz, ekibe slaytlar gösteriyoruz. Sonra Pazartesi geliyor ve hâlâ aynı şekilde çalışıyoruz.',
+  },
+  {
+    quote: 'Sistem mühendisliği yatırımı yaptık ama somut faydasını göremiyoruz.',
+    body: 'Lisans aldık, eğitim verdik, ama tasarım hataları azalmadı, yeniden çalışma azalmadı. Patron olarak yatırımı savunmak zorlaşıyor.',
+  },
+];
+
+const services = [
+  {
+    icon: '🎓',
+    title: 'MBSE Eğitimi',
+    description:
+      'Ekibinize SysML v2, sistem mühendisliği prensipleri ve MagicGrid metodolojisini aktarıyoruz. Klasik slayt eğitimi değil — sizin gerçek projelerinizden alınan örneklerle, ekibinizin Pazartesi sabahı uygulayabileceği biçimde.',
+    items: [
+      'SysML v2 temelleri ve uygulamalı modelleme',
+      'MagicGrid metodolojisi — uçtan uca proje örneği',
+      'Cameo veya açık alternatiflerle uygulama',
+      'AI destekli modelleme (Claude + MCP entegrasyonu)',
+      'Agile ve Lean Systems Engineering yaklaşımları',
+    ],
+    formatTag: 'Şirket içi · Yerinde veya online · 2-5 günlük modüller',
+  },
+  {
+    icon: '🧭',
+    title: 'Mühendislik Dönüşüm Danışmanlığı',
+    description:
+      'Mevcut süreçlerinizi değerlendiriyoruz, MBSE’ye geçiş için somut yol haritası çıkarıyoruz, ekibinizle birlikte ilk adımları atıyoruz. Slayt teslim edip gitmiyoruz — yanınızdayız.',
+    items: [
+      'Mevcut süreç değerlendirmesi (1-2 hafta)',
+      'MBSE adoptasyonu için aşamalı yol haritası',
+      'Pilot proje seçimi ve yapılandırma',
+      'Ekip rol tanımları ve sorumluluk dağılımı',
+      'Araç ve teknoloji seçim danışmanlığı',
+      'Aylık takip ve düzeltme oturumları',
+    ],
+    formatTag: 'Proje bazlı · 3-12 aylık programlar · Aylık ücret modeli',
+  },
+  {
+    icon: '⚙️',
+    title: 'Mevcut Araç Zincirine Entegrasyon',
+    description:
+      'Mevcut araçlarınızı (CAD, IDE, PLM, EDA) değiştirmeye çalışmıyoruz. MBSE katmanını üstüne ekliyor, Systemodel ve AI destekli akışları sizin yatırımlarınızla konuşturuyoruz. Yıllarca biriktirdiğiniz değer korunuyor.',
+    items: [
+      'Mevcut araç ekosistemi analizi',
+      'Systemodel ↔ CAD/PLM/EDA köprü çalışması',
+      'AI/MCP entegrasyonları',
+      'Otomatik doküman üretim akışları',
+      'Versiyon ve değişiklik yönetimi',
+      'Sürdürülebilir entegrasyon dokümantasyonu',
+    ],
+    formatTag: 'Teknik proje · 4-8 hafta · Sabit kapsam fiyatlama',
+  },
+  {
+    icon: '🚀',
+    title: 'Pilot Projeler',
+    description:
+      '“Birlikte küçük bir şey yapalım, görelim.” Sizin için seçtiğimiz bir alt sistemi birlikte modelliyoruz, MBSE süreçlerini uçtan uca uyguluyoruz, AI ile üretim dokümanlarını üretiyoruz. Sonunda ekibinizde çalışan bir örnek bırakıyoruz. Ölçeklemek size kalıyor.',
+    items: [
+      'Birlikte pilot kapsam belirleme',
+      'Sistem modelleme (SysML v2, Systemodel)',
+      'Disiplin entegrasyonu çalışması (mekanik + yazılım + donanım)',
+      'AI destekli üretim dokümanı üretimi',
+      'Sonuç değerlendirme ve genişletme planı',
+      'Ekibinize bilgi aktarımı',
+    ],
+    formatTag: '6-12 haftalık kısa projeler · Net çıktılı · Sabit fiyatlama',
+  },
+];
+
+const steps = [
+  {
+    num: '01',
+    title: 'Tanışma',
+    tag: 'İlk görüşme',
+    body: 'Telefon veya video görüşme. Sorununuzu anlatıyorsunuz, biz dinliyoruz. Karşılıklı uygunluğu birlikte değerlendiriyoruz. Bu görüşmede satış yapmıyoruz — eğer biz uygun değilsek de size dürüst söylüyoruz.',
+  },
+  {
+    num: '02',
+    title: 'Değerlendirme',
+    tag: '1-2 hafta · Yazılı çıktı',
+    body: 'Eğer karşılıklı iyi bir eşleşme görürsek, mevcut durumunuzu detaylı değerlendiriyoruz. Ekibinizle 2-3 görüşme, mevcut belgelerinizin incelenmesi. Yazılı bir değerlendirme raporu hazırlıyoruz — durumunuzun net bir resmi, sonraki adım için kullanışlı bir referans.',
+  },
+  {
+    num: '03',
+    title: 'Teklif ve plan',
+    tag: 'Şeffaf · Net kapsam',
+    body: 'Net kapsam, net süre, net fiyat. Eğitim için sabit ücret, danışmanlık için aylık paket, pilot için sabit proje fiyatı. Sürpriz yok. İmza atmadan önce her şey açık.',
+  },
+  {
+    num: '04',
+    title: 'Uygulama',
+    tag: 'Birlikte · Şeffaf ilerleme',
+    body: 'İşi birlikte yapıyoruz. Düzenli check-in toplantıları (haftalık veya iki haftada bir), ilerleme raporları, kapsam veya yön değişikliği gerekirse açıkça konuşuyoruz. Hedef: süreç bittiğinde ekibinizin bağımsız çalışabilmesi.',
+  },
+];
 
 const faqItems = [
   {
-    q: 'Eğitimler kimlere yönelik?',
-    a: 'KOBİ teknik liderleri ve mühendislik ekipleri için tasarlanmıştır. (TODO: nihai metin)',
+    q: 'Toplamda ne kadar sürer?',
+    a: 'Eğitim 2-5 gün arası modüller. Danışmanlık programları 3 ay (hızlı başlangıç) ile 12 ay (kapsamlı dönüşüm) arasında. Pilot projeler 6-12 hafta. Sizin durumunuza göre daha kısa veya uzun seçenekleri tanışma görüşmesinde konuşuruz.',
   },
   {
-    q: 'Danışmanlık nasıl ilerliyor?',
-    a: 'İhtiyaç analizi, pilot proje ve uygulama aşamalarından oluşur. (TODO: nihai metin)',
+    q: 'Fiyat aralığı nedir?',
+    a: 'Eğitim günlük modüller halinde, danışmanlık aylık paketler halinde, pilot projeler sabit fiyatlı. KOBİ ölçeğine uygun yapılandırma yapıyoruz — büyük danışmanlık şirketlerinin standart fiyatlarına bağlı değiliz. Net rakamı tanışma sonrası, sizin ihtiyacınıza göre veriyoruz. İlk görüşmede genel aralık konusunda da konuşabiliriz.',
   },
   {
-    q: 'Uzaktan mı, yerinde mi?',
-    a: 'Her iki seçenek de mümkündür. (TODO: nihai metin)',
+    q: 'Online mi yapılıyor, yerinde mi?',
+    a: 'İkisi de mümkün. Eğitimler için yerinde daha verimli — etkileşim ve uygulama yoğun. Danışmanlık ve süreç entegrasyonu için hibrit çalışıyoruz: kritik atölyeler yerinde, takip toplantıları online. Türkiye’nin herhangi bir noktasına gitmeye hazırız.',
+  },
+  {
+    q: 'Hangi sektörlerde deneyiminiz var?',
+    a: 'Aerospace, savunma sanayii, otomotiv, medikal cihaz, IoT — sistem mühendisliği gerektiren her sektör. Kendi geçmişimiz savunma ve aerospace ağırlıklı. Sektörünüzü tanıyor olmamız önemli, ama metodoloji tüm sektörlerde benzer çalışıyor. Tanışmada sektörünüze ne kadar hâkim olduğumuzu açıkça söyleyeceğiz.',
+  },
+  {
+    q: 'Tek kişi misiniz, ekip misiniz?',
+    a: 'Eğitim ve danışmanlığı esas olarak Muhlis Çevik yönetiyor (atölyenin kurucusu, 10+ yıl aerospace ve sistem mühendisliği deneyimi, ODTÜ Havacılık ve Uzay Mühendisliği). Pilot projelerde multi-disiplin ekibimizle (mekanik + yazılım + donanım) çalışıyoruz. İhtiyaca göre dış uzmanları da projeye katıyoruz.',
+  },
+  {
+    q: 'Mevcut araçlarımıza müdahale eder misiniz?',
+    a: 'Hayır. Sizin mevcut araç yatırımlarınızı (CAD, IDE, PLM, EDA) değiştirmeye çalışmıyoruz. MBSE katmanını üstüne ekliyoruz. Yıllarca biriktirdiğiniz değer korunuyor. “Önce her şeyi değiştirin” diyen danışmanlıklara karşıyız.',
+  },
+  {
+    q: 'Hangi araçlarla çalışıyoruz?',
+    a: 'SysML v2 için Systemodel (kendi geliştirdiğimiz açık platform) veya Cameo (kurumsal kullanıcılar için). Metodoloji olarak MagicGrid, Agile ve Lean Systems Engineering. AI tarafında Claude + MCP entegrasyonları. Sizin tercihiniz veya mevcut yatırımınız varsa onunla uyumlu çalışıyoruz.',
+  },
+  {
+    q: 'Sonuçları nasıl ölçüyoruz?',
+    a: 'Her projede başlangıçta beraber başarı kriterleri tanımlıyoruz — yeniden çalışma azalması, model-ürün tutarlılığı, ekibin bağımsız çalışabilme seviyesi, vb. Düzenli ölçüm yapıyoruz, sonunda açık değerlendirme raporu alıyorsunuz.',
+  },
+  {
+    q: 'Bizimle çalışmak için minimum şart nedir?',
+    a: 'İki şart: (1) ekibinizde sistem mühendisliği yapmaya istekli en az 1-2 mühendis. (2) Patron/yöneticinin desteği — çünkü süreç değişimi üstten destek olmadan çalışmıyor. Bu ikisi varsa gerisini birlikte kurarız.',
+  },
+  {
+    q: 'Ne zaman başlayabiliriz?',
+    a: 'Tanışma görüşmesi için müsait olduğunuzda iletişime geçin, yakın tarihte planlayalım. Anlaşma olursa eğitim için yaklaşık 2-4 hafta, danışmanlık ve pilot projeler için 4-6 hafta sonra başlangıç tarihi veriyoruz. Acil ihtiyaç varsa konuşabiliriz.',
   },
 ];
 ---
 
 <PageLayout
   title="Danışmanlık ve Eğitim — System2Product"
-  description="KOBİ teknik liderleri için SysML v2 ve modelden ürüne mühendislik eğitim ve danışmanlık hizmetleri."
+  description="KOBİ teknik liderleri için SysML v2 ve modelden ürüne mühendislik eğitim, danışmanlık ve pilot proje hizmetleri."
   lang={lang}
   pageKey="services"
 >
-  <!-- Hero with prominent CTA -->
+  <!-- Hero -->
   <section class="section">
     <div class="container">
-      <p class="eyebrow">Danışmanlık ve Eğitim</p>
-      <h1>Ekibinizi modelden ürüne taşıyın</h1>
+      <p class="eyebrow">Hizmetlerimiz</p>
+      <h1>Mühendislik dönüşümünüzü tek başınıza taşımak zorunda değilsiniz.</h1>
       <p class="lead">
-        <!-- TODO: nihai hizmet metni -->
-        KOBİ teknik liderleri için SysML v2 ve sistem mühendisliği eğitimleri ile
-        uçtan uca danışmanlık.
+        On yılı aşkın aerospace ve sistem mühendisliği deneyimimizi, ekibinizin modern
+        mühendislik yaklaşımlarına geçişini hızlandırmak için kullanıyoruz. Eğitim,
+        danışmanlık ve birlikte yürüyen pilot projeler.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href={contactConsulting}>Danışmanlık talebi</a>
-        <a class="btn btn-secondary" href={contactTraining}>Eğitim talebi</a>
+        <a class="btn btn-primary" href={contactIntro}>Tanışma görüşmesi planlayın</a>
       </div>
+    </div>
+  </section>
+
+  <!-- "Does this sound familiar?" — pain points -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head section-head-center">
+        <h2>Bu sorunlardan biri tanıdık geliyor mu?</h2>
+        <p class="section-sub">
+          Sizinle benzer durumdaki KOBİ teknik liderleriyle son yıllarda çok konuştuk.
+          Tekrar tekrar duyduğumuz şikâyetler şunlar:
+        </p>
+      </div>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        {problems.map((p) => <ProblemCard quote={p.quote} body={p.body} />)}
+      </div>
+      <p class="problem-closing">
+        Bunların hiçbiri sadece size özel değil. Türkiye’de sistem mühendisliği gerektiren
+        KOBİ’lerin büyük bölümü tam bu eşikte. Çıkışı var — yıllardır bu çıkışı arayanlarla
+        çalışıyoruz.
+      </p>
     </div>
   </section>
 
   <!-- Services -->
   <section class="section">
     <div class="container">
-      <h2>Hizmetler</h2>
+      <div class="section-head">
+        <h2>Hizmetlerimiz</h2>
+        <p class="section-sub">
+          Dört farklı giriş kapısı — durumunuza göre birinden veya birkaçından
+          başlayabiliriz.
+        </p>
+      </div>
       <div class="grid grid-2" style="margin-top: var(--space-5)">
-        <ServiceCard
-          icon="🎓"
-          title="SysML v2 Eğitimi"
-          description="Ekibinize SysML v2 ile modelleme pratiği kazandıran uygulamalı eğitim. (TODO)"
-        />
-        <ServiceCard
-          icon="🧭"
-          title="Mühendislik Danışmanlığı"
-          description="Sistem mimarisi ve modelden ürüne süreç tasarımı için danışmanlık. (TODO)"
-        />
-        <ServiceCard
-          icon="⚙️"
-          title="Süreç Entegrasyonu"
-          description="Mevcut araç zincirinize Systemodel ve AI destekli akışların entegrasyonu. (TODO)"
-        />
-        <ServiceCard
-          icon="🚀"
-          title="Pilot Projeler"
-          description="Sizin için seçilmiş küçük bir alt sistemi birlikte modelliyoruz, MBSE süreçlerini uçtan uca uyguluyoruz. Çalışan örnek size kalır, ölçeklemek size kalır. (TODO: nihai metin)"
-        />
+        {
+          services.map((s) => (
+            <ServiceCard
+              icon={s.icon}
+              title={s.title}
+              description={s.description}
+              items={s.items}
+              formatTag={s.formatTag}
+            />
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- How we work -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head section-head-center">
+        <h2>Süreç sade, çıktı net.</h2>
+        <p class="section-sub">Adım adım. Her aşamada siz ne alacağınızı bilirsiniz.</p>
+      </div>
+      <div style="margin-top: var(--space-6)">
+        <ProcessSteps steps={steps} />
       </div>
     </div>
   </section>
@@ -83,17 +252,25 @@ const faqItems = [
   <!-- FAQ -->
   <section class="section">
     <div class="container">
-      <FAQ heading="Sıkça Sorulan Sorular" items={faqItems} />
+      <div class="section-head section-head-center">
+        <h2>Patronların ilk soruları</h2>
+        <p class="section-sub">
+          Tanışmadan önce kafanızda olan sorular muhtemelen bunlar. Açıkça cevaplayalım.
+        </p>
+      </div>
+      <FAQ items={faqItems} />
     </div>
   </section>
 
+  <!-- Closing CTA -->
   <CTASection
-    title="Projenizi konuşalım"
-    text="Size uygun bir eğitim veya danışmanlık paketi için bize ulaşın."
-    ctaLabel="Danışmanlık talebi gönder"
-    ctaHref={contactConsulting}
-    secondaryLabel="Eğitim talebi gönder"
-    secondaryHref={contactTraining}
+    title="Önce bir tanışalım. Sonrası size kalmış."
+    text="Sorununuzu anlatın, çözüm yollarını birlikte düşünelim. Bu görüşmede satış yapmıyoruz — sadece sizi anlamaya çalışıyoruz. Eğer biz uygun değilsek, dürüst söylüyoruz."
+    ctaLabel="Tanışma görüşmesi planlayın"
+    ctaHref={contactIntro}
+    emailText="Veya doğrudan e-posta yazın:"
+    email="info@system2product.com"
+    note="Telefon veya online görüşme · Bağlayıcı değil"
   />
 </PageLayout>
 
@@ -103,5 +280,25 @@ const faqItems = [
     display: flex;
     gap: var(--space-3);
     flex-wrap: wrap;
+  }
+  .section-head-center {
+    text-align: center;
+  }
+  .section-head-center .section-sub {
+    margin-inline: auto;
+  }
+  .section-sub {
+    margin-top: var(--space-3);
+    color: var(--color-anthracite);
+    max-width: 60ch;
+    font-size: 1.1rem;
+  }
+  .problem-closing {
+    margin-top: var(--space-5);
+    text-align: center;
+    font-style: italic;
+    color: var(--color-anthracite);
+    max-width: var(--max-width-prose);
+    margin-inline: auto;
   }
 </style>

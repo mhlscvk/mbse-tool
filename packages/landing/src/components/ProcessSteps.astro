@@ -1,0 +1,97 @@
+---
+interface Step {
+  /** Sequence number, e.g. "01". */
+  num: string;
+  title: string;
+  /** Short delivery/timing label (mono). */
+  tag: string;
+  body: string;
+}
+
+interface Props {
+  steps: Step[];
+}
+
+const { steps } = Astro.props;
+---
+
+<div class="process">
+  {
+    steps.map((step, i) => (
+      <>
+        <article class="process-step">
+          <span class="process-num">{step.num}</span>
+          <h3 class="process-title">{step.title}</h3>
+          <span class="process-tag">{step.tag}</span>
+          <p class="process-body">{step.body}</p>
+        </article>
+        {i < steps.length - 1 && (
+          <span class="process-arrow" aria-hidden="true">
+            →
+          </span>
+        )}
+      </>
+    ))
+  }
+</div>
+
+<style>
+  .process {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .process-step {
+    flex: 1 1 0;
+    background: var(--bg-card);
+    border: 2px solid var(--color-ink);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .process-num {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-copper);
+  }
+  .process-title {
+    font-size: 1.25rem;
+  }
+  .process-tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-amber);
+  }
+  .process-body {
+    font-size: 0.95rem;
+    color: var(--color-anthracite);
+  }
+  .process-arrow {
+    /* Explicit block box so the rotate below always applies (a bare inline
+       <span> is not transformable; matches FlowDiagram's working pattern). */
+    display: block;
+    align-self: center;
+    font-size: 1.8rem;
+    color: var(--color-amber);
+    font-weight: 700;
+  }
+
+  /* Below desktop, four content-dense cards are too tight side by side:
+     stack them vertically and turn the connecting arrows downward (covers
+     both tablet and mobile, so a stacked column never has sideways arrows). */
+  @media (max-width: 1023px) {
+    .process {
+      flex-direction: column;
+      align-items: stretch;
+      max-width: 560px;
+      margin-inline: auto;
+    }
+    .process-arrow {
+      transform: rotate(90deg);
+    }
+  }
+</style>

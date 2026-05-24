@@ -4,10 +4,13 @@ import PageLayout from '../layouts/PageLayout.astro';
 const lang = 'tr';
 
 // Pre-fill the subject field from a ?subject= query param when present
-// (the services page links here with "Danışmanlık talebi" / "Eğitim talebi").
+// (the services page links here with "Tanışma görüşmesi"; older links may
+// still use "Danışmanlık talebi" / "Eğitim talebi"). Keep these values in sync
+// with the CTA query strings on danismanlik.astro.
 const subject = Astro.url.searchParams.get('subject') ?? '';
 
 const subjectOptions = [
+  'Tanışma görüşmesi',
   'Danışmanlık talebi',
   'Eğitim talebi',
   'Pilot proje',

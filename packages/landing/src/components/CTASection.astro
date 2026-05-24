@@ -6,9 +6,25 @@ interface Props {
   ctaHref: string;
   secondaryLabel?: string;
   secondaryHref?: string;
+  /** Optional "or email us directly" line shown below the buttons. */
+  emailText?: string;
+  /** Email address for the inline link (rendered as mailto:). */
+  email?: string;
+  /** Optional small reassurance line at the very bottom. */
+  note?: string;
 }
 
-const { title, text, ctaLabel, ctaHref, secondaryLabel, secondaryHref } = Astro.props;
+const {
+  title,
+  text,
+  ctaLabel,
+  ctaHref,
+  secondaryLabel,
+  secondaryHref,
+  emailText,
+  email,
+  note,
+} = Astro.props;
 ---
 
 <section class="section section-dark cta">
@@ -21,6 +37,14 @@ const { title, text, ctaLabel, ctaHref, secondaryLabel, secondaryHref } = Astro.
         <a class="btn btn-secondary" href={secondaryHref}>{secondaryLabel}</a>
       )}
     </div>
+    {
+      email && (
+        <p class="cta-email">
+          {emailText} <a href={`mailto:${email}`}>{email}</a>
+        </p>
+      )
+    }
+    {note && <p class="cta-note">{note}</p>}
   </div>
 </section>
 
@@ -40,5 +64,18 @@ const { title, text, ctaLabel, ctaHref, secondaryLabel, secondaryHref } = Astro.
     gap: var(--space-3);
     justify-content: center;
     flex-wrap: wrap;
+  }
+  .cta-email {
+    margin-top: var(--space-4);
+    color: var(--text-inverse);
+    opacity: 0.85;
+    font-size: 0.95rem;
+  }
+  .cta-note {
+    margin-top: var(--space-3);
+    color: var(--text-inverse);
+    opacity: 0.6;
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
   }
 </style>

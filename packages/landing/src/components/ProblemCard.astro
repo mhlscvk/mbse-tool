@@ -1,0 +1,40 @@
+---
+interface Props {
+  /** The pain point, phrased as a leader's own words. Rendered as a quote. */
+  quote: string;
+  /** Short explanation of why this happens. */
+  body: string;
+}
+
+const { quote, body } = Astro.props;
+---
+
+<article class="problem-card">
+  <p class="problem-quote">{quote}</p>
+  <p class="problem-body">{body}</p>
+</article>
+
+<style>
+  .problem-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-md);
+    /* Copper rail distinguishes a "problem" from an amber-topped service card. */
+    border-left: 4px solid var(--color-copper);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    height: 100%;
+  }
+  .problem-quote {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    line-height: 1.35;
+    color: var(--color-ink);
+  }
+  .problem-body {
+    font-size: 0.98rem;
+    color: var(--color-anthracite);
+  }
+</style>

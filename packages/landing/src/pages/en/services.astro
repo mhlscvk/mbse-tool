@@ -1,81 +1,250 @@
 ---
 import PageLayout from '../../layouts/PageLayout.astro';
+import ProblemCard from '../../components/ProblemCard.astro';
 import ServiceCard from '../../components/ServiceCard.astro';
+import ProcessSteps from '../../components/ProcessSteps.astro';
 import FAQ from '../../components/FAQ.astro';
 import CTASection from '../../components/CTASection.astro';
 import { routeMap } from '../../i18n/utils';
 
 const lang = 'en';
 
-// Conversion-critical page: prominent CTAs to the contact form with a
-// pre-filled subject.
-const contactConsulting = `${routeMap.contact[lang]}?subject=Consulting request`;
-const contactTraining = `${routeMap.contact[lang]}?subject=Training request`;
+// Conversion-critical page. The primary action everywhere is "schedule an
+// intro call" — the contact form pre-fills this subject (kept in sync with the
+// option list in en/contact.astro).
+const contactIntro = `${routeMap.contact[lang]}?subject=Intro call`;
+
+const problems = [
+  {
+    quote:
+      'Our team works as mechanical, software, hardware silos — integration is where everything breaks.',
+    body: "Disciplines meet each other too late. By the time one team's design decision affects another, it's too late to change course.",
+  },
+  {
+    quote: 'We do modeling, but the real product comes from somewhere else.',
+    body: 'The model sits in a document, engineers start from scratch with their own tools. “We did all this planning, why are we starting over?” remains unanswered.',
+  },
+  {
+    quote: "We want to adopt MBSE but don't know where to start.",
+    body: "We attend conferences, read articles, show slides to the team. Then Monday comes and we're still working the same way.",
+  },
+  {
+    quote: "We invested in systems engineering but can't see the concrete benefit.",
+    body: "We bought licenses, ran trainings, but design errors haven't dropped, rework hasn't dropped. As leadership, defending the investment gets harder.",
+  },
+];
+
+const services = [
+  {
+    icon: '🎓',
+    title: 'MBSE Training',
+    description:
+      'We transfer SysML v2, systems engineering principles, and the MagicGrid methodology to your team. Not classic slide training — with examples from your actual projects, in a way your team can apply Monday morning.',
+    items: [
+      'SysML v2 fundamentals and hands-on modeling',
+      'MagicGrid methodology — end-to-end project example',
+      'Application with Cameo or open alternatives',
+      'AI-assisted modeling (Claude + MCP integration)',
+      'Agile and Lean Systems Engineering approaches',
+    ],
+    formatTag: 'In-house · On-site or online · 2-5 day modules',
+  },
+  {
+    icon: '🧭',
+    title: 'Engineering Transformation Consulting',
+    description:
+      "We assess your current processes, build a concrete roadmap to adopt MBSE, take the first steps with your team. We don't deliver slides and leave — we stay alongside.",
+    items: [
+      'Current process assessment (1-2 weeks)',
+      'Phased roadmap for MBSE adoption',
+      'Pilot project selection and structuring',
+      'Team role definitions and responsibility distribution',
+      'Tool and technology selection guidance',
+      'Monthly follow-up and adjustment sessions',
+    ],
+    formatTag: 'Project-based · 3-12 month programs · Monthly retainer',
+  },
+  {
+    icon: '⚙️',
+    title: 'Integration into Your Existing Toolchain',
+    description:
+      "We don't try to replace your existing tools (CAD, IDE, PLM, EDA). We add the MBSE layer on top, get Systemodel and AI-assisted flows talking to your investments. The value you've built up over years is preserved.",
+    items: [
+      'Current tool ecosystem analysis',
+      'Systemodel ↔ CAD/PLM/EDA bridge work',
+      'AI/MCP integrations',
+      'Automated document generation flows',
+      'Version and change management',
+      'Sustainable integration documentation',
+    ],
+    formatTag: 'Technical project · 4-8 weeks · Fixed-scope pricing',
+  },
+  {
+    icon: '🚀',
+    title: 'Pilot Projects',
+    description:
+      '“Let’s do something small together and see.” We pick a subsystem with you, model it together, apply MBSE end-to-end, generate production documents with AI. At the end, we leave a working example with your team. Scaling is up to you.',
+    items: [
+      'Pilot scope definition together',
+      'System modeling (SysML v2, Systemodel)',
+      'Discipline integration (mechanical + software + hardware)',
+      'AI-assisted production document generation',
+      'Result evaluation and expansion plan',
+      'Knowledge transfer to your team',
+    ],
+    formatTag: '6-12 week short projects · Clear deliverables · Fixed price',
+  },
+];
+
+const steps = [
+  {
+    num: '01',
+    title: 'Introduction',
+    tag: 'First conversation',
+    body: "Phone or video call. You tell us your problem, we listen. We assess mutual fit together. We're not selling on this call — if we're not the right fit, we'll tell you honestly.",
+  },
+  {
+    num: '02',
+    title: 'Assessment',
+    tag: '1-2 weeks · Written output',
+    body: 'If we see a good mutual match, we assess your current state in detail. 2-3 conversations with your team, review of existing documents. We prepare a written assessment report — a clear picture of your situation, useful as a reference for the next step.',
+  },
+  {
+    num: '03',
+    title: 'Proposal and plan',
+    tag: 'Transparent · Clear scope',
+    body: 'Clear scope, clear duration, clear price. Fixed fee for training, monthly package for consulting, fixed project price for pilots. No surprises. Everything is on the table before any signature.',
+  },
+  {
+    num: '04',
+    title: 'Execution',
+    tag: 'Together · Transparent progress',
+    body: 'We do the work together. Regular check-ins (weekly or biweekly), progress reports, open discussion if scope or direction needs to change. The goal: when the engagement ends, your team can work independently.',
+  },
+];
 
 const faqItems = [
   {
-    q: 'Who are the trainings for?',
-    a: 'Designed for SME technical leaders and engineering teams. (TODO: final copy)',
+    q: 'How long does it take overall?',
+    a: "Training is 2-5 day modules. Consulting programs run 3 months (quick start) to 12 months (comprehensive transformation). Pilot projects are 6-12 weeks. We'll discuss shorter or longer options for your specific situation in the intro call.",
   },
   {
-    q: 'How does consulting work?',
-    a: 'It runs through needs analysis, a pilot project, and implementation. (TODO: final copy)',
+    q: "What's the price range?",
+    a: "Training is priced in daily modules, consulting in monthly packages, pilots at fixed price. We structure for SME scale — we're not tied to the standard rates of large consulting firms. The exact number is given after the intro, based on your needs. We can also discuss the general range in the first call.",
   },
   {
-    q: 'Remote or on-site?',
-    a: 'Both options are available. (TODO: final copy)',
+    q: 'Online or on-site?',
+    a: 'Both work. Training is more effective on-site — interaction and practice are intensive. For consulting and integration, we work hybrid: critical workshops on-site, follow-ups online. We’re ready to travel anywhere in Türkiye, and remote work is fine for international engagements.',
+  },
+  {
+    q: 'Which sectors do you have experience in?',
+    a: "Aerospace, defense, automotive, medical devices, IoT — any sector that requires systems engineering. Our own background is aerospace and defense-heavy. Knowing your sector matters, but the methodology works similarly across all sectors. In the intro we'll be honest about how well we know yours.",
+  },
+  {
+    q: 'Are you a single person or a team?',
+    a: 'Training and consulting are primarily led by Muhlis Çevik (founder, 10+ years of aerospace and systems engineering experience, METU Aerospace Engineering). For pilot projects, we work with our multi-discipline team (mechanical + software + hardware). We bring in external experts when the project needs it.',
+  },
+  {
+    q: 'Do you interfere with our existing tools?',
+    a: 'No. We don’t try to change your existing tool investments (CAD, IDE, PLM, EDA). We add the MBSE layer on top. The value you’ve built up over years is preserved. We’re against consultants who say “first change everything.”',
+  },
+  {
+    q: 'Which tools do you work with?',
+    a: 'For SysML v2: Systemodel (our own open platform) or Cameo (for enterprise users). Methodology: MagicGrid, Agile, Lean Systems Engineering. AI side: Claude + MCP integrations. We work with your preference or align with your existing investment.',
+  },
+  {
+    q: 'How do you measure results?',
+    a: 'At the start of every engagement we define success criteria together — reduction in rework, model-product consistency, your team’s level of independent operation, etc. We measure regularly, and you receive a clear evaluation report at the end.',
+  },
+  {
+    q: "What's the minimum requirement to work with you?",
+    a: 'Two things: (1) at least 1-2 engineers in your team willing to do systems engineering. (2) Leadership support — because process change doesn’t work without top-down backing. If you have these two, we build the rest together.',
+  },
+  {
+    q: 'When can we start?',
+    a: "Reach out when you're ready and we'll schedule the intro call for a near date. If we agree to proceed, training starts in roughly 2-4 weeks, consulting and pilot projects in 4-6 weeks. We can discuss urgent needs.",
   },
 ];
 ---
 
 <PageLayout
   title="Consulting & Training — System2Product"
-  description="SysML v2 and model-to-product engineering training and consulting for SME technical leaders."
+  description="SysML v2 and model-to-product engineering training, consulting, and pilot projects for SME technical leaders."
   lang={lang}
   pageKey="services"
 >
-  <!-- Hero with prominent CTA -->
+  <!-- Hero -->
   <section class="section">
     <div class="container">
-      <p class="eyebrow">Consulting & Training</p>
-      <h1>Take your team from model to product</h1>
+      <p class="eyebrow">Our Services</p>
+      <h1>You don't have to carry your engineering transformation alone.</h1>
       <p class="lead">
-        <!-- TODO: final services copy -->
-        SysML v2 and systems engineering training plus end-to-end consulting for SME
-        technical leaders.
+        We bring over a decade of aerospace and systems engineering experience to
+        accelerate your team's transition to modern engineering practices. Training,
+        consulting, and pilot projects we walk through with you.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href={contactConsulting}>Consulting request</a>
-        <a class="btn btn-secondary" href={contactTraining}>Training request</a>
+        <a class="btn btn-primary" href={contactIntro}>Schedule an intro call</a>
       </div>
+    </div>
+  </section>
+
+  <!-- "Does this sound familiar?" — pain points -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head section-head-center">
+        <h2>Does one of these sound familiar?</h2>
+        <p class="section-sub">
+          We've spent recent years talking to technical leaders in similar situations.
+          These are the complaints we hear again and again:
+        </p>
+      </div>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        {problems.map((p) => <ProblemCard quote={p.quote} body={p.body} />)}
+      </div>
+      <p class="problem-closing">
+        None of these are unique to you. A large part of engineering-driven SMEs stand at
+        exactly this threshold. There's a way out — we've spent years working with people
+        looking for it.
+      </p>
     </div>
   </section>
 
   <!-- Services -->
   <section class="section">
     <div class="container">
-      <h2>Services</h2>
+      <div class="section-head">
+        <h2>What we offer</h2>
+        <p class="section-sub">
+          Four entry points — depending on your situation, we can start with one or
+          several.
+        </p>
+      </div>
       <div class="grid grid-2" style="margin-top: var(--space-5)">
-        <ServiceCard
-          icon="🎓"
-          title="SysML v2 Training"
-          description="Hands-on training that builds your team's SysML v2 modeling practice. (TODO)"
-        />
-        <ServiceCard
-          icon="🧭"
-          title="Engineering Consulting"
-          description="Consulting for system architecture and model-to-product process design. (TODO)"
-        />
-        <ServiceCard
-          icon="⚙️"
-          title="Process Integration"
-          description="Integrating Systemodel and AI-assisted flows into your existing toolchain. (TODO)"
-        />
-        <ServiceCard
-          icon="🚀"
-          title="Pilot Projects"
-          description="We model a small subsystem we select for you together, apply MBSE processes end-to-end. The working example stays with you, scaling is up to you. (TODO: final copy)"
-        />
+        {
+          services.map((s) => (
+            <ServiceCard
+              icon={s.icon}
+              title={s.title}
+              description={s.description}
+              items={s.items}
+              formatTag={s.formatTag}
+            />
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- How we work -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head section-head-center">
+        <h2>Simple process, clear outcomes.</h2>
+        <p class="section-sub">Step by step. At each stage you know what you'll get.</p>
+      </div>
+      <div style="margin-top: var(--space-6)">
+        <ProcessSteps steps={steps} />
       </div>
     </div>
   </section>
@@ -83,17 +252,26 @@ const faqItems = [
   <!-- FAQ -->
   <section class="section">
     <div class="container">
-      <FAQ heading="Frequently Asked Questions" items={faqItems} />
+      <div class="section-head section-head-center">
+        <h2>Questions leaders ask first</h2>
+        <p class="section-sub">
+          The questions probably on your mind before we even talk. Let's answer them
+          openly.
+        </p>
+      </div>
+      <FAQ items={faqItems} />
     </div>
   </section>
 
+  <!-- Closing CTA -->
   <CTASection
-    title="Let's discuss your project"
-    text="Reach out for a training or consulting package that fits you."
-    ctaLabel="Send a consulting request"
-    ctaHref={contactConsulting}
-    secondaryLabel="Send a training request"
-    secondaryHref={contactTraining}
+    title="Let's get to know each other first. The rest is up to you."
+    text="Tell us your problem, let's think about solutions together. We're not selling on this call — we're just trying to understand you. If we're not the right fit, we'll say so honestly."
+    ctaLabel="Schedule an intro call"
+    ctaHref={contactIntro}
+    emailText="Or email directly:"
+    email="info@system2product.com"
+    note="Phone or video call · No commitment"
   />
 </PageLayout>
 
@@ -103,5 +281,25 @@ const faqItems = [
     display: flex;
     gap: var(--space-3);
     flex-wrap: wrap;
+  }
+  .section-head-center {
+    text-align: center;
+  }
+  .section-head-center .section-sub {
+    margin-inline: auto;
+  }
+  .section-sub {
+    margin-top: var(--space-3);
+    color: var(--color-anthracite);
+    max-width: 60ch;
+    font-size: 1.1rem;
+  }
+  .problem-closing {
+    margin-top: var(--space-5);
+    text-align: center;
+    font-style: italic;
+    color: var(--color-anthracite);
+    max-width: var(--max-width-prose);
+    margin-inline: auto;
   }
 </style>
