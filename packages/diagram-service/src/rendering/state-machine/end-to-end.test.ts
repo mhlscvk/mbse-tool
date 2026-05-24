@@ -31,6 +31,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(here, '../../../tests/fixtures/state-machine/sensor-systems');
 const MODEL_PATH = resolve(FIXTURE_DIR, 'model.sysml');
 const EXPECTED_SMODEL_PATH = resolve(FIXTURE_DIR, 'expected-smodel.json');
+// Slice 2d.2: the wedge (production path) runs the state-transition view filter
+// before the renderer, so its SModel is the *filtered* golden — distinct from
+// the raw transformer/renderer golden the direct test asserts against.
+const EXPECTED_SMODEL_FILTERED_PATH = resolve(FIXTURE_DIR, 'expected-smodel-filtered.json');
 
 const MULTI_ROOT_DIR = resolve(here, '../../../tests/fixtures/state-machine/multi-root-part-states');
 
@@ -43,6 +47,10 @@ function loadModel() {
 
 function loadExpectedSModel(): SModelRoot {
   return JSON.parse(readFileSync(EXPECTED_SMODEL_PATH, 'utf-8')) as SModelRoot;
+}
+
+function loadExpectedFilteredSModel(): SModelRoot {
+  return JSON.parse(readFileSync(EXPECTED_SMODEL_FILTERED_PATH, 'utf-8')) as SModelRoot;
 }
 
 function loadMultiRootModel() {
@@ -106,7 +114,9 @@ describe('state-machine end-to-end (Slice 2c wiring)', () => {
 
     expect(out.rendererUsed).toBe('new');
     expect(legacyCalls).toBe(0);
-    expect(out.result).toEqual(loadExpectedSModel());
+    // Slice 2d.2: the wedge filters before rendering, so it yields the filtered
+    // golden (pseudo-initial__on dropped), not the raw transformer golden.
+    expect(out.result).toEqual(loadExpectedFilteredSModel());
     expect(stats.snapshot().byViewType['state-machine']).toEqual({ new: 1 });
   });
 

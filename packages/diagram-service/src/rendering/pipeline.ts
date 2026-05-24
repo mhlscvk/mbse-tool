@@ -19,6 +19,7 @@ import type {
   ViewType,
 } from '@systemodel/shared-types';
 import { transformToBDD } from '../transformer/bdd-transformer.js';
+import { applyViewFilter } from '../transformer/view-filters.js';
 import { viewRegistry, type ViewRegistry, type ViewSpec } from './view-registry.js';
 import { flagProvider, type FlagProvider } from './feature-flags.js';
 import { mapToDiagramViewType } from './view-type-mapper.js';
@@ -92,7 +93,15 @@ export function makeWedge(deps: WedgeDeps) {
     }
 
     try {
-      const ir = renderer.transformAstToIR(model, { viewType, showInherited } satisfies ViewSpec);
+      // [Slice 2d.2] View-First: apply the view filter on the new-renderer path
+      // (DP1=b). The legacy paths keep filtering internally via transformToBDD —
+      // 59 tests depend on that, so it stays (asymmetry resolved at the output
+      // level; the duplicate call-site is retired when legacy goes in Phase 2).
+      // applyViewFilter is non-mutating and returns only { nodes, connections },
+      // so reconstruct a full SysMLModel (it carries `uri`) before transforming.
+      const filtered = applyViewFilter(model, viewType);
+      const filteredModel: SysMLModel = { uri: model.uri, nodes: filtered.nodes, connections: filtered.connections };
+      const ir = renderer.transformAstToIR(filteredModel, { viewType, showInherited } satisfies ViewSpec);
       const sModelRoot = renderer.toSModelRoot(ir);
       deps.stats.record(diagramViewType, 'new');
       return { result: sModelRoot, rendererUsed: 'new' };
