@@ -33,8 +33,14 @@ const subjectOptions = [
         Eğitim ve danışmanlık talepleriniz için aşağıdaki formu doldurun.
       </p>
 
-      <!-- TODO: wire up to Formspree (or chosen provider) — action="#" is a stub. -->
-      <form class="contact-form" action="#" method="post">
+      <!-- Interim: mailto: form until the Resend backend is set up. POST + text/plain
+           pastes fields into the mail body as "field=value"; subject maps to the mail subject. -->
+      <form
+        class="contact-form"
+        action="mailto:info@system2product.com"
+        method="post"
+        enctype="text/plain"
+      >
         <label>
           Ad Soyad
           <input type="text" name="name" autocomplete="name" required />
@@ -60,6 +66,11 @@ const subjectOptions = [
           <textarea name="message" rows="5" required></textarea>
         </label>
         <button class="btn btn-primary" type="submit">Gönder</button>
+        <p class="form-note">
+          Forma tıkladığınızda mail uygulamanız açılacak. Mail uygulamanız açılmazsa
+          doğrudan <a href="mailto:info@system2product.com">info@system2product.com</a>
+          adresine yazabilirsiniz.
+        </p>
       </form>
     </div>
   </section>
@@ -132,5 +143,17 @@ const subjectOptions = [
   }
   .contact-form button {
     align-self: flex-start;
+  }
+  .form-note {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-anthracite);
+    opacity: 0.7;
+    font-weight: 400;
+    max-width: 520px;
+  }
+  .form-note a {
+    color: inherit;
+    text-decoration: underline;
   }
 </style>
