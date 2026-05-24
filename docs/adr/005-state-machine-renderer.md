@@ -173,6 +173,67 @@ fields), then Option B becomes the migration target. Until then,
 the `split('::').pop()` in the state-machine transformer is the
 single source of trigger-name extraction.
 
+### Decision 5 — View-filter integration on the new-renderer path (Slice 2d.2, D-FILTER-01)
+
+**Status:** Accepted, 2026-05-24.
+
+**Context.** Before Slice 2d.2 the wedge handed the *raw* model to the new
+renderer, while the legacy `transformToBDD` pipeline called `applyViewFilter`
+internally. Filter responsibility was split and the new path did no view
+scoping — an asymmetry against the View-First principle (one filter point per
+render).
+
+**Options considered:**
+
+- **A — Single call-site.** Move `applyViewFilter` into the wedge *and* remove
+  it from `bdd-transformer.ts:616`. Rejected: 59 tests (the
+  `view-filters.test.ts` `pipeline()` helper plus several
+  `bdd-transformer.*.test.ts` suites and `end-to-end.test.ts`) call
+  `transformToBDD` directly and depend on its internal filtering. Deleting line
+  616 is a wide-blast-radius refactor and contradicts the standing
+  "transformToBDD code must not change" constraint.
+- **B — New-path-only filter.** Add `applyViewFilter` before the wedge calls
+  `transformAstToIR`; leave `bdd-transformer.ts:616` untouched.
+- **C — Idempotent guard.** Filter in the wedge for both paths and make the
+  legacy call a no-op on already-filtered input. Rejected: needs filter-state
+  bookkeeping or logic duplication; complexity outweighs the benefit.
+
+**Chosen: B (new-path-only filter).** Zero blast radius. The asymmetry is
+resolved at the *output* level — both paths now emit a filtered model — while
+the duplicate call-site remains as documented technical debt, retired
+naturally when the legacy pipeline is removed in Phase 2.
+
+**Visual impact.** On the sensor-systems fixture the filter drops
+`pseudo-initial__on` and two edges (`comp__on_to_pseudo_initial`,
+`edge__on_initial_to_normal`) at the IR level. The current new renderer does
+not yet draw a sub-state initial dot (only the top-level `pseudo-initial__top`
+is rendered), so removing it from the IR is a **visual no-op** — confirmed by a
+Platform-Owner side-by-side of production (PRE) vs a local patched stack (POST).
+Drawing the sub-state initial dot is a separate future slice.
+
+**Multi-root impact.** On `multi-root-part-states` (no entry actions, no
+pseudo-states) the filter is a provable no-op; its golden stays byte-identical.
+
+**Snapshot strategy (split, not regen).** The filtered output differs from the
+raw transformer output, and the existing goldens are the *transformer-isolation*
+contract — asserted against the raw model by `transformer.test.ts` and the
+direct `end-to-end.test.ts` case. Regenerating the shared goldens would have
+broken those raw tests, so the goldens are split by pipeline level instead:
+
+```
+expected-ir.json          / expected-smodel.json           raw transformer golden (unchanged)
+expected-ir-filtered.json / expected-smodel-filtered.json  filtered wedge golden (Slice 2d.2, new)
+```
+
+The flag=true wedge test asserts the filtered SModel; the direct and
+transformer tests keep asserting the raw goldens. Each test-pyramid level owns
+its own golden, so the transformer unit test never gains a filter dependency.
+
+**When to revisit.** When the legacy `transformToBDD` pipeline is retired
+(Phase 2), fold the filter into a single call-site and reconsider whether the
+raw goldens are still needed once the transformer-isolation tests move to the
+filtered model.
+
 ## Consequences
 
 **Positive.**
