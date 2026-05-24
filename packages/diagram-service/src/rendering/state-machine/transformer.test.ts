@@ -257,6 +257,40 @@ describe('state-machine transformer — multi-root container labels (Slice 2d.3)
   });
 });
 
+// ── StateDefinition vs StateUsage semantics (Slice 2d.3) ─────────────────────
+// The container-emission rule keys off the SysML v2 def/usage distinction: a
+// top-level `state def` is an abstract scope (not drawn), a top-level `state`
+// usage is a concrete state (drawn). This guards the byte-identical
+// sensor-systems behaviour at the unit level, independent of that fixture.
+
+describe('state-machine transformer — top-level def vs usage (Slice 2d.3)', () => {
+  it('does NOT draw a top-level `state def` as a node (abstract scope)', () => {
+    const { model } = parseSysMLText(
+      'fixture://def-noop',
+      'package P { state def Scope { state A; state B; transition first A then B; } }',
+    );
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const stateNames = ir.nodes.filter(n => n.kind === 'state').map(n => n.name).sort();
+    // The def's children are drawn; the def itself is not.
+    expect(stateNames).toEqual(['A', 'B']);
+    expect(stateNames).not.toContain('Scope');
+  });
+
+  it('DOES draw a top-level `state` usage as a labelled container (concrete state)', () => {
+    const { model } = parseSysMLText(
+      'fixture://usage-draw',
+      'package P { part def C { part c { state M { state A; state B; transition first A then B; } } } }',
+    );
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const machine = ir.nodes.find(n => n.name === 'M');
+    expect(machine).toBeDefined();
+    expect(machine!.kind).toBe('state');
+    expect(machine!.containedNodes).toEqual(
+      expect.arrayContaining(['state__A', 'state__B']),
+    );
+  });
+});
+
 describe('state-machine transformer — defensive edge cases (Slice 2d.1)', () => {
   it('returns a valid empty IR for a model with no state nodes (no crash)', () => {
     const { model } = parseSysMLText('fixture://empty', 'package Empty { part p; }');
