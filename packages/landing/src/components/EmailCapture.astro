@@ -3,18 +3,22 @@ interface Props {
   heading?: string;
   buttonLabel?: string;
   placeholder?: string;
+  /** Hide the label visually (keep it for screen readers) when the surrounding
+      section already provides a visible heading. */
+  hideLabel?: boolean;
 }
 
 const {
   heading = 'Güncel kalın',
   buttonLabel = 'Kaydol',
   placeholder = 'E-posta adresiniz',
+  hideLabel = false,
 } = Astro.props;
 ---
 
 <!-- TODO: wire up to Formspree (or chosen provider) — action="#" is a stub. -->
 <form class="email-capture" action="#" method="post">
-  {heading && <label for="email-capture-input">{heading}</label>}
+  {heading && <label for="email-capture-input" class:list={[{ 'visually-hidden': hideLabel }]}>{heading}</label>}
   <div class="row">
     <input
       id="email-capture-input"

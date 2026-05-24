@@ -1,78 +1,222 @@
 ---
 import PageLayout from '../layouts/PageLayout.astro';
 import FlowDiagram from '../components/FlowDiagram.astro';
+import ServiceCard from '../components/ServiceCard.astro';
 import PlatformCard from '../components/PlatformCard.astro';
 import CTASection from '../components/CTASection.astro';
+import EmailCapture from '../components/EmailCapture.astro';
 import { routeMap } from '../i18n/utils';
 
 const lang = 'tr';
+
+const contactIntro = `${routeMap.contact[lang]}?subject=Tanışma görüşmesi`;
+
+const flowSteps = [
+  {
+    icon: '📐',
+    num: '01',
+    title: 'Sistemi kurun',
+    description:
+      'Sistem mimarisini SysML v2 ile kuruyorsunuz. Web tarayıcısında, AI eşliğinde, MCP destekli. Kurulum yok, lisans karmaşası yok.',
+    tag: 'Systemodel ile',
+  },
+  {
+    icon: '🔗',
+    num: '02',
+    title: 'Disiplinler arası tutarlılığı kurun',
+    description:
+      'Modeliniz mekanik, yazılım ve donanım disiplinlerine tercüme oluyor. Model değişince bağlı çıktılar güncelleniyor. Tutarsızlık imkânsızlaşıyor.',
+    tag: 'System2Product Platform ile (geliştiriliyor)',
+  },
+  {
+    icon: '🚀',
+    num: '03',
+    title: 'Üretime geçin',
+    description:
+      'AI, modelden CAD spesifikasyonu, API dokümanı, şematik gereksinimleri üretiyor. Ekipler doğrudan üretime geçiyor.',
+    tag: 'Pilot projelerle doğrulandı',
+  },
+];
+
+const services = [
+  {
+    icon: '🎓',
+    title: 'MBSE Eğitimi',
+    description:
+      'SysML v2 ve MagicGrid metodolojisini ekibinize aktarıyoruz. Klasik slayt değil — sizin projelerinizden örneklerle.',
+  },
+  {
+    icon: '🧭',
+    title: 'Dönüşüm Danışmanlığı',
+    description:
+      'Mevcut süreçlerinizi değerlendiriyor, MBSE’ye geçiş için yol haritası çıkarıyor, ilk adımları sizinle atıyoruz.',
+  },
+  {
+    icon: '⚙️',
+    title: 'Toolchain Entegrasyonu',
+    description:
+      'Mevcut araçlarınızı değiştirmeden MBSE katmanı ekliyoruz. Yatırımlarınız korunuyor.',
+  },
+  {
+    icon: '🚀',
+    title: 'Pilot Projeler',
+    description:
+      'Küçük bir alt sistemi birlikte uçtan uca yapıyoruz. Çalışan örnek size kalır.',
+  },
+];
 ---
 
 <PageLayout
-  title="System2Product — Mühendisliği uçtan uca düşünen atölye"
+  title="System2Product — Modelden ürüne giden yolu kısaltan atölye"
   description="SysML v2 sistem modellerini AI destekli bir zincirle mekanik, yazılım ve donanım üretim dokümanlarına dönüştüren mühendislik atölyesi."
   lang={lang}
   pageKey="home"
 >
-  <!-- Hero -->
+  <!-- 1. Hero -->
   <section class="section">
     <div class="container hero">
       <p class="eyebrow">System2Product</p>
-      <h1>Mühendisliği uçtan uca düşünen atölye</h1>
+      <h1>Modelden ürüne giden yol çok uzun. Biz kısaltıyoruz.</h1>
       <p class="lead">
-        <!-- TODO: nihai hero metni -->
-        Mühendisin SysML v2'de modellediği sistemi, AI destekli bir zincirle mekanik,
+        Sistem modeliyle gerçek ürün arasındaki uçurum size tanıdık geliyorsa, doğru
+        yerdesiniz. SysML v2’de modellediğiniz sistemi, AI destekli bir zincirle mekanik,
         yazılım ve donanım üretim dokümanlarına dönüştürüyoruz.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href={routeMap.services[lang]}>Hizmetleri Keşfedin</a>
-        <a class="btn btn-secondary" href={routeMap.platform[lang]}>Platformu Görün</a>
+        <a class="btn btn-primary" href={routeMap.services[lang]}>Hizmetlerimizi keşfedin</a>
+        <a class="hero-link" href={routeMap.vision[lang]}>Vizyonu oku →</a>
       </div>
     </div>
   </section>
 
-  <!-- Flow: Modelle → Köprüle → Üret -->
+  <!-- 2. Problem framing -->
+  <section class="section">
+    <div class="container problem-frame">
+      <p class="problem-lead">
+        Sistem mühendisliği on yıllardır aynı sözü veriyor: önce modelle, sonra ürünü
+        kur. Pratikte ne oluyor? Model bir dökümanda kalıyor, ekipler kendi araçlarıyla
+        sıfırdan başlıyor.
+      </p>
+      <p class="problem-body">
+        Bu kopukluğun bedeli ağır — yeniden çalışma, tutarsızlık, geç teslim, görünmez
+        yatırım. “Bu kadar plan yaptık, neden yine sıfırdan başladık?” sorusu havada
+        kalıyor. Soru havada kalmasın diye çalışıyoruz.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3. Flow — three steps -->
   <section class="section">
     <div class="container">
-      <h2 style="text-align:center">Modelden ürüne, tek bir zincir</h2>
+      <div class="section-head section-head-center">
+        <h2>Üç adımda model, dokümana dönüşüyor.</h2>
+        <p class="section-sub">
+          Modelleme katmanı, köprü katmanı, üretim çıktısı — uçtan uca tek zincirde.
+        </p>
+      </div>
       <div style="margin-top: var(--space-6)">
-        <FlowDiagram lang={lang} />
+        <FlowDiagram steps={flowSteps} />
       </div>
     </div>
   </section>
 
-  <!-- Two platforms -->
+  <!-- 4. Services teaser -->
   <section class="section">
     <div class="container">
-      <h2>İki platform, tek vizyon</h2>
+      <div class="section-head">
+        <h2>Yalnız değilsiniz. Bu dönüşümde yanınızdayız.</h2>
+        <p class="section-sub">
+          Eğitim, danışmanlık, süreç entegrasyonu ve pilot projelerle ekibinizin modern
+          mühendislik yaklaşımlarına geçişini hızlandırıyoruz.
+        </p>
+      </div>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        {
+          services.map((s) => (
+            <ServiceCard icon={s.icon} title={s.title} description={s.description} />
+          ))
+        }
+      </div>
+      <p class="section-cta">
+        <a href={routeMap.services[lang]}>Hizmetlerin detayını gör →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- 5. Platforms -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2>İki platform, tek hikâye.</h2>
+        <p class="section-sub">
+          Modelleme ve köprü — birlikte çalışıyor, ayrı kullanılabiliyor.
+        </p>
+      </div>
       <div class="grid grid-2" style="margin-top: var(--space-5)">
         <PlatformCard
           title="Systemodel"
+          subtitle="Modeli kurun"
           status="Aktif"
-          description="SysML v2 tabanlı, AI destekli web modelleme platformu. Sistem modellerinizi tarayıcıda oluşturun, yönetin ve paylaşın."
+          statusVariant="active"
+          description="SysML v2’yi tarayıcınıza taşıdık. AI destekli, MCP entegrasyonlu, kurulum gerektirmiyor. Sistem mühendisi web tarayıcısında modelliyor, AI yanında oturuyor."
+          features={[
+            'SysML v2 / textual + grafiksel',
+            'Claude + MCP entegrasyonu',
+            'Kurulum yok, web tabanlı',
+          ]}
           href="https://systemodel.com"
-          ctaLabel="Systemodel'i Açın"
+          ctaLabel="systemodel.com’a git →"
+          ctaVariant="primary"
           external={true}
         />
         <PlatformCard
           title="System2Product Platform"
+          subtitle="Ürüne götürün"
           status="Geliştiriliyor"
-          description="Modelden üretim dokümanlarına geçişi sağlayan köprü platform. Bu marka sitesi aynı zamanda platformun tanıtım sayfasıdır."
+          statusVariant="dev"
+          description="Modelden üretim dokümanlarına dönüşüm köprüsü. Multi-disiplin ekibimizle pilot projeler üzerinden geliştiriliyor."
+          features={[
+            'Mekanik + yazılım + donanım disiplin tercümesi',
+            'AI destekli doküman üretimi',
+            'Mevcut araç zincirinizle entegrasyon',
+          ]}
           href={routeMap.platform[lang]}
-          ctaLabel="Daha fazlası"
+          ctaLabel="Detayları gör ve erken erişim için kayıt ol →"
+          ctaVariant="link"
         />
       </div>
     </div>
   </section>
 
+  <!-- 6. Bottom CTA -->
   <CTASection
-    title="Ekibinizle konuşalım"
-    text="KOBİ teknik liderleri için eğitim ve danışmanlık hizmetlerimizi keşfedin."
-    ctaLabel="İletişime Geçin"
-    ctaHref={routeMap.contact[lang]}
-    secondaryLabel="Danışmanlık"
-    secondaryHref={routeMap.services[lang]}
+    title="Bir görüşmeyle başlayalım."
+    text="Mühendislik süreçleriniz, ekip yapınız, MBSE adoptasyonu — hangi konuda yardım arıyorsanız, atölye konuşmaya açık."
+    ctaLabel="Tanışma görüşmesi planlayın"
+    ctaHref={contactIntro}
+    emailText="Veya doğrudan e-posta yazın:"
+    email="info@system2product.com"
   />
+
+  <!-- 7. Email capture -->
+  <section class="section email-section">
+    <div class="container">
+      <h2>Gelişmelerden ilk siz haberdar olun.</h2>
+      <p class="section-sub">
+        Ayda bir-iki kez. Spam yok, sadece anlamlı güncellemeler — System2Product Platform
+        lansmanı, blog yazıları, vakalar.
+      </p>
+      <div style="margin-top: var(--space-4)">
+        <EmailCapture
+          heading="E-posta adresiniz"
+          buttonLabel="Abone ol"
+          placeholder="ornek@sirket.com"
+          hideLabel={true}
+        />
+      </div>
+      <p class="email-micro">İstediğiniz zaman aboneliği iptal edebilirsiniz.</p>
+    </div>
+  </section>
 </PageLayout>
 
 <style>
@@ -82,7 +226,61 @@ const lang = 'tr';
   .hero-actions {
     margin-top: var(--space-5);
     display: flex;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-4);
     flex-wrap: wrap;
+  }
+  .hero-link {
+    font-weight: 600;
+    color: var(--color-amber);
+  }
+  .hero-link:hover {
+    color: var(--color-copper);
+  }
+
+  .problem-frame {
+    max-width: var(--max-width-prose);
+    text-align: center;
+  }
+  .problem-lead {
+    font-family: var(--font-display);
+    font-size: clamp(1.25rem, 2.5vw, 1.6rem);
+    line-height: 1.4;
+    color: var(--color-ink);
+  }
+  .problem-body {
+    margin-top: var(--space-4);
+    color: var(--color-anthracite);
+  }
+
+  .section-head-center {
+    text-align: center;
+  }
+  .section-head-center .section-sub {
+    margin-inline: auto;
+  }
+  .section-sub {
+    margin-top: var(--space-3);
+    color: var(--color-anthracite);
+    max-width: 60ch;
+    font-size: 1.1rem;
+  }
+
+  .section-cta {
+    margin-top: var(--space-5);
+    text-align: center;
+  }
+  .section-cta a {
+    font-weight: 600;
+  }
+
+  .email-section {
+    background: var(--bg-card);
+  }
+  .email-micro {
+    margin-top: var(--space-3);
+    font-size: 0.85rem;
+    color: var(--color-anthracite);
+    opacity: 0.75;
   }
 </style>

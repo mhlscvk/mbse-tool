@@ -1,44 +1,162 @@
 ---
 import { useTranslations, type Lang } from '../i18n/utils';
 
-interface Props {
-  lang: Lang;
+interface RichStep {
+  icon: string;
+  /** Sequence number, e.g. "01". */
+  num: string;
+  title: string;
+  description: string;
+  /** Short delivery/source label (mono). */
+  tag: string;
 }
 
-const { lang } = Astro.props;
-const t = useTranslations(lang);
+interface Props {
+  /** Rich mode: full step cards (home page flow). */
+  steps?: RichStep[];
+  /** Compact mode: i18n Model→Bridge→Produce overview (platform/vision pages). */
+  lang?: Lang;
+}
 
-// Modelle → Köprüle → Üret (Model → Bridge → Produce)
-const steps = [
-  { label: t('flow.model'), num: '01' },
-  { label: t('flow.bridge'), num: '02' },
-  { label: t('flow.produce'), num: '03' },
-];
+const { steps, lang } = Astro.props;
+const isRich = !!steps && steps.length > 0;
+
+// Compact fallback — the original three-box brand flow, kept for the
+// platform/vision pages that render <FlowDiagram lang={lang} />.
+const t = lang ? useTranslations(lang) : null;
+const compactSteps = t
+  ? [
+      { label: t('flow.model'), num: '01' },
+      { label: t('flow.bridge'), num: '02' },
+      { label: t('flow.produce'), num: '03' },
+    ]
+  : [];
 ---
 
-<div class="flow" role="img" aria-label={steps.map((s) => s.label).join(' → ')}>
-  {
-    steps.map((step, i) => (
-      <>
-        <div class="flow-step">
-          <span class="flow-num">{step.num}</span>
-          <span class="flow-label">{step.label}</span>
-        </div>
-        {i < steps.length - 1 && <span class="flow-arrow" aria-hidden="true">→</span>}
-      </>
-    ))
-  }
-</div>
+{
+  isRich ? (
+    <div class="flow flow-rich">
+      {steps!.map((step, i) => (
+        <>
+          <article class="flow-step">
+            <div class="flow-top">
+              <span class="flow-icon" aria-hidden="true">
+                {step.icon}
+              </span>
+              <span class="flow-num">{step.num}</span>
+            </div>
+            <h3 class="flow-title">{step.title}</h3>
+            <p class="flow-desc">{step.description}</p>
+            <span class="flow-tag">{step.tag}</span>
+          </article>
+          {i < steps!.length - 1 && (
+            <span class="flow-arrow" aria-hidden="true">
+              →
+            </span>
+          )}
+        </>
+      ))}
+    </div>
+  ) : (
+    <div
+      class="flow flow-compact"
+      role="img"
+      aria-label={compactSteps.map((s) => s.label).join(' → ')}
+    >
+      {compactSteps.map((step, i) => (
+        <>
+          <div class="fc-step">
+            <span class="fc-num">{step.num}</span>
+            <span class="fc-label">{step.label}</span>
+          </div>
+          {i < compactSteps.length - 1 && (
+            <span class="fc-arrow" aria-hidden="true">
+              →
+            </span>
+          )}
+        </>
+      ))}
+    </div>
+  )
+}
 
 <style>
-  .flow {
+  /* ── Rich mode (home page) ───────────────────────────────────────── */
+  .flow-rich {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+  .flow-step {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    background: var(--bg-card);
+    border: 2px solid var(--color-ink);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+  .flow-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .flow-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+  .flow-num {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-copper);
+  }
+  .flow-title {
+    font-size: 1.3rem;
+  }
+  .flow-desc {
+    font-size: 0.95rem;
+    color: var(--color-anthracite);
+  }
+  .flow-tag {
+    /* Pin to the bottom so unequal-length cards keep their tags aligned. */
+    margin-top: auto;
+    padding-top: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-amber);
+  }
+  .flow-arrow {
+    align-self: center;
+    font-size: 1.8rem;
+    color: var(--color-amber);
+    font-weight: 700;
+  }
+
+  /* Stack the three steps vertically on mobile; turn the arrows downward. */
+  @media (max-width: 767px) {
+    .flow-rich {
+      flex-direction: column;
+      max-width: 420px;
+      margin-inline: auto;
+    }
+    .flow-rich .flow-arrow {
+      transform: rotate(90deg);
+    }
+  }
+
+  /* ── Compact mode (platform / vision pages) ──────────────────────── */
+  .flow-compact {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--space-4);
     flex-wrap: wrap;
   }
-  .flow-step {
+  .fc-step {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -49,32 +167,31 @@ const steps = [
     padding: var(--space-4) var(--space-5);
     min-width: 140px;
   }
-  .flow-num {
+  .fc-num {
     font-family: var(--font-mono);
     font-size: 0.8rem;
     color: var(--color-copper);
   }
-  .flow-label {
+  .fc-label {
     font-family: var(--font-display);
     font-size: 1.4rem;
     color: var(--color-ink);
   }
-  .flow-arrow {
+  .fc-arrow {
     font-size: 2rem;
     color: var(--color-amber);
     font-weight: 700;
   }
 
-  /* Stack the three steps vertically on mobile; turn the arrows downward. */
   @media (max-width: 767px) {
-    .flow {
+    .flow-compact {
       flex-direction: column;
     }
-    .flow-step {
+    .fc-step {
       width: 100%;
       max-width: 280px;
     }
-    .flow-arrow {
+    .fc-arrow {
       transform: rotate(90deg);
     }
   }

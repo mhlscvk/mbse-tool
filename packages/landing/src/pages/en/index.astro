@@ -1,78 +1,222 @@
 ---
 import PageLayout from '../../layouts/PageLayout.astro';
 import FlowDiagram from '../../components/FlowDiagram.astro';
+import ServiceCard from '../../components/ServiceCard.astro';
 import PlatformCard from '../../components/PlatformCard.astro';
 import CTASection from '../../components/CTASection.astro';
+import EmailCapture from '../../components/EmailCapture.astro';
 import { routeMap } from '../../i18n/utils';
 
 const lang = 'en';
+
+const contactIntro = `${routeMap.contact[lang]}?subject=Intro call`;
+
+const flowSteps = [
+  {
+    icon: '📐',
+    num: '01',
+    title: 'Build the system',
+    description:
+      'You build the system architecture in SysML v2. In the browser, alongside AI, MCP-enabled. No installation, no licensing complexity.',
+    tag: 'With Systemodel',
+  },
+  {
+    icon: '🔗',
+    num: '02',
+    title: 'Get disciplines aligned',
+    description:
+      'Your model translates to mechanical, software, and hardware. When the model changes, the downstream documents update. Inconsistency becomes impossible.',
+    tag: 'With System2Product Platform (in development)',
+  },
+  {
+    icon: '🚀',
+    num: '03',
+    title: 'Move to production',
+    description:
+      'AI generates CAD specs, API docs, schematic requirements from the model. Teams move straight to production.',
+    tag: 'Validated through pilot projects',
+  },
+];
+
+const services = [
+  {
+    icon: '🎓',
+    title: 'MBSE Training',
+    description:
+      'We transfer SysML v2 and MagicGrid methodology to your team. Not classic slides — with examples from your actual projects.',
+  },
+  {
+    icon: '🧭',
+    title: 'Transformation Consulting',
+    description:
+      'We assess your current processes, build a roadmap to MBSE, take the first steps with you.',
+  },
+  {
+    icon: '⚙️',
+    title: 'Toolchain Integration',
+    description:
+      'We add the MBSE layer without replacing your existing tools. Your investments are preserved.',
+  },
+  {
+    icon: '🚀',
+    title: 'Pilot Projects',
+    description:
+      'We do a small subsystem end-to-end together. The working example stays with you.',
+  },
+];
 ---
 
 <PageLayout
-  title="System2Product — From model to product, end to end"
+  title="System2Product — Shortening the road from model to product"
   description="An engineering atelier that turns SysML v2 system models into mechanical, software, and hardware production documents through an AI-powered chain."
   lang={lang}
   pageKey="home"
 >
-  <!-- Hero -->
+  <!-- 1. Hero -->
   <section class="section">
     <div class="container hero">
       <p class="eyebrow">System2Product</p>
-      <h1>From model to product, end to end</h1>
+      <h1>The road from model to product is long. We're shortening it.</h1>
       <p class="lead">
-        <!-- TODO: final hero copy -->
-        We turn the system an engineer models in SysML v2 into mechanical, software,
-        and hardware production documents through an AI-powered chain.
+        If the gap between your system model and the real product feels familiar, you're
+        in the right place. We turn the system you model in SysML v2 into mechanical,
+        software, and hardware production documents through an AI-powered chain.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href={routeMap.services[lang]}>Explore Services</a>
-        <a class="btn btn-secondary" href={routeMap.platform[lang]}>See the Platform</a>
+        <a class="btn btn-primary" href={routeMap.services[lang]}>Explore our services</a>
+        <a class="hero-link" href={routeMap.vision[lang]}>Read the vision →</a>
       </div>
     </div>
   </section>
 
-  <!-- Flow: Model → Bridge → Produce -->
+  <!-- 2. Problem framing -->
+  <section class="section">
+    <div class="container problem-frame">
+      <p class="problem-lead">
+        Systems engineering has been making the same promise for decades: model first,
+        then build the product. What actually happens? The model stays in a document,
+        teams start from scratch with their own tools.
+      </p>
+      <p class="problem-body">
+        The cost of this disconnect is heavy — rework, inconsistency, late delivery,
+        invisible investment. “We did all this planning, why are we starting over?” hangs
+        in the air. We work so that question doesn't have to.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3. Flow — three steps -->
   <section class="section">
     <div class="container">
-      <h2 style="text-align:center">From model to product, one chain</h2>
+      <div class="section-head section-head-center">
+        <h2>Three steps. Model becomes documentation.</h2>
+        <p class="section-sub">
+          Modeling layer, bridge layer, production output — end to end, one chain.
+        </p>
+      </div>
       <div style="margin-top: var(--space-6)">
-        <FlowDiagram lang={lang} />
+        <FlowDiagram steps={flowSteps} />
       </div>
     </div>
   </section>
 
-  <!-- Two platforms -->
+  <!-- 4. Services teaser -->
   <section class="section">
     <div class="container">
-      <h2>Two platforms, one vision</h2>
+      <div class="section-head">
+        <h2>You're not alone. We walk this transformation with you.</h2>
+        <p class="section-sub">
+          Training, consulting, process integration, and pilot projects — to accelerate
+          your team's transition to modern engineering practices.
+        </p>
+      </div>
+      <div class="grid grid-2" style="margin-top: var(--space-5)">
+        {
+          services.map((s) => (
+            <ServiceCard icon={s.icon} title={s.title} description={s.description} />
+          ))
+        }
+      </div>
+      <p class="section-cta">
+        <a href={routeMap.services[lang]}>See full services details →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- 5. Platforms -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2>Two platforms, one story.</h2>
+        <p class="section-sub">
+          Modeling and bridge — they work together, they can be used separately.
+        </p>
+      </div>
       <div class="grid grid-2" style="margin-top: var(--space-5)">
         <PlatformCard
           title="Systemodel"
-          status="Live"
-          description="A SysML v2, AI-assisted web modeling platform. Build, manage, and share your system models in the browser."
+          subtitle="Model the system"
+          status="Active"
+          statusVariant="active"
+          description="We brought SysML v2 to your browser. AI-assisted, MCP-integrated, no installation required. The systems engineer models in a web browser, AI sitting alongside."
+          features={[
+            'SysML v2 / textual + graphical',
+            'Claude + MCP integration',
+            'No installation, web-based',
+          ]}
           href="https://systemodel.com"
-          ctaLabel="Open Systemodel"
+          ctaLabel="Go to systemodel.com →"
+          ctaVariant="primary"
           external={true}
         />
         <PlatformCard
           title="System2Product Platform"
+          subtitle="Take it to production"
           status="In development"
-          description="The bridge platform from model to production documents. This brand site doubles as its landing page."
+          statusVariant="dev"
+          description="The bridge that turns models into production documents. Developed with our multi-discipline team through pilot projects."
+          features={[
+            'Mechanical + software + hardware discipline translation',
+            'AI-assisted document generation',
+            'Integration with your existing toolchain',
+          ]}
           href={routeMap.platform[lang]}
-          ctaLabel="Learn more"
+          ctaLabel="See details and sign up for early access →"
+          ctaVariant="link"
         />
       </div>
     </div>
   </section>
 
+  <!-- 6. Bottom CTA -->
   <CTASection
-    title="Let's talk to your team"
-    text="Explore our training and consulting services for SME technical leaders."
-    ctaLabel="Get in Touch"
-    ctaHref={routeMap.contact[lang]}
-    secondaryLabel="Services"
-    secondaryHref={routeMap.services[lang]}
+    title="Let's start with a conversation."
+    text="Engineering processes, team structure, MBSE adoption — whatever you need help with, the atelier is open to conversation."
+    ctaLabel="Schedule an intro call"
+    ctaHref={contactIntro}
+    emailText="Or email directly:"
+    email="info@system2product.com"
   />
+
+  <!-- 7. Email capture -->
+  <section class="section email-section">
+    <div class="container">
+      <h2>Be the first to hear what's next.</h2>
+      <p class="section-sub">
+        Once or twice a month. No spam, only meaningful updates — System2Product Platform
+        launch, blog posts, case studies.
+      </p>
+      <div style="margin-top: var(--space-4)">
+        <EmailCapture
+          heading="Your email address"
+          buttonLabel="Subscribe"
+          placeholder="name@company.com"
+          hideLabel={true}
+        />
+      </div>
+      <p class="email-micro">You can unsubscribe anytime.</p>
+    </div>
+  </section>
 </PageLayout>
 
 <style>
@@ -82,7 +226,61 @@ const lang = 'en';
   .hero-actions {
     margin-top: var(--space-5);
     display: flex;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-4);
     flex-wrap: wrap;
+  }
+  .hero-link {
+    font-weight: 600;
+    color: var(--color-amber);
+  }
+  .hero-link:hover {
+    color: var(--color-copper);
+  }
+
+  .problem-frame {
+    max-width: var(--max-width-prose);
+    text-align: center;
+  }
+  .problem-lead {
+    font-family: var(--font-display);
+    font-size: clamp(1.25rem, 2.5vw, 1.6rem);
+    line-height: 1.4;
+    color: var(--color-ink);
+  }
+  .problem-body {
+    margin-top: var(--space-4);
+    color: var(--color-anthracite);
+  }
+
+  .section-head-center {
+    text-align: center;
+  }
+  .section-head-center .section-sub {
+    margin-inline: auto;
+  }
+  .section-sub {
+    margin-top: var(--space-3);
+    color: var(--color-anthracite);
+    max-width: 60ch;
+    font-size: 1.1rem;
+  }
+
+  .section-cta {
+    margin-top: var(--space-5);
+    text-align: center;
+  }
+  .section-cta a {
+    font-weight: 600;
+  }
+
+  .email-section {
+    background: var(--bg-card);
+  }
+  .email-micro {
+    margin-top: var(--space-3);
+    font-size: 0.85rem;
+    color: var(--color-anthracite);
+    opacity: 0.75;
   }
 </style>

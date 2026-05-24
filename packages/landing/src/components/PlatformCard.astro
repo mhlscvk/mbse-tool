@@ -2,26 +2,58 @@
 interface Props {
   title: string;
   description: string;
+  /** Short tagline under the title, e.g. "Model the system". */
+  subtitle?: string;
   status?: string;
+  /** Controls the status pill colour: green (live) vs amber (in development). */
+  statusVariant?: 'active' | 'dev';
+  /** Optional 3-line feature highlights (rendered as a ✓ list). */
+  features?: string[];
   href?: string;
   ctaLabel?: string;
+  /** 'primary' = amber button, 'secondary' = outline button, 'link' = text link. */
+  ctaVariant?: 'primary' | 'secondary' | 'link';
   external?: boolean;
 }
 
-const { title, description, status, href, ctaLabel, external = false } = Astro.props;
+const {
+  title,
+  description,
+  subtitle,
+  status,
+  statusVariant = 'active',
+  features,
+  href,
+  ctaLabel,
+  ctaVariant = 'secondary',
+  external = false,
+} = Astro.props;
+
+const ctaClass =
+  ctaVariant === 'primary'
+    ? 'btn btn-primary'
+    : ctaVariant === 'link'
+      ? 'platform-link'
+      : 'btn btn-secondary';
 ---
 
 <article class="platform-card">
-  {status && <span class="status">{status}</span>}
+  {status && <span class:list={['status', statusVariant]}>{status}</span>}
   <h3>{title}</h3>
+  {subtitle && <p class="platform-subtitle">{subtitle}</p>}
   <p>{description}</p>
   {
+    features && features.length > 0 && (
+      <ul class="platform-features">
+        {features.map((f) => (
+          <li>{f}</li>
+        ))}
+      </ul>
+    )
+  }
+  {
     href && ctaLabel && (
-      <a
-        class="btn btn-secondary"
-        href={href}
-        {...external ? { target: '_blank', rel: 'noopener' } : {}}
-      >
+      <a class={ctaClass} href={href} {...external ? { target: '_blank', rel: 'noopener' } : {}}>
         {ctaLabel}
       </a>
     )
@@ -45,13 +77,54 @@ const { title, description, status, href, ctaLabel, external = false } = Astro.p
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--color-copper);
-    background: rgba(180, 114, 66, 0.1);
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
   }
-  .platform-card .btn {
+  /* Live = green, in-development = amber. */
+  .status.active {
+    color: #2f6b43;
+    background: rgba(47, 107, 67, 0.12);
+  }
+  .status.dev {
+    color: var(--color-copper);
+    background: rgba(212, 162, 76, 0.18);
+  }
+  .platform-subtitle {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--color-copper);
+    margin-top: calc(-1 * var(--space-2));
+  }
+  .platform-features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .platform-features li {
+    position: relative;
+    padding-left: var(--space-4);
+    font-size: 0.95rem;
+    color: var(--color-anthracite);
+  }
+  .platform-features li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--color-amber);
+    font-weight: 700;
+  }
+  /* Keep the call to action pinned to the bottom for equal-height cards. */
+  .platform-card .btn,
+  .platform-card .platform-link {
     align-self: flex-start;
     margin-top: auto;
+  }
+  .platform-link {
+    color: var(--color-amber);
+    font-weight: 600;
+    padding-top: var(--space-2);
+  }
+  .platform-link:hover {
+    color: var(--color-copper);
   }
 </style>
