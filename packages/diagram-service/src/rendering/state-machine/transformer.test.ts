@@ -205,6 +205,58 @@ describe('state-machine transformer × multi-root-part-states fixture', () => {
   });
 });
 
+// ── Container labels (Slice 2d.3, Bug-RENDER-02) ─────────────────────────────
+// A top-level `state` USAGE is now emitted as its own composite container node,
+// so each independent machine carries a visible label.
+
+describe('state-machine transformer — multi-root container labels (Slice 2d.3)', () => {
+  it('emits ModeAlpha as a composite owning Idle and Active', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const modeAlpha = ir.nodes.find(n => n.name === 'ModeAlpha');
+    expect(modeAlpha).toBeDefined();
+    expect(modeAlpha!.kind).toBe('state');
+    expect(modeAlpha!.containedNodes).toEqual(
+      expect.arrayContaining(['state__Idle', 'state__Active']),
+    );
+    // Idle↔Active transitions belong to ModeAlpha's scope (not to a child).
+    expect(modeAlpha!.containedEdges).toEqual(
+      expect.arrayContaining(['edge__idle_to_active', 'edge__active_to_idle']),
+    );
+  });
+
+  it('emits ModeBeta as a composite owning Open and Closed', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const modeBeta = ir.nodes.find(n => n.name === 'ModeBeta');
+    expect(modeBeta).toBeDefined();
+    expect(modeBeta!.kind).toBe('state');
+    expect(modeBeta!.containedNodes).toEqual(
+      expect.arrayContaining(['state__Open', 'state__Closed']),
+    );
+  });
+
+  it("qualifies a container with its own name only (no part name leak)", () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const modeAlpha = ir.nodes.find(n => n.name === 'ModeAlpha')!;
+    expect(modeAlpha.semanticRef.qualifiedName).toBe('ModeAlpha');
+  });
+
+  it('gives the container the same composite shape as a nested composite (visual consistency)', () => {
+    const { model } = loadMultiRoot();
+    const ir = transformAstToStateMachineIR(model, STV_SPEC);
+    const modeAlpha = ir.nodes.find(n => n.name === 'ModeAlpha')!;
+    const active = ir.nodes.find(n => n.name === 'Active')!;
+    // Both are `state` nodes with containedNodes — the renderer draws both as
+    // title-bar containers, so the outer machine and the inner composite read
+    // in the same visual language.
+    expect(modeAlpha.kind).toBe(active.kind);
+    expect((modeAlpha.containedNodes ?? []).length).toBeGreaterThan(0);
+    expect((active.containedNodes ?? []).length).toBeGreaterThan(0);
+  });
+});
+
 describe('state-machine transformer — defensive edge cases (Slice 2d.1)', () => {
   it('returns a valid empty IR for a model with no state nodes (no crash)', () => {
     const { model } = parseSysMLText('fixture://empty', 'package Empty { part p; }');

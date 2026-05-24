@@ -173,4 +173,26 @@ describe('state-machine end-to-end (Slice 2c wiring)', () => {
     expect(out.result).toEqual(loadMultiRootExpectedSModel());
     expect(stats.snapshot().byViewType['state-machine']).toEqual({ new: 1 });
   });
+
+  // Slice 2d.3 (Bug-RENDER-02): the two container usages render as labelled
+  // SNodes the frontend (DiagramViewer.tsx:2197) draws as title-bar containers.
+  it('renders ModeAlpha and ModeBeta as container SNodes carrying their «state» + name labels', async () => {
+    const renderer = await viewRegistry.get('state-machine');
+    const ir = renderer!.transformAstToIR(loadMultiRootModel(), STV_SPEC);
+    const root = renderer!.toSModelRoot(ir);
+
+    for (const name of ['ModeAlpha', 'ModeBeta']) {
+      const container = root.children.find(c => c.type === 'node' && c.id === `state__${name}`);
+      expect(container, `container SNode for ${name}`).toBeDefined();
+      const labelTexts = ((container as { children?: { text?: string }[] }).children ?? []).map(l => l.text);
+      expect(labelTexts).toEqual(['«state»', name]);
+      // A composition edge ties the container to each child, which is what the
+      // frontend turns into nesting.
+      const compToChildren = root.children.filter(
+        c => c.type === 'edge' && c.cssClasses?.[0] === 'composition'
+          && (c as { sourceId?: string }).sourceId === `state__${name}`,
+      );
+      expect(compToChildren.length).toBeGreaterThanOrEqual(2);
+    }
+  });
 });
