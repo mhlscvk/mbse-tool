@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import type { RendererFlag, SModelRoot, ViewType } from '@systemodel/shared-types';
+import type { RendererFlag, SModelRoot, StateMachineIR, SysMLModel, ViewType } from '@systemodel/shared-types';
 import { parseSysMLText } from '../../parser/sysml-text-parser.js';
 import { viewRegistry, type ViewSpec } from '../view-registry.js';
 import { mapToDiagramViewType } from '../view-type-mapper.js';
@@ -25,6 +25,7 @@ import { makeWedge } from '../pipeline.js';
 import { RendererStats } from '../renderer-stats.js';
 import type { FlagContext, FlagProvider } from '../feature-flags.js';
 import { transformToBDD } from '../../transformer/bdd-transformer.js';
+import { applyViewFilter } from '../../transformer/view-filters.js';
 import { stateMachineRenderer } from './index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +36,7 @@ const EXPECTED_SMODEL_PATH = resolve(FIXTURE_DIR, 'expected-smodel.json');
 // before the renderer, so its SModel is the *filtered* golden — distinct from
 // the raw transformer/renderer golden the direct test asserts against.
 const EXPECTED_SMODEL_FILTERED_PATH = resolve(FIXTURE_DIR, 'expected-smodel-filtered.json');
+const EXPECTED_IR_FILTERED_PATH = resolve(FIXTURE_DIR, 'expected-ir-filtered.json');
 
 const MULTI_ROOT_DIR = resolve(here, '../../../tests/fixtures/state-machine/multi-root-part-states');
 
@@ -51,6 +53,56 @@ function loadExpectedSModel(): SModelRoot {
 
 function loadExpectedFilteredSModel(): SModelRoot {
   return JSON.parse(readFileSync(EXPECTED_SMODEL_FILTERED_PATH, 'utf-8')) as SModelRoot;
+}
+
+function loadExpectedFilteredIr(): StateMachineIR {
+  return JSON.parse(readFileSync(EXPECTED_IR_FILTERED_PATH, 'utf-8')) as StateMachineIR;
+}
+
+// Mirror the wedge's filter step: applyViewFilter is non-mutating and returns
+// only { nodes, connections }, so reconstruct a full model (carrying uri).
+function filterForStv(model: SysMLModel): SysMLModel {
+  const f = applyViewFilter(model, 'state-transition');
+  return { uri: model.uri, nodes: f.nodes, connections: f.connections };
+}
+
+// astNodeId + generatedAt are source/clock-fragile (ADR-005 §6) — the same
+// normalization transformer.test.ts applies before IR equality.
+function normalize<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(normalize) as unknown as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = k === 'astNodeId' || k === 'generatedAt' ? '<normalized>' : normalize(v);
+    }
+    return out as unknown as T;
+  }
+  return value;
+}
+
+function collectNodeIds(root: SModelRoot): string[] {
+  const ids: string[] = [];
+  const visit = (n: any) => {
+    if (n && n.type === 'node') ids.push(n.id);
+    for (const c of n?.children ?? []) visit(c);
+  };
+  visit(root);
+  return ids;
+}
+
+// Flag-on wedge wired to the production registry/renderer with a legacy-call
+// counter — the Slice 2d.2 tests reuse this instead of repeating makeWedge.
+function flagOnWedge() {
+  const stats = new RendererStats();
+  let legacyCalls = 0;
+  const flagsAlwaysOn: FlagProvider = { isEnabled: async () => true };
+  const wedge = makeWedge({
+    registry: viewRegistry,
+    flags: flagsAlwaysOn,
+    stats,
+    runOldPipeline: (m, v, s) => { legacyCalls += 1; return transformToBDD(m, v, s); },
+  });
+  return { wedge, stats, legacyCalls: () => legacyCalls };
 }
 
 function loadMultiRootModel() {
@@ -204,5 +256,56 @@ describe('state-machine end-to-end (Slice 2c wiring)', () => {
       );
       expect(compToChildren.length).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+// ── View-filter integration (Slice 2d.2, DP1=b) ─────────────────────────────
+// The wedge runs applyViewFilter on the new-renderer path before transforming.
+// These prove the filter reaches the renderer (output level), that sensor-systems
+// matches the filtered golden, and that multi-root is a genuine no-op.
+
+describe('view-filter integration on the new-renderer path (Slice 2d.2)', () => {
+  it('drops On\'s local initial pseudo from the wedge output, while the raw transformer keeps it', async () => {
+    const renderer = await viewRegistry.get('state-machine');
+    // Transformer in isolation (no filter) still builds On's local initial —
+    // that is the transformer-isolation contract the raw golden pins.
+    const rawIr = renderer!.transformAstToIR(loadModel(), STV_SPEC);
+    expect(rawIr.nodes.map(n => n.id)).toContain('pseudo-initial__on');
+
+    // The wedge filters first, so its render drops the sub-state initial but
+    // keeps the top-level one.
+    const { wedge, legacyCalls } = flagOnWedge();
+    const out = await wedge(loadModel(), 'state-transition', false);
+    expect(out.rendererUsed).toBe('new');
+    expect(legacyCalls()).toBe(0);
+    const ids = collectNodeIds(out.result);
+    expect(ids).not.toContain('pseudo-initial__on');
+    expect(ids).toContain('pseudo-initial__top');
+  });
+
+  it('produces a filtered IR that matches expected-ir-filtered.json (normalized)', async () => {
+    const renderer = await viewRegistry.get('state-machine');
+    const ir = renderer!.transformAstToIR(filterForStv(loadModel()), STV_SPEC);
+    expect(normalize(ir)).toEqual(normalize(loadExpectedFilteredIr()));
+  });
+
+  it('multi-root: the filter is a no-op — the wedge render equals the raw render and the committed golden', async () => {
+    const renderer = await viewRegistry.get('state-machine');
+    const rawRender = renderer!.toSModelRoot(renderer!.transformAstToIR(loadMultiRootModel(), STV_SPEC));
+
+    const { wedge, legacyCalls } = flagOnWedge();
+    const out = await wedge(loadMultiRootModel(), 'state-transition', false);
+
+    expect(out.rendererUsed).toBe('new');
+    expect(legacyCalls()).toBe(0);
+    expect(out.result).toEqual(rawRender);                     // filter changed nothing
+    expect(out.result).toEqual(loadMultiRootExpectedSModel()); // still the committed golden
+  });
+
+  it('records the filtered render as new with zero fallback', async () => {
+    const { wedge, stats } = flagOnWedge();
+    await wedge(loadModel(), 'state-transition', false);
+    // No 'old-fallback-from-new' — the filtered model renders cleanly.
+    expect(stats.snapshot().byViewType['state-machine']).toEqual({ new: 1 });
   });
 });
