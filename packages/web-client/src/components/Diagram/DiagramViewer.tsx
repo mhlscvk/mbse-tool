@@ -2161,7 +2161,7 @@ export default function DiagramViewer({
 
               return (
                 <g
-                  key={node.id}
+                  key={node.id} data-node-id={node.id}
                   transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
@@ -2201,7 +2201,7 @@ export default function DiagramViewer({
 
               return (
                 <g
-                  key={node.id}
+                  key={node.id} data-node-id={node.id}
                   transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
@@ -2256,7 +2256,7 @@ export default function DiagramViewer({
             if (isForkJoin) {
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#aaa' : '#888';
               return (
-                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                <g key={node.id} data-node-id={node.id} transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
@@ -2271,7 +2271,7 @@ export default function DiagramViewer({
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#aaa' : '#888';
               const cx = w / 2, cy = h / 2;
               return (
-                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                <g key={node.id} data-node-id={node.id} transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
@@ -2290,7 +2290,7 @@ export default function DiagramViewer({
               const cx = w / 2, cy = h / 2;
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#888';
               return (
-                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                <g key={node.id} data-node-id={node.id} transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
@@ -2307,7 +2307,7 @@ export default function DiagramViewer({
               const cx = w / 2, cy = h / 2;
               const borderColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#888';
               return (
-                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                <g key={node.id} data-node-id={node.id} transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
@@ -2327,7 +2327,7 @@ export default function DiagramViewer({
               const crossColor = isSelected ? '#f0c040' : isHovered ? '#ccc' : '#aaa';
               const d = r * 0.6;
               return (
-                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                <g key={node.id} data-node-id={node.id} transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
@@ -2389,7 +2389,7 @@ export default function DiagramViewer({
 
               return (
                 <g
-                  key={node.id}
+                  key={node.id} data-node-id={node.id}
                   transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
@@ -2468,7 +2468,7 @@ export default function DiagramViewer({
                                     { x: s / 2, y: s + 12, textAnchor: 'middle' };
 
               return (
-                <g key={node.id} transform={`translate(${pos.x},${pos.y})`}
+                <g key={node.id} data-node-id={node.id} transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
@@ -2514,7 +2514,7 @@ export default function DiagramViewer({
 
               return (
                 <g
-                  key={node.id}
+                  key={node.id} data-node-id={node.id}
                   transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
@@ -2571,7 +2571,7 @@ export default function DiagramViewer({
 
               return (
                 <g
-                  key={node.id}
+                  key={node.id} data-node-id={node.id}
                   transform={`translate(${pos.x},${pos.y})`}
                   onClick={(e) => onNodeClick(e, node)}
                   onContextMenu={onNodeContextMenu}
