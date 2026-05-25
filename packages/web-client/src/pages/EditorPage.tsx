@@ -304,6 +304,14 @@ export default function EditorPage() {
   // SysML v2 standard view type
   const [viewType, setViewType] = useLocalStorage<ViewType>(`${lsPrefix}:viewType`, 'general');
 
+  // Reset diagram selection when switching file or view type — a stale selection
+  // references node/edge ids that don't exist in the new model (Bug-RENDER-01, Defect #3).
+  // Keyed on fileId+viewType (not the model object, which changes on every re-parse).
+  useEffect(() => {
+    setDiagramSelectedNodeId(null);
+    setDiagramSelectedEdgeId(null);
+  }, [fileId, viewType]);
+
   // Show inherited features toggle
   const [showInherited, setShowInherited] = useLocalStorage(`${lsPrefix}:showInherited`, false);
 
@@ -1118,6 +1126,10 @@ export default function EditorPage() {
                 onGoToCode={handleGoToCode}
               />
               <DiagramViewer
+                // Bug-RENDER-01 W2: remount on model-identity change (file/view switch) so React
+                // tears down any reconciliation-leftover node <g> (CP-4/audit: clean prop, stale
+                // keyed nodes not unmounted) and renders the new model from a clean slate.
+                key={`${fileId ?? ''}:${viewType}`}
                 model={diagram}
                 hiddenNodeIds={hiddenNodeIds}
                 hiddenEdgeIds={hiddenEdgeIds}

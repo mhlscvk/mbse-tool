@@ -155,6 +155,13 @@ export default function TrainingPage() {
   const [diagramSelectedNodeId, setDiagramSelectedNodeId] = useState<string | null>(null);
   const [diagramSelectedEdgeId, setDiagramSelectedEdgeId] = useState<string | null>(null);
 
+  // Reset diagram selection when switching training task — the new task's model has
+  // different node/edge ids (Bug-RENDER-01, Defect #3; mirrors EditorPage).
+  useEffect(() => {
+    setDiagramSelectedNodeId(null);
+    setDiagramSelectedEdgeId(null);
+  }, [taskIndex]);
+
   // Left sidebar tab: legend vs elements
   const [leftTab, setLeftTab] = useState<'task' | 'elements'>('task');
 
@@ -558,6 +565,8 @@ export default function TrainingPage() {
           {/* Diagram viewer */}
           <div style={{ flex: 1, minHeight: 0 }}>
             <DiagramViewer
+              // Bug-RENDER-01 W2: remount on task switch to clear reconciliation-leftover nodes.
+              key={taskIndex}
               model={diagram}
               hiddenNodeIds={hiddenNodeIds}
               hiddenEdgeIds={hiddenEdgeIds}

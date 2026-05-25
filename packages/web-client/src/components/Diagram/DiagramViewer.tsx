@@ -501,6 +501,15 @@ export default function DiagramViewer({
       setIbdSizes(new Map());
       setElkEdgeRoutes(new Map());
       setPositionOverrides(new Map());
+      // Interaction state that referenced the previous node set is now stale
+      // (Bug-RENDER-01 Defect #3): a multi-selection / open context-menu / hover
+      // pointing at a node from the old model must not survive the switch.
+      // Fires on any visible-node-set change (model switch, view switch, hide/show),
+      // consistent with the layout reset above.
+      setMultiSelectedNodeIds(prev => (prev.size === 0 ? prev : new Set()));
+      setSelectionRect(null);
+      setContextMenu(null);
+      setHoveredNodeId(null);
     }
   }, [nodeIdSetKey]);
 
