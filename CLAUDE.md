@@ -191,11 +191,11 @@ All backend services expose `/health` (liveness) and `/ready` (readiness) endpoi
 
 ## Testing
 
-**Total: 1146 tests** (pre-commit hook full coverage; 1014 via root `pnpm test` = api-server + diagram-service) — all passing, 0 skipped.
+**Total: 1151 tests** (pre-commit hook full coverage; 1014 via root `pnpm test` = api-server + diagram-service) — all passing, 0 skipped.
 
-> **Count note (updated 2026-05-26, Faz 2 Slice 3b Bug-RENDER-01):** Authoritative current totals are the per-package subtotals below — api-server **340**, diagram-service **674**, web-client **132** = **1146**. Slice 3b added the web-client RTL harness (`@testing-library/react` + mock-model factory) and +4 tests (128 → 132). The per-suite enumerations that follow reflect the earlier 1009 baseline and have not been line-by-line re-derived; trust the bolded package subtotals for current counts.
+> **Count note (updated 2026-05-26, Faz 2 Slice 4 Security B1+B3; prod HEAD `477b87d`):** Authoritative current totals are the per-package subtotals below — api-server **345**, diagram-service **674**, web-client **132** = **1151**. Slice 4 added +5 to api-server (340 → 345): B1 `listMembers` conditional-email ×2, B3 change-password ×3. Slice 3b added the web-client RTL harness and +4 (128 → 132). The per-suite enumerations that follow reflect the earlier 1009 baseline and have not been line-by-line re-derived; trust the bolded package subtotals for current counts.
 
-- `api-server`: 340 tests across 24 suites
+- `api-server`: 345 tests across 24 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
   - `ai/tools.test.ts` (17): tool execution, access control, size limits, least-privilege enforcement
   - `ai/providers.test.ts` (5): tool schema validation, least-privilege tool exclusion
@@ -261,15 +261,6 @@ Commits (chronological):
 4. `25d3da6` — Refactor api-server: service layer, shared config, and asyncHandler (18 files, +964/-1142)
 5. `f729a65` — Add CLAUDE.md memory file and update README with new architecture
 6. (latest) — Add project types, startup isolation, element-level locking, display IDs, notifications, audit log
-
-## Pre-existing TypeScript Warnings
-
-These files have pre-existing implicit `any` errors (not from our changes):
-- `src/mcp/resources.ts` — `line`, `i`, `f` parameters
-- `src/middleware/auth.test.ts` — mock `statusCode`/`body` properties
-- `src/routes/mcp.ts` — `err` in catch callback
-
-These are harmless and don't affect runtime. The project compiles and runs successfully despite them.
 
 ## Deployment
 
