@@ -7,7 +7,7 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { asyncHandler } from '../lib/errors.js';
+import { asyncHandler, BadRequest } from '../lib/errors.js';
 import { email as emailSchema, password as passwordSchema } from '../config/schemas.js';
 import { BCRYPT_ROUNDS, VERIFY_TOKEN_TTL_MS, RESET_TOKEN_TTL_MS, BLOCKED_EMAIL_DOMAINS, MIN_EMAIL_DOMAIN_LENGTH } from '../config/constants.js';
 
@@ -307,8 +307,11 @@ router.put('/password', requireAuth, asyncHandler(async (req: AuthRequest, res) 
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {
-    res.status(401).json({ error: 'Unauthorized', message: 'Current password is incorrect' });
-    return;
+    // Security B3: a wrong currentPassword is an invalid request value, NOT a
+    // session-auth failure. Returning 401 here made the web-client's global
+    // 401-interceptor (api-client.ts) treat it as session expiry and log the
+    // user out mid-session. 400 keeps the valid session and surfaces the error.
+    throw BadRequest('Current password is incorrect');
   }
 
   const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);

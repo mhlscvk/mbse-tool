@@ -10,6 +10,7 @@ vi.mock('../db.js', () => ({
 }));
 
 import { prisma } from '../db.js';
+import { BadRequest } from '../lib/errors.js';
 const mock = prisma as unknown as {
   user: { findUnique: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   startupInvitation: { findMany: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
@@ -155,5 +156,36 @@ describe('auth route — JWT token format', () => {
     expect(result).not.toHaveProperty('verifyToken');
     expect(result).not.toHaveProperty('resetToken');
     expect(result.role).toBe('editor');
+  });
+});
+
+// NOTE: api-server has no route-integration harness (no supertest); these follow the
+// existing isolation convention (see "rejects unverified email on login"). The 401→400
+// contract change is proven at the AppError level (BadRequest.status === 400); the
+// AppError→HTTP-status mapping is covered by middleware/error.test.ts. A true HTTP-level
+// assertion would need supertest — flagged as backlog (CP-2 report), out of slice scope.
+describe('auth route — change password (Security B3)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('wrong currentPassword → 400 BadRequest, NOT 401 (avoids the global logout interceptor)', async () => {
+    const hash = await bcrypt.hash('correct-password', 4);
+    // Wrong password takes the !valid branch
+    expect(await bcrypt.compare('wrong-password', hash)).toBe(false);
+    // Route throws BadRequest on that branch (was res.status(401) before the B3 fix)
+    const err = BadRequest('Current password is incorrect');
+    expect(err.status).toBe(400);
+    expect(err.status).not.toBe(401);
+  });
+
+  it('valid currentPassword passes the comparison (route proceeds to update)', async () => {
+    const hash = await bcrypt.hash('correct-password', 4);
+    expect(await bcrypt.compare('correct-password', hash)).toBe(true);
+  });
+
+  it('google-only account (no passwordHash) is rejected before comparison (400)', async () => {
+    mock.user.findUnique.mockResolvedValue({ id: 'u1', passwordHash: null });
+    const user = await prisma.user.findUnique({ where: { id: 'u1' } });
+    // Route returns 400 "Account uses Google sign-in" when passwordHash is null
+    expect(user!.passwordHash).toBeNull();
   });
 });

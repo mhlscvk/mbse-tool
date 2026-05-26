@@ -74,7 +74,7 @@ export interface StartupMember {
   startupId: string;
   userId: string;
   role: StartupRole;
-  user?: { id: string; email: string; name: string };
+  user?: { id: string; email?: string; name: string };
   createdAt: string;
 }
 

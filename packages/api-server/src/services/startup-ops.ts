@@ -136,10 +136,13 @@ export async function removeMember(startupId: string, userId: string) {
   });
 }
 
-export async function listMembers(startupId: string) {
+// Security B1: a member's email is PII. Only startup admins / site admins receive
+// it; STARTUP_USER callers get id + name only. The caller computes includeEmail
+// from the requester's role (see startups.ts members route).
+export async function listMembers(startupId: string, includeEmail: boolean) {
   return prisma.startupMember.findMany({
     where: { startupId },
-    include: { user: { select: { id: true, email: true, name: true } } },
+    include: { user: { select: { id: true, email: includeEmail, name: true } } },
     orderBy: { createdAt: 'asc' },
   });
 }

@@ -138,7 +138,10 @@ router.delete('/:startupId', requireAdmin, asyncHandler(async (req: AuthRequest,
 router.get('/:startupId/members', asyncHandler(async (req: AuthRequest, res) => {
   const access = await startupOps.assertStartupAccess(req.params.startupId, req.userId!, req.userRole);
   if (!access.allowed) throw NotFound('Startup');
-  const members = await startupOps.listMembers(req.params.startupId);
+  // Security B1: only admins (startup admin or site admin) see member emails (PII);
+  // STARTUP_USER sees id + name only.
+  const includeEmail = access.isSiteAdmin || access.memberRole === 'STARTUP_ADMIN';
+  const members = await startupOps.listMembers(req.params.startupId, includeEmail);
   res.json({ data: members });
 }));
 

@@ -169,6 +169,25 @@ describe('removeMember', () => {
   });
 });
 
+describe('listMembers (Security B1 — conditional email PII)', () => {
+  it('includes email in the select when includeEmail is true (admin caller)', async () => {
+    mock.startupMember.findMany.mockResolvedValue([]);
+    await listMembers('s1', true);
+    expect(mock.startupMember.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { startupId: 's1' },
+      include: { user: { select: { id: true, email: true, name: true } } },
+    }));
+  });
+
+  it('excludes email from the select when includeEmail is false (STARTUP_USER caller)', async () => {
+    mock.startupMember.findMany.mockResolvedValue([]);
+    await listMembers('s1', false);
+    expect(mock.startupMember.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      include: { user: { select: { id: true, email: false, name: true } } },
+    }));
+  });
+});
+
 describe('assertStartupAccess', () => {
   it('grants access for site admin', async () => {
     const result = await assertStartupAccess('s1', 'u1', 'ADMIN');
