@@ -191,9 +191,9 @@ All backend services expose `/health` (liveness) and `/ready` (readiness) endpoi
 
 ## Testing
 
-**Total: 1151 tests** (pre-commit hook full coverage; 1014 via root `pnpm test` = api-server + diagram-service) — all passing, 0 skipped.
+**Total: 1154 tests** (pre-commit hook full coverage; 1014 via root `pnpm test` = api-server + diagram-service) — all passing, 0 skipped.
 
-> **Count note (updated 2026-05-26, Faz 2 Slice 4 Security B1+B3; prod HEAD `477b87d`):** Authoritative current totals are the per-package subtotals below — api-server **345**, diagram-service **674**, web-client **132** = **1151**. Slice 4 added +5 to api-server (340 → 345): B1 `listMembers` conditional-email ×2, B3 change-password ×3. Slice 3b added the web-client RTL harness and +4 (128 → 132). The per-suite enumerations that follow reflect the earlier 1009 baseline and have not been line-by-line re-derived; trust the bolded package subtotals for current counts.
+> **Count note (updated 2026-05-26, Faz 2 Slice 5 D-FILTER-01 revoke; prod HEAD `588c5b7`):** Authoritative current totals are the per-package subtotals below — api-server **345**, diagram-service **674**, web-client **135** = **1154**. Slice 5 added +3 to web-client (132 → 135): `pseudo-initial.test.tsx` (D-FILTER-01 revoked — entry-action sub-state pseudo-initial renders). Slice 4 added +5 to api-server (340 → 345). Slice 3b added the web-client RTL harness (128 → 132). The per-suite enumerations that follow reflect the earlier 1009 baseline and have not been line-by-line re-derived; trust the bolded package subtotals for current counts.
 
 - `api-server`: 345 tests across 24 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
@@ -216,12 +216,13 @@ All backend services expose `/health` (liveness) and `/ready` (readiness) endpoi
   - `routes/auth.test.ts` (10): registration security (disposable domains, timing-safe login), password reset token validation, JWT format, safe user object
   - `routes/ai-keys.test.ts` (8): key encryption, masking, provider validation, upsert pattern, schema validation
   - `routes/mcp-tokens.test.ts` (11): token masking, limit enforcement, format, expiration, soft delete, user scoping, schema validation
-- `web-client`: 132 tests across 12 suites
+- `web-client`: 135 tests across 13 suites
   - Theme store (4), recent files (13), sysml helpers (22), cursor fix (6), line diff (13)
   - `edgeLabelPlacement.test.ts` (23): candidate-based placement, collision avoidance, obstacles, direction helpers
   - `resolveEdgeLabelOverlaps.test.ts` (14): overlap detection, group resolution, determinism
   - `Diagram/DiagramViewer.data-node-id.test.tsx` (2): data-node-id ↔ model.children node id parity (Slice 3a W1 backfill)
   - `Diagram/bug-render-01.test.tsx` (2): model A→B switch reconciliation repro — no stale A entry-action node persists (settled + rapid switch); clean-reconciliation baseline guard (Slice 3b W5)
+  - `Diagram/pseudo-initial.test.tsx` (3): D-FILTER-01 revoked (Slice 5) — startnode-cssClass node renders with data-node-id; 2 sub-state pseudo-initials; lone startnode (frontend does not orphan-prune)
 - `diagram-service`: 674 tests across 24 suites
   - Parser: 6 suites (391 tests) — core parser, state, new features, robustness, security, OMG vehicle model
   - Transformer: 5 suites (124 tests) — BDD core, state, new features, robustness, audit
