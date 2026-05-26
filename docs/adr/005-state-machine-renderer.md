@@ -214,6 +214,39 @@ Drawing the sub-state initial dot is a separate future slice.
 **Multi-root impact.** On `multi-root-part-states` (no entry actions, no
 pseudo-states) the filter is a provable no-op; its golden stays byte-identical.
 
+#### Revision — D-FILTER-01 revoked (Phase 2 Slice 5, 2026-05-26)
+
+**Status:** Revoked, 2026-05-26 — supersedes the entry-hide above.
+
+**Decision.** The pseudo-initial (start circle) and the entry action are distinct
+SysML concepts and must be shown separately. The Slice 2d.2 entry-hide + start→entry
+edge remap are removed.
+
+**Rationale.**
+- *Standard conformance.* SysML v2 renders the initial transition and the entry
+  action with separate symbols.
+- *Semantic clarity.* Initial = "which sub-state the container starts in"; entry
+  action = "what runs when the sub-state is entered" — two distinct questions.
+- *Consistency.* Sub-states without an entry action already show the start circle;
+  adding an entry action should not erase it.
+
+**Evidence (AG repro-script, real prod model `cmolrsqrq002oglb7a41d5fz5`).** The
+"sub-state initial not drawn / separate future slice" note above was imprecise: the
+renderer *does* emit a startnode SNode; the view-filter's parent-entry-hide was
+removing it. Layer-by-layer on the real model: raw IR 2 pseudo-initials → post-filter
+0 → SModel 0.
+
+**Affected code (Slice 5).** `view-filters.ts` — the entry-hide block and the
+start→entry edge remap are removed; reparent and orphan-prune are untouched. The
+start node now keeps its outgoing transition edge, so it has a content neighbour and
+survives orphan-prune.
+
+**Test updates.** `end-to-end.test.ts` now asserts the entry-action sub-state's
+`pseudo-initial__on` is *kept* in the wedge output (flipped from the 2d.2 "drops"
+assertion); the filtered goldens were regenerated (a stale duplicate
+`behavior__On_entry_activation` from the old remap was cleaned up). `web-client`
+`pseudo-initial.test.tsx` proves DiagramViewer renders a startnode node in the DOM.
+
 **Snapshot strategy (split, not regen).** The filtered output differs from the
 raw transformer output, and the existing goldens are the *transformer-isolation*
 contract — asserted against the raw model by `transformer.test.ts` and the

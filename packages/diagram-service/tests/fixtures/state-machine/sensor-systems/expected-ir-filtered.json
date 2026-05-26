@@ -33,12 +33,6 @@
               "semanticRef": {
                 "astNodeId": "behavior__On_entry_activation"
               }
-            },
-            {
-              "name": "activation",
-              "semanticRef": {
-                "astNodeId": "behavior__On_entry_activation"
-              }
             }
           ]
         },
@@ -67,9 +61,11 @@
       ],
       "containedNodes": [
         "state__Normal",
-        "state__Degraded"
+        "state__Degraded",
+        "pseudo-initial__on"
       ],
       "containedEdges": [
+        "edge__on_initial_to_normal",
         "edge__normal_to_degraded",
         "edge__degraded_to_normal"
       ]
@@ -152,6 +148,14 @@
       ]
     },
     {
+      "id": "pseudo-initial__on",
+      "kind": "pseudo-initial",
+      "semanticRef": {
+        "astNodeId": "control__On_start",
+        "qualifiedName": "SensorSystemStates::On::start"
+      }
+    },
+    {
       "id": "state__Error",
       "kind": "state",
       "name": "Error",
@@ -179,6 +183,18 @@
     }
   ],
   "edges": [
+    {
+      "id": "edge__on_initial_to_normal",
+      "kind": "transition",
+      "sourceId": "pseudo-initial__on",
+      "targetId": "state__Normal",
+      "semanticRef": {
+        "astNodeId": "transition__anon_960"
+      },
+      "label": {
+        "trigger": "HealthOK"
+      }
+    },
     {
       "id": "edge__normal_to_degraded",
       "kind": "transition",

@@ -265,21 +265,23 @@ describe('state-machine end-to-end (Slice 2c wiring)', () => {
 // matches the filtered golden, and that multi-root is a genuine no-op.
 
 describe('view-filter integration on the new-renderer path (Slice 2d.2)', () => {
-  it('drops On\'s local initial pseudo from the wedge output, while the raw transformer keeps it', async () => {
+  it('keeps On\'s local initial pseudo in the wedge output (D-FILTER-01 revoked, Slice 5)', async () => {
     const renderer = await viewRegistry.get('state-machine');
-    // Transformer in isolation (no filter) still builds On's local initial —
+    // Transformer in isolation (no filter) builds On's local initial —
     // that is the transformer-isolation contract the raw golden pins.
     const rawIr = renderer!.transformAstToIR(loadModel(), STV_SPEC);
     expect(rawIr.nodes.map(n => n.id)).toContain('pseudo-initial__on');
 
-    // The wedge filters first, so its render drops the sub-state initial but
-    // keeps the top-level one.
+    // Slice 5: D-FILTER-01 revoked — the wedge filter NO LONGER drops the
+    // entry-action sub-state's pseudo-initial. Both On's local initial and the
+    // top-level initial survive to the rendered output (start circle + entry
+    // action are distinct concepts, both shown).
     const { wedge, legacyCalls } = flagOnWedge();
     const out = await wedge(loadModel(), 'state-transition', false);
     expect(out.rendererUsed).toBe('new');
     expect(legacyCalls()).toBe(0);
     const ids = collectNodeIds(out.result);
-    expect(ids).not.toContain('pseudo-initial__on');
+    expect(ids).toContain('pseudo-initial__on');
     expect(ids).toContain('pseudo-initial__top');
   });
 

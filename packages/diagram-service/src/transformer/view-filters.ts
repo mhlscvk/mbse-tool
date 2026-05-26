@@ -159,23 +159,12 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
     if (c.kind === 'composition' || c.kind === 'noncomposite') parentOf.set(c.targetId, c.sourceId);
   }
 
-  // Hide start nodes when an entry action node exists in the same parent
-  // (entry action replaces the start circle in STV)
-  const parentsWithEntry = new Set<string>();
-  for (const node of model.nodes) {
-    if (node.kind === 'EntryActionUsage') {
-      const parent = parentOf.get(node.id);
-      if (parent) parentsWithEntry.add(parent);
-    }
-  }
-  for (const node of model.nodes) {
-    if (node.kind === 'StartNode') {
-      const parent = parentOf.get(node.id);
-      if (parent && parentsWithEntry.has(parent)) {
-        keepIds.delete(node.id);
-      }
-    }
-  }
+  // Slice 5 (D-FILTER-01 REVOKED, 2026-05-26): start nodes (pseudo-initials) are
+  // NO LONGER hidden when the parent has an entry action. Initial transition and
+  // entry action are distinct SysML concepts and both render — the start circle
+  // points to its sub-state (initial transition), the entry action shows as the
+  // sub-state's behavior. The former entry-hide + start→entry edge remap are gone.
+  // See docs/adr/005-state-machine-renderer.md (D-FILTER-01 revision).
 
   // Reparent: if a kept node's parent is filtered out, find nearest kept ancestor
   const reparentEdges: SysMLConnection[] = [];
@@ -195,36 +184,11 @@ function filterStateTransitionView(model: SysMLModel): FilteredModel {
     }
   }
 
-  // Build start→entry remap: replace start node edges with entry action node edges
-  // Pre-build parent→entryNodeId map for O(1) lookup
-  const parentToEntryId = new Map<string, string>();
-  for (const node of model.nodes) {
-    if (node.kind === 'EntryActionUsage') {
-      const parent = parentOf.get(node.id);
-      if (parent) parentToEntryId.set(parent, node.id);
-    }
-  }
-  const startToEntry = new Map<string, string>();
-  for (const node of model.nodes) {
-    if (node.kind === 'StartNode') {
-      const parent = parentOf.get(node.id);
-      if (parent && parentsWithEntry.has(parent)) {
-        const entryId = parentToEntryId.get(parent);
-        if (entryId) startToEntry.set(node.id, entryId);
-      }
-    }
-  }
-
   const prelimNodes = model.nodes.filter(n => keepIds.has(n.id));
   const prelimNodeIdSet = new Set(prelimNodes.map(n => n.id));
   const connections = [
     ...model.connections
       .filter(c => STV_EDGE_KINDS.has(c.kind))
-      .map(c => ({
-        ...c,
-        sourceId: startToEntry.get(c.sourceId) ?? c.sourceId,
-        targetId: startToEntry.get(c.targetId) ?? c.targetId,
-      }))
       .filter(c => prelimNodeIdSet.has(c.sourceId) && prelimNodeIdSet.has(c.targetId)),
     ...reparentEdges,
   ];

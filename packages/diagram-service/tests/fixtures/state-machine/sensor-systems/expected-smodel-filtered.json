@@ -85,33 +85,6 @@
     },
     {
       "type": "node",
-      "id": "behavior__On_entry_activation",
-      "position": {
-        "x": 0,
-        "y": 0
-      },
-      "size": {
-        "width": 140,
-        "height": 50
-      },
-      "children": [
-        {
-          "type": "label",
-          "id": "behavior__On_entry_activation__kind",
-          "text": "«entry action»"
-        },
-        {
-          "type": "label",
-          "id": "behavior__On_entry_activation__label",
-          "text": "activation"
-        }
-      ],
-      "cssClasses": [
-        "entryactionusage"
-      ]
-    },
-    {
-      "type": "node",
       "id": "behavior__On_do_controlHealth",
       "position": {
         "x": 0,
@@ -355,6 +328,33 @@
     },
     {
       "type": "node",
+      "id": "pseudo-initial__on",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 24,
+        "height": 24
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "pseudo-initial__on__kind",
+          "text": "«start»"
+        },
+        {
+          "type": "label",
+          "id": "pseudo-initial__on__label",
+          "text": "start"
+        }
+      ],
+      "cssClasses": [
+        "startnode"
+      ]
+    },
+    {
+      "type": "node",
       "id": "state__Error",
       "position": {
         "x": 0,
@@ -432,6 +432,22 @@
       ],
       "cssClasses": [
         "donenode"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "edge__on_initial_to_normal",
+      "sourceId": "pseudo-initial__on",
+      "targetId": "state__Normal",
+      "children": [
+        {
+          "type": "label",
+          "id": "edge__on_initial_to_normal__label",
+          "text": "HealthOK"
+        }
+      ],
+      "cssClasses": [
+        "transition"
       ]
     },
     {
@@ -582,16 +598,6 @@
     },
     {
       "type": "edge",
-      "id": "comp__on_to_entry_activation",
-      "sourceId": "state__On",
-      "targetId": "behavior__On_entry_activation",
-      "children": [],
-      "cssClasses": [
-        "composition"
-      ]
-    },
-    {
-      "type": "edge",
       "id": "comp__on_to_do_controlHealth",
       "sourceId": "state__On",
       "targetId": "behavior__On_do_controlHealth",
@@ -675,6 +681,16 @@
       "id": "comp__degraded_to_do_restrictedOperations",
       "sourceId": "state__Degraded",
       "targetId": "behavior__Degraded_do_restrictedOperations",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "comp__on_to_pseudo_initial",
+      "sourceId": "state__On",
+      "targetId": "pseudo-initial__on",
       "children": [],
       "cssClasses": [
         "composition"
