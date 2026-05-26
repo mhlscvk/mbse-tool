@@ -191,9 +191,9 @@ All backend services expose `/health` (liveness) and `/ready` (readiness) endpoi
 
 ## Testing
 
-**Total: 1142 tests** (pre-commit hook full coverage; 1014 via root `pnpm test` = api-server + diagram-service) — all passing, 0 skipped.
+**Total: 1146 tests** (pre-commit hook full coverage; 1014 via root `pnpm test` = api-server + diagram-service) — all passing, 0 skipped.
 
-> **Count note (updated 2026-05-25, state-machine chain 2d.1+2d.3+2d.2):** Authoritative current totals are the per-package subtotals below — api-server **340**, diagram-service **674**, web-client **128** = **1142**. The per-suite enumerations that follow reflect the earlier 1009 baseline and have not been line-by-line re-derived; trust the bolded package subtotals for current counts.
+> **Count note (updated 2026-05-26, Faz 2 Slice 3b Bug-RENDER-01):** Authoritative current totals are the per-package subtotals below — api-server **340**, diagram-service **674**, web-client **132** = **1146**. Slice 3b added the web-client RTL harness (`@testing-library/react` + mock-model factory) and +4 tests (128 → 132). The per-suite enumerations that follow reflect the earlier 1009 baseline and have not been line-by-line re-derived; trust the bolded package subtotals for current counts.
 
 - `api-server`: 340 tests across 24 suites
   - `ai/encryption.test.ts` (14): AES-256-GCM encrypt/decrypt, tampering, key masking
@@ -216,10 +216,12 @@ All backend services expose `/health` (liveness) and `/ready` (readiness) endpoi
   - `routes/auth.test.ts` (10): registration security (disposable domains, timing-safe login), password reset token validation, JWT format, safe user object
   - `routes/ai-keys.test.ts` (8): key encryption, masking, provider validation, upsert pattern, schema validation
   - `routes/mcp-tokens.test.ts` (11): token masking, limit enforcement, format, expiration, soft delete, user scoping, schema validation
-- `web-client`: 128 tests across 10 suites
+- `web-client`: 132 tests across 12 suites
   - Theme store (4), recent files (13), sysml helpers (22), cursor fix (6), line diff (13)
   - `edgeLabelPlacement.test.ts` (23): candidate-based placement, collision avoidance, obstacles, direction helpers
   - `resolveEdgeLabelOverlaps.test.ts` (14): overlap detection, group resolution, determinism
+  - `Diagram/DiagramViewer.data-node-id.test.tsx` (2): data-node-id ↔ model.children node id parity (Slice 3a W1 backfill)
+  - `Diagram/bug-render-01.test.tsx` (2): model A→B switch reconciliation repro — no stale A entry-action node persists (settled + rapid switch); clean-reconciliation baseline guard (Slice 3b W5)
 - `diagram-service`: 674 tests across 24 suites
   - Parser: 6 suites (391 tests) — core parser, state, new features, robustness, security, OMG vehicle model
   - Transformer: 5 suites (124 tests) — BDD core, state, new features, robustness, audit
