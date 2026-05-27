@@ -843,10 +843,34 @@ export default function DiagramViewer({
       }
       for (const child of result.children ?? []) collectPos(child, 0, 0);
 
-      // Snap pin nodes to parent boundary (nested mode only, config-driven)
+      // Snap pin nodes to parent boundary (nested mode only, config-driven).
+      //
+      // [Slice 6b W3' — K2.2 fix] Two passes instead of one. ELK places pins as
+      // ordinary interior children and gives no anti-collision guarantee, so
+      // multiple pins on the same parent could land on the same ELK coordinate
+      // and snap to the *same* boundary point (Tarayıcı: interfaces had 6 port
+      // pairs at one bbox). That coincidence also collapsed their edges to a
+      // single `d` (K1), since routeOrthogonal derives the path from node
+      // centres. We now group pins by (parent, side) and distribute them along
+      // the side with a minimum centre-to-centre gap, re-centred on the group's
+      // original mean. Single-pin groups and already-spaced groups are
+      // unchanged (shift === 0, forward-resolve is the identity) — no
+      // cross-view regression for state-machine / AFV / STV / general.
       if (effectiveViewMode === 'nested' && vcfg.pinCssClasses.size > 0) {
         const half = PORT_BORDER_SIZE / 2;
+        const PIN_MIN_GAP = PORT_BORDER_SIZE + 4; // min centre-to-centre spacing along a side
         const pp = vcfg.pinPlacement;
+
+        type PinSide = 'left' | 'right' | 'top' | 'bottom';
+        interface PinGroup {
+          side: PinSide;
+          parentPos: { x: number; y: number };
+          parentSz: { w: number; h: number };
+          pins: { id: string; along: number }[];   // `along` = centre coord along the side (y for L/R, x for T/B)
+        }
+        const groups = new Map<string, PinGroup>();
+
+        // Pass 1 — classify each pin to a side, bucket by (parent, side).
         for (const n of nodes) {
           const css = n.cssClasses?.[0] ?? '';
           if (!vcfg.pinCssClasses.has(css)) continue;
@@ -862,7 +886,7 @@ export default function DiagramViewer({
           const dir = n.data?.direction as 'in' | 'out' | 'inout' | undefined;
 
           // Determine side from config placement
-          let side: 'left' | 'right' | 'top' | 'bottom';
+          let side: PinSide;
           const placement = dir ? pp[dir] : 'nearest';
           if (placement === 'nearest') {
             const dL = Math.abs(cx - parentPos.x);
@@ -875,17 +899,45 @@ export default function DiagramViewer({
             side = placement;
           }
 
-          // Snap to straddle parent edge
-          if (side === 'left') {
-            newPositions.set(n.id, { x: parentPos.x - half, y: cy - half });
-          } else if (side === 'right') {
-            newPositions.set(n.id, { x: parentPos.x + parentSz.w - half, y: cy - half });
-          } else if (side === 'top') {
-            newPositions.set(n.id, { x: cx - half, y: parentPos.y - half });
-          } else {
-            newPositions.set(n.id, { x: cx - half, y: parentPos.y + parentSz.h - half });
+          const along = side === 'left' || side === 'right' ? cy : cx;
+          const key = `${pid}|${side}`;
+          let g = groups.get(key);
+          if (!g) { g = { side, parentPos, parentSz, pins: [] }; groups.set(key, g); }
+          g.pins.push({ id: n.id, along });
+        }
+
+        // Pass 2 — distribute each (parent, side) group, then straddle the edge.
+        for (const g of groups.values()) {
+          const { side, parentPos, parentSz, pins } = g;
+          pins.sort((a, b) => a.along - b.along);
+
+          // Forward-resolve a minimum gap (identity when already spaced), then
+          // shift the whole group back onto its original mean so the fan stays
+          // where ELK intended it.
+          const resolved: number[] = [];
+          let cur = -Infinity;
+          for (const p of pins) {
+            const v = Math.max(p.along, cur + PIN_MIN_GAP);
+            resolved.push(v);
+            cur = v;
           }
-          newIbdSizes.set(n.id, { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE });
+          const origMean = pins.reduce((s, p) => s + p.along, 0) / pins.length;
+          const resMean = resolved.reduce((s, v) => s + v, 0) / resolved.length;
+          const shift = origMean - resMean;
+
+          for (let i = 0; i < pins.length; i++) {
+            const along = resolved[i] + shift;
+            if (side === 'left') {
+              newPositions.set(pins[i].id, { x: parentPos.x - half, y: along - half });
+            } else if (side === 'right') {
+              newPositions.set(pins[i].id, { x: parentPos.x + parentSz.w - half, y: along - half });
+            } else if (side === 'top') {
+              newPositions.set(pins[i].id, { x: along - half, y: parentPos.y - half });
+            } else {
+              newPositions.set(pins[i].id, { x: along - half, y: parentPos.y + parentSz.h - half });
+            }
+            newIbdSizes.set(pins[i].id, { w: PORT_BORDER_SIZE, h: PORT_BORDER_SIZE });
+          }
         }
       }
 
