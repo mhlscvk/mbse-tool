@@ -1,0 +1,494 @@
+{
+  "type": "graph",
+  "id": "interconnection__fixture://inheritance/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "pkg__InheritanceIv",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 180,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "pkg__InheritanceIv__kind",
+          "text": "«package»"
+        },
+        {
+          "type": "label",
+          "id": "pkg__InheritanceIv__label",
+          "text": "InheritanceIv"
+        }
+      ],
+      "cssClasses": [
+        "package"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 7,
+            "character": 0
+          },
+          "end": {
+            "line": 22,
+            "character": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__Base",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__Base__kind",
+          "text": "«part def»"
+        },
+        {
+          "type": "label",
+          "id": "def__Base__label",
+          "text": "Base"
+        }
+      ],
+      "cssClasses": [
+        "partdefinition"
+      ],
+      "data": {
+        "qualifiedName": "Base",
+        "range": {
+          "start": {
+            "line": 8,
+            "character": 2
+          },
+          "end": {
+            "line": 11,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__Derived",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__Derived__kind",
+          "text": "«part def»"
+        },
+        {
+          "type": "label",
+          "id": "def__Derived__label",
+          "text": "Derived"
+        }
+      ],
+      "cssClasses": [
+        "partdefinition"
+      ],
+      "data": {
+        "qualifiedName": "Derived",
+        "range": {
+          "start": {
+            "line": 12,
+            "character": 2
+          },
+          "end": {
+            "line": 14,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__SignalPort",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__SignalPort__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__SignalPort__label",
+          "text": "SignalPort"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "SignalPort",
+        "range": {
+          "start": {
+            "line": 15,
+            "character": 2
+          },
+          "end": {
+            "line": 17,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__InheritanceIv_rig",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__InheritanceIv_rig__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__InheritanceIv_rig__label",
+          "text": "rig"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 19,
+            "character": 2
+          },
+          "end": {
+            "line": 21,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Base_baseAttr",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 156.9,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Base_baseAttr__kind",
+          "text": "«attribute»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Base_baseAttr__label",
+          "text": "baseAttr : Real"
+        }
+      ],
+      "cssClasses": [
+        "attributeusage"
+      ],
+      "data": {
+        "qualifiedName": "Real",
+        "range": {
+          "start": {
+            "line": 9,
+            "character": 4
+          },
+          "end": {
+            "line": 9,
+            "character": 30
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Base_p",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 131.48000000000002,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Base_p__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Base_p__label",
+          "text": "p : SignalPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "SignalPort",
+        "range": {
+          "start": {
+            "line": 10,
+            "character": 4
+          },
+          "end": {
+            "line": 10,
+            "character": 24
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Derived_derivedAttr",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 181.08,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Derived_derivedAttr__kind",
+          "text": "«attribute»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Derived_derivedAttr__label",
+          "text": "derivedAttr : Real"
+        }
+      ],
+      "cssClasses": [
+        "attributeusage"
+      ],
+      "data": {
+        "qualifiedName": "Real",
+        "range": {
+          "start": {
+            "line": 13,
+            "character": 4
+          },
+          "end": {
+            "line": 13,
+            "character": 33
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__rig_unit",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 148.84,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__rig_unit__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__rig_unit__label",
+          "text": "unit : Derived"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "qualifiedName": "Derived",
+        "range": {
+          "start": {
+            "line": 20,
+            "character": 4
+          },
+          "end": {
+            "line": 20,
+            "character": 24
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "param__SignalPort_out_s",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "param__SignalPort_out_s__kind",
+          "text": "«out item»"
+        },
+        {
+          "type": "label",
+          "id": "param__SignalPort_out_s__label",
+          "text": "s"
+        }
+      ],
+      "cssClasses": [
+        "itemusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 16,
+            "character": 4
+          },
+          "end": {
+            "line": 16,
+            "character": 15
+          }
+        },
+        "direction": "out"
+      }
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__InheritanceIv_Base",
+      "sourceId": "pkg__InheritanceIv",
+      "targetId": "def__Base",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__InheritanceIv_Derived",
+      "sourceId": "pkg__InheritanceIv",
+      "targetId": "def__Derived",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__InheritanceIv_SignalPort",
+      "sourceId": "pkg__InheritanceIv",
+      "targetId": "def__SignalPort",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__InheritanceIv_rig",
+      "sourceId": "pkg__InheritanceIv",
+      "targetId": "usage__InheritanceIv_rig",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Base_baseAttr",
+      "sourceId": "def__Base",
+      "targetId": "usage__Base_baseAttr",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Base_p",
+      "sourceId": "def__Base",
+      "targetId": "usage__Base_p",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Derived_derivedAttr",
+      "sourceId": "def__Derived",
+      "targetId": "usage__Derived_derivedAttr",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__rig_unit",
+      "sourceId": "usage__InheritanceIv_rig",
+      "targetId": "usage__rig_unit",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "param-owns__SignalPort_out_s",
+      "sourceId": "def__SignalPort",
+      "targetId": "param__SignalPort_out_s",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import type { ViewType, DiagramViewType } from '@systemodel/shared-types';
 export function mapToDiagramViewType(legacy: ViewType): DiagramViewType | null {
   switch (legacy) {
     case 'state-transition': return 'state-machine';
+    case 'interconnection': return 'interconnection';  // Phase 2 Slice 6a porto
     // Phase 2+: other view kinds...
     default:
       return null;

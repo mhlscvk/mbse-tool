@@ -16,6 +16,13 @@ viewRegistry.register('state-machine', () =>
   import('./rendering/state-machine/index.js').then(m => m.stateMachineRenderer),
 );
 
+// Phase 2 Slice 6a — register the interconnection renderer (same lazy-loader
+// pattern; loads only when the first interconnection view is requested with the
+// flag enabled).
+viewRegistry.register('interconnection', () =>
+  import('./rendering/interconnection/index.js').then(m => m.interconnectionRenderer),
+);
+
 const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 
 const PORT = parseInt(process.env.PORT ?? '3002', 10);

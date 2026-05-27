@@ -1,0 +1,510 @@
+{
+  "type": "graph",
+  "id": "interconnection__fixture://basic/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "pkg__BasicIv",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 180,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "pkg__BasicIv__kind",
+          "text": "«package»"
+        },
+        {
+          "type": "label",
+          "id": "pkg__BasicIv__label",
+          "text": "BasicIv"
+        }
+      ],
+      "cssClasses": [
+        "package"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 0
+          },
+          "end": {
+            "line": 16,
+            "character": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__Sensor",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__Sensor__kind",
+          "text": "«part def»"
+        },
+        {
+          "type": "label",
+          "id": "def__Sensor__label",
+          "text": "Sensor"
+        }
+      ],
+      "cssClasses": [
+        "partdefinition"
+      ],
+      "data": {
+        "qualifiedName": "Sensor",
+        "range": {
+          "start": {
+            "line": 1,
+            "character": 2
+          },
+          "end": {
+            "line": 3,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__Controller",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__Controller__kind",
+          "text": "«part def»"
+        },
+        {
+          "type": "label",
+          "id": "def__Controller__label",
+          "text": "Controller"
+        }
+      ],
+      "cssClasses": [
+        "partdefinition"
+      ],
+      "data": {
+        "qualifiedName": "Controller",
+        "range": {
+          "start": {
+            "line": 4,
+            "character": 2
+          },
+          "end": {
+            "line": 6,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__DataPort",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__DataPort__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__DataPort__label",
+          "text": "DataPort"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "DataPort",
+        "range": {
+          "start": {
+            "line": 7,
+            "character": 2
+          },
+          "end": {
+            "line": 9,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__BasicIv_system",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__BasicIv_system__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__BasicIv_system__label",
+          "text": "system"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 11,
+            "character": 2
+          },
+          "end": {
+            "line": 15,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Sensor_out",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 131.48000000000002,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Sensor_out__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Sensor_out__label",
+          "text": "out : DataPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "DataPort",
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 4
+          },
+          "end": {
+            "line": 2,
+            "character": 24
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Controller_in",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 124.66,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Controller_in__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Controller_in__label",
+          "text": "in : DataPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "DataPort",
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 4
+          },
+          "end": {
+            "line": 5,
+            "character": 23
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__system_sensor",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 156.9,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__system_sensor__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__system_sensor__label",
+          "text": "sensor : Sensor"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "qualifiedName": "Sensor",
+        "range": {
+          "start": {
+            "line": 12,
+            "character": 4
+          },
+          "end": {
+            "line": 12,
+            "character": 25
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__system_controller",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 221.38,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__system_controller__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__system_controller__label",
+          "text": "controller : Controller"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "qualifiedName": "Controller",
+        "range": {
+          "start": {
+            "line": 13,
+            "character": 4
+          },
+          "end": {
+            "line": 13,
+            "character": 33
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "param__DataPort_out_reading",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "param__DataPort_out_reading__kind",
+          "text": "«out item»"
+        },
+        {
+          "type": "label",
+          "id": "param__DataPort_out_reading__label",
+          "text": "reading"
+        }
+      ],
+      "cssClasses": [
+        "itemusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 8,
+            "character": 4
+          },
+          "end": {
+            "line": 8,
+            "character": 21
+          }
+        },
+        "direction": "out"
+      }
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__BasicIv_Sensor",
+      "sourceId": "pkg__BasicIv",
+      "targetId": "def__Sensor",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__BasicIv_Controller",
+      "sourceId": "pkg__BasicIv",
+      "targetId": "def__Controller",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__BasicIv_DataPort",
+      "sourceId": "pkg__BasicIv",
+      "targetId": "def__DataPort",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__BasicIv_system",
+      "sourceId": "pkg__BasicIv",
+      "targetId": "usage__BasicIv_system",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Sensor_out",
+      "sourceId": "def__Sensor",
+      "targetId": "usage__Sensor_out",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Controller_in",
+      "sourceId": "def__Controller",
+      "targetId": "usage__Controller_in",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__system_sensor",
+      "sourceId": "usage__BasicIv_system",
+      "targetId": "usage__system_sensor",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__system_controller",
+      "sourceId": "usage__BasicIv_system",
+      "targetId": "usage__system_controller",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "param-owns__DataPort_out_reading",
+      "sourceId": "def__DataPort",
+      "targetId": "param__DataPort_out_reading",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__sensor_controller_248",
+      "sourceId": "usage__system_sensor",
+      "targetId": "usage__system_controller",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__sensor_controller_248__label",
+          "text": "sensor.out → controller.in"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    }
+  ]
+}

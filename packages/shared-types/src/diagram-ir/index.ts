@@ -7,16 +7,17 @@
 
 export * from './common.js';
 export * from './state-machine.js';
+export * from './interconnection.js';
 
 import type { StateMachineIR } from './state-machine.js';
+import type { InterconnectionIR } from './interconnection.js';
 
 export type DiagramIR =
-  | StateMachineIR;
-  // | BlockDefinitionIR   // Phase 2
-  // | InternalBlockIR     // Phase 3
-  // | RequirementIR       // Phase 4
-  // | ActionIR            // Phase 5
-  // | UseCaseIR           // Phase 6
+  | StateMachineIR
+  | InterconnectionIR;   // Phase 2 Slice 6a — interconnection view porto
+  // | RequirementIR      // later phase
+  // | ActionIR           // later phase
+  // | UseCaseIR          // later phase
 
 export type DiagramViewType = DiagramIR['viewType'];
 
@@ -25,7 +26,7 @@ export type DiagramViewType = DiagramIR['viewType'];
 // ViewType bucket". When DiagramIR gains a variant in Phase 2+, add the
 // new tag here too — the exhaustiveness check below will fail at compile
 // time if you forget.
-export const DIAGRAM_VIEW_TYPES = ['state-machine'] as const;
+export const DIAGRAM_VIEW_TYPES = ['state-machine', 'interconnection'] as const;
 
 // Compile-time guarantee that DIAGRAM_VIEW_TYPES covers every union tag.
 // If a new IR variant lands without a corresponding entry, `_exhaustive`

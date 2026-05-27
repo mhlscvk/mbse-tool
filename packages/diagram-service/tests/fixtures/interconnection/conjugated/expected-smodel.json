@@ -1,0 +1,854 @@
+{
+  "type": "graph",
+  "id": "interconnection__fixture://conjugated/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "pkg__ConjugatedIv",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 180,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "pkg__ConjugatedIv__kind",
+          "text": "«package»"
+        },
+        {
+          "type": "label",
+          "id": "pkg__ConjugatedIv__label",
+          "text": "ConjugatedIv"
+        }
+      ],
+      "cssClasses": [
+        "package"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 0
+          },
+          "end": {
+            "line": 28,
+            "character": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__FuelPort",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__FuelPort__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__FuelPort__label",
+          "text": "FuelPort"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "FuelPort",
+        "range": {
+          "start": {
+            "line": 1,
+            "character": 2
+          },
+          "end": {
+            "line": 3,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__CmdPort",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__CmdPort__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__CmdPort__label",
+          "text": "CmdPort"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "CmdPort",
+        "range": {
+          "start": {
+            "line": 4,
+            "character": 2
+          },
+          "end": {
+            "line": 6,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__Engine",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__Engine__kind",
+          "text": "«part def»"
+        },
+        {
+          "type": "label",
+          "id": "def__Engine__label",
+          "text": "Engine"
+        }
+      ],
+      "cssClasses": [
+        "partdefinition"
+      ],
+      "data": {
+        "qualifiedName": "Engine",
+        "range": {
+          "start": {
+            "line": 13,
+            "character": 2
+          },
+          "end": {
+            "line": 16,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__Tank",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__Tank__kind",
+          "text": "«part def»"
+        },
+        {
+          "type": "label",
+          "id": "def__Tank__label",
+          "text": "Tank"
+        }
+      ],
+      "cssClasses": [
+        "partdefinition"
+      ],
+      "data": {
+        "qualifiedName": "Tank",
+        "range": {
+          "start": {
+            "line": 17,
+            "character": 2
+          },
+          "end": {
+            "line": 19,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__FuelInterface",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140.78,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__FuelInterface__kind",
+          "text": "«interface def»"
+        },
+        {
+          "type": "label",
+          "id": "def__FuelInterface__label",
+          "text": "FuelInterface"
+        }
+      ],
+      "cssClasses": [
+        "interfacedefinition"
+      ],
+      "data": {
+        "qualifiedName": "FuelInterface",
+        "range": {
+          "start": {
+            "line": 8,
+            "character": 2
+          },
+          "end": {
+            "line": 11,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__ConjugatedIv_vehicle",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__ConjugatedIv_vehicle__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__ConjugatedIv_vehicle__label",
+          "text": "vehicle"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 21,
+            "character": 2
+          },
+          "end": {
+            "line": 27,
+            "character": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__FuelInterface_supplier",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 165.58,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__FuelInterface_supplier__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__FuelInterface_supplier__label",
+          "text": "supplier : FuelPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "FuelPort",
+        "range": {
+          "start": {
+            "line": 9,
+            "character": 8
+          },
+          "end": {
+            "line": 9,
+            "character": 33
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Engine_cmdIn",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 138.3,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Engine_cmdIn__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Engine_cmdIn__label",
+          "text": "cmdIn : CmdPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "CmdPort",
+        "range": {
+          "start": {
+            "line": 15,
+            "character": 4
+          },
+          "end": {
+            "line": 15,
+            "character": 25
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Tank_fuelOut",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 158.76,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Tank_fuelOut__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Tank_fuelOut__label",
+          "text": "fuelOut : FuelPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "FuelPort",
+        "range": {
+          "start": {
+            "line": 18,
+            "character": 4
+          },
+          "end": {
+            "line": 18,
+            "character": 28
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__vehicle_engine",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 156.9,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__vehicle_engine__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__vehicle_engine__label",
+          "text": "engine : Engine"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "qualifiedName": "Engine",
+        "range": {
+          "start": {
+            "line": 22,
+            "character": 4
+          },
+          "end": {
+            "line": 22,
+            "character": 25
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__vehicle_tank",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 124.66,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__vehicle_tank__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__vehicle_tank__label",
+          "text": "tank : Tank"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "qualifiedName": "Tank",
+        "range": {
+          "start": {
+            "line": 23,
+            "character": 4
+          },
+          "end": {
+            "line": 23,
+            "character": 21
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "param__FuelPort_out_fuel",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "param__FuelPort_out_fuel__kind",
+          "text": "«out item»"
+        },
+        {
+          "type": "label",
+          "id": "param__FuelPort_out_fuel__label",
+          "text": "fuel"
+        }
+      ],
+      "cssClasses": [
+        "itemusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 4
+          },
+          "end": {
+            "line": 2,
+            "character": 18
+          }
+        },
+        "direction": "out"
+      }
+    },
+    {
+      "type": "node",
+      "id": "param__CmdPort_in_cmd",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "param__CmdPort_in_cmd__kind",
+          "text": "«in item»"
+        },
+        {
+          "type": "label",
+          "id": "param__CmdPort_in_cmd__label",
+          "text": "cmd"
+        }
+      ],
+      "cssClasses": [
+        "itemusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 4
+          },
+          "end": {
+            "line": 5,
+            "character": 16
+          }
+        },
+        "direction": "in"
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__FuelInterface_consumer",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 172.4,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__FuelInterface_consumer__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__FuelInterface_consumer__label",
+          "text": "consumer : ~FuelPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "~FuelPort",
+        "range": {
+          "start": {
+            "line": 10,
+            "character": 8
+          },
+          "end": {
+            "line": 10,
+            "character": 34
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Engine_fuelIn",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 158.76,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Engine_fuelIn__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Engine_fuelIn__label",
+          "text": "fuelIn : ~FuelPort"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "~FuelPort",
+        "range": {
+          "start": {
+            "line": 14,
+            "character": 4
+          },
+          "end": {
+            "line": 14,
+            "character": 28
+          }
+        }
+      }
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__ConjugatedIv_FuelPort",
+      "sourceId": "pkg__ConjugatedIv",
+      "targetId": "def__FuelPort",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__ConjugatedIv_CmdPort",
+      "sourceId": "pkg__ConjugatedIv",
+      "targetId": "def__CmdPort",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__ConjugatedIv_Engine",
+      "sourceId": "pkg__ConjugatedIv",
+      "targetId": "def__Engine",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__ConjugatedIv_Tank",
+      "sourceId": "pkg__ConjugatedIv",
+      "targetId": "def__Tank",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__ConjugatedIv_FuelInterface",
+      "sourceId": "pkg__ConjugatedIv",
+      "targetId": "def__FuelInterface",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__ConjugatedIv_vehicle",
+      "sourceId": "pkg__ConjugatedIv",
+      "targetId": "usage__ConjugatedIv_vehicle",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__FuelInterface_supplier",
+      "sourceId": "def__FuelInterface",
+      "targetId": "usage__FuelInterface_supplier",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Engine_cmdIn",
+      "sourceId": "def__Engine",
+      "targetId": "usage__Engine_cmdIn",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Tank_fuelOut",
+      "sourceId": "def__Tank",
+      "targetId": "usage__Tank_fuelOut",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__vehicle_engine",
+      "sourceId": "usage__ConjugatedIv_vehicle",
+      "targetId": "usage__vehicle_engine",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__vehicle_tank",
+      "sourceId": "usage__ConjugatedIv_vehicle",
+      "targetId": "usage__vehicle_tank",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "param-owns__FuelPort_out_fuel",
+      "sourceId": "def__FuelPort",
+      "targetId": "param__FuelPort_out_fuel",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "param-owns__CmdPort_in_cmd",
+      "sourceId": "def__CmdPort",
+      "targetId": "param__CmdPort_in_cmd",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__FuelInterface_consumer",
+      "sourceId": "def__FuelInterface",
+      "targetId": "usage__FuelInterface_consumer",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Engine_fuelIn",
+      "sourceId": "def__Engine",
+      "targetId": "usage__Engine_fuelIn",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "bind__engine_tank_505",
+      "sourceId": "usage__vehicle_engine",
+      "targetId": "usage__vehicle_tank",
+      "children": [
+        {
+          "type": "label",
+          "id": "bind__engine_tank_505__label",
+          "text": "="
+        }
+      ],
+      "cssClasses": [
+        "bind"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__tank_engine_417",
+      "sourceId": "usage__vehicle_tank",
+      "targetId": "usage__vehicle_engine",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__tank_engine_417__label",
+          "text": "tank.fuelOut → engine.fuelIn"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "flow__usage__vehicle_tank_usage__vehicle_engine_460",
+      "sourceId": "usage__vehicle_tank",
+      "targetId": "usage__vehicle_engine",
+      "children": [
+        {
+          "type": "label",
+          "id": "flow__usage__vehicle_tank_usage__vehicle_engine_460__label",
+          "text": "«flow» from"
+        }
+      ],
+      "cssClasses": [
+        "flow"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 25,
+            "character": 4
+          },
+          "end": {
+            "line": 25,
+            "character": 44
+          }
+        }
+      }
+    }
+  ]
+}
