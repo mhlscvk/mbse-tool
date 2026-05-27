@@ -36,7 +36,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_ROOT = resolve(here, '../../../tests/fixtures/interconnection');
 const EXAMPLES_ROOT = resolve(here, '../../../../api-server/prisma/examples');
 
-const FIXTURES = ['basic', 'multi-port', 'conjugated', 'inheritance'] as const;
+const FIXTURES = [
+  'basic', 'multi-port', 'conjugated', 'inheritance',
+  // Platform Owner models (reused by the Slice 6a CP-3 browser re-probe).
+  'po-conjuge', 'po-flows', 'po-interfaces',
+] as const;
 
 function loadModel(name: string): SysMLModel {
   const sysml = readFileSync(resolve(FIXTURE_ROOT, name, 'model.sysml'), 'utf-8');

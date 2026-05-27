@@ -1,0 +1,663 @@
+{
+  "type": "graph",
+  "id": "interconnection__fixture://po-conjuge/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "pkg__conjuge",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 180,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "pkg__conjuge__kind",
+          "text": "«package»"
+        },
+        {
+          "type": "label",
+          "id": "pkg__conjuge__label",
+          "text": "conjuge"
+        }
+      ],
+      "cssClasses": [
+        "package"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 0
+          },
+          "end": {
+            "line": 23,
+            "character": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__portDef1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__portDef1__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__portDef1__label",
+          "text": "portDef1"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "portDef1",
+        "range": {
+          "start": {
+            "line": 22,
+            "character": 4
+          },
+          "end": {
+            "line": 22,
+            "character": 22
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__conjuge_part1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__conjuge_part1__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__conjuge_part1__label",
+          "text": "part1"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 4
+          },
+          "end": {
+            "line": 9,
+            "character": 5
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part1_port3",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part1_port3__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part1_port3__label",
+          "text": "port3"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 8
+          },
+          "end": {
+            "line": 7,
+            "character": 9
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__conjuge_part2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__conjuge_part2__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__conjuge_part2__label",
+          "text": "part2"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 10,
+            "character": 4
+          },
+          "end": {
+            "line": 17,
+            "character": 5
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part2_port3",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part2_port3__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part2_port3__label",
+          "text": "port3"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 13,
+            "character": 8
+          },
+          "end": {
+            "line": 15,
+            "character": 9
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part1_portDef1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 165.58,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part1_portDef1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part1_portDef1__label",
+          "text": "portDef1 : portDef1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "portDef1",
+        "range": {
+          "start": {
+            "line": 8,
+            "character": 8
+          },
+          "end": {
+            "line": 8,
+            "character": 33
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part1_port1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part1_port1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part1_port1__label",
+          "text": "port1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 3,
+            "character": 8
+          },
+          "end": {
+            "line": 3,
+            "character": 19
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part1_port2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part1_port2__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part1_port2__label",
+          "text": "port2"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 4,
+            "character": 8
+          },
+          "end": {
+            "line": 4,
+            "character": 19
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part2_port1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part2_port1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part2_port1__label",
+          "text": "port1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 11,
+            "character": 8
+          },
+          "end": {
+            "line": 11,
+            "character": 19
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part2_port2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part2_port2__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part2_port2__label",
+          "text": "port2"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 12,
+            "character": 8
+          },
+          "end": {
+            "line": 12,
+            "character": 19
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__part2_portDef1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 172.4,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__part2_portDef1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__part2_portDef1__label",
+          "text": "portDef1 : ~portDef1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "~portDef1",
+        "range": {
+          "start": {
+            "line": 16,
+            "character": 8
+          },
+          "end": {
+            "line": 16,
+            "character": 34
+          }
+        }
+      }
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__conjuge_portDef1",
+      "sourceId": "pkg__conjuge",
+      "targetId": "def__portDef1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__conjuge_part1",
+      "sourceId": "pkg__conjuge",
+      "targetId": "usage__conjuge_part1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part1_port3",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__part1_port3",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__conjuge_part2",
+      "sourceId": "pkg__conjuge",
+      "targetId": "usage__conjuge_part2",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part2_port3",
+      "sourceId": "usage__conjuge_part2",
+      "targetId": "usage__part2_port3",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part1_portDef1",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__part1_portDef1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part1_port1",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__part1_port1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part1_port2",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__part1_port2",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part2_port1",
+      "sourceId": "usage__conjuge_part2",
+      "targetId": "usage__part2_port1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part2_port2",
+      "sourceId": "usage__conjuge_part2",
+      "targetId": "usage__part2_port2",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__part2_portDef1",
+      "sourceId": "usage__conjuge_part2",
+      "targetId": "usage__part2_portDef1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "bind__part1_part2_484",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__conjuge_part2",
+      "children": [
+        {
+          "type": "label",
+          "id": "bind__part1_part2_484__label",
+          "text": "="
+        }
+      ],
+      "cssClasses": [
+        "bind"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__part1_part2_334",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__conjuge_part2",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__part1_part2_334__label",
+          "text": "part1.port1 → part2.port1"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__part1_part2_384",
+      "sourceId": "usage__conjuge_part1",
+      "targetId": "usage__conjuge_part2",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__part1_part2_384__label",
+          "text": "part1.port2 → part2.port2"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "flow__usage__part1_port3_usage__part1_port3_424",
+      "sourceId": "usage__part1_port3",
+      "targetId": "usage__part1_port3",
+      "children": [
+        {
+          "type": "label",
+          "id": "flow__usage__part1_port3_usage__part1_port3_424__label",
+          "text": "«flow» from"
+        }
+      ],
+      "cssClasses": [
+        "flow"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 20,
+            "character": 4
+          },
+          "end": {
+            "line": 20,
+            "character": 51
+          }
+        }
+      }
+    }
+  ]
+}

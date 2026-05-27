@@ -1,0 +1,2231 @@
+{
+  "type": "graph",
+  "id": "interconnection__fixture://po-interfaces/model.sysml",
+  "children": [
+    {
+      "type": "node",
+      "id": "pkg__Interfaces",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 180,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "pkg__Interfaces__kind",
+          "text": "«package»"
+        },
+        {
+          "type": "label",
+          "id": "pkg__Interfaces__label",
+          "text": "Interfaces"
+        }
+      ],
+      "cssClasses": [
+        "package"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 0
+          },
+          "end": {
+            "line": 71,
+            "character": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__USB_A",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__USB_A__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__USB_A__label",
+          "text": "USB_A"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "USB_A",
+        "range": {
+          "start": {
+            "line": 53,
+            "character": 4
+          },
+          "end": {
+            "line": 58,
+            "character": 5
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__USB_C",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__USB_C__kind",
+          "text": "«port def»"
+        },
+        {
+          "type": "label",
+          "id": "def__USB_C__label",
+          "text": "USB_C"
+        }
+      ],
+      "cssClasses": [
+        "portdefinition"
+      ],
+      "data": {
+        "qualifiedName": "USB_C",
+        "range": {
+          "start": {
+            "line": 59,
+            "character": 4
+          },
+          "end": {
+            "line": 70,
+            "character": 5
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "def__TypeA_to_TypeC",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 148.84,
+        "height": 60
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "def__TypeA_to_TypeC__kind",
+          "text": "«interface def»"
+        },
+        {
+          "type": "label",
+          "id": "def__TypeA_to_TypeC__label",
+          "text": "TypeA_to_TypeC"
+        }
+      ],
+      "cssClasses": [
+        "interfacedefinition"
+      ],
+      "data": {
+        "qualifiedName": "TypeA_to_TypeC",
+        "range": {
+          "start": {
+            "line": 1,
+            "character": 4
+          },
+          "end": {
+            "line": 43,
+            "character": 5
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__TypeA_to_TypeC_converter",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__TypeA_to_TypeC_converter__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__TypeA_to_TypeC_converter__label",
+          "text": "converter"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 8
+          },
+          "end": {
+            "line": 25,
+            "character": 9
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Interfaces_system",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Interfaces_system__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Interfaces_system__label",
+          "text": "system"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 44,
+            "character": 4
+          },
+          "end": {
+            "line": 52,
+            "character": 5
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__system_power_adapter",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 140.78,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__system_power_adapter__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__system_power_adapter__label",
+          "text": "power_adapter"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 45,
+            "character": 8
+          },
+          "end": {
+            "line": 47,
+            "character": 9
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__system_device",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 120,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__system_device__kind",
+          "text": "«part»"
+        },
+        {
+          "type": "label",
+          "id": "usage__system_device__label",
+          "text": "device"
+        }
+      ],
+      "cssClasses": [
+        "partusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 48,
+            "character": 8
+          },
+          "end": {
+            "line": 50,
+            "character": 9
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__power_adapter_usbA",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 117.84,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__power_adapter_usbA__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__power_adapter_usbA__label",
+          "text": "usbA : USB_A"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "USB_A",
+        "range": {
+          "start": {
+            "line": 46,
+            "character": 12
+          },
+          "end": {
+            "line": 46,
+            "character": 30
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__device_usbC",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 117.84,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__device_usbC__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__device_usbC__label",
+          "text": "usbC : USB_C"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "USB_C",
+        "range": {
+          "start": {
+            "line": 49,
+            "character": 12
+          },
+          "end": {
+            "line": 49,
+            "character": 30
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_a1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_a1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_a1__label",
+          "text": "a1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 3,
+            "character": 12
+          },
+          "end": {
+            "line": 3,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_a12",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_a12__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_a12__label",
+          "text": "a12"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 4,
+            "character": 12
+          },
+          "end": {
+            "line": 4,
+            "character": 21
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_b1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_b1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_b1__label",
+          "text": "b1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 12
+          },
+          "end": {
+            "line": 5,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_b12",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_b12__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_b12__label",
+          "text": "b12"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 6,
+            "character": 12
+          },
+          "end": {
+            "line": 6,
+            "character": 21
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_pin1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_pin1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_pin1__label",
+          "text": "pin1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 7,
+            "character": 12
+          },
+          "end": {
+            "line": 7,
+            "character": 22
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_pin3",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_pin3__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_pin3__label",
+          "text": "pin3"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 8,
+            "character": 12
+          },
+          "end": {
+            "line": 8,
+            "character": 22
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_pin2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_pin2__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_pin2__label",
+          "text": "pin2"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 9,
+            "character": 12
+          },
+          "end": {
+            "line": 9,
+            "character": 22
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_pin4",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_pin4__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_pin4__label",
+          "text": "pin4"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 10,
+            "character": 12
+          },
+          "end": {
+            "line": 10,
+            "character": 22
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_a4",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_a4__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_a4__label",
+          "text": "a4"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 11,
+            "character": 12
+          },
+          "end": {
+            "line": 11,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_b4",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_b4__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_b4__label",
+          "text": "b4"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 12,
+            "character": 12
+          },
+          "end": {
+            "line": 12,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_a9",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_a9__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_a9__label",
+          "text": "a9"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 13,
+            "character": 12
+          },
+          "end": {
+            "line": 13,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_b9",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_b9__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_b9__label",
+          "text": "b9"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 14,
+            "character": 12
+          },
+          "end": {
+            "line": 14,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_a6",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_a6__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_a6__label",
+          "text": "a6"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 21,
+            "character": 12
+          },
+          "end": {
+            "line": 21,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__converter_a7",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__converter_a7__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__converter_a7__label",
+          "text": "a7"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 22,
+            "character": 12
+          },
+          "end": {
+            "line": 22,
+            "character": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_A_pin4",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin4__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin4__label",
+          "text": "pin4"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 54,
+            "character": 8
+          },
+          "end": {
+            "line": 54,
+            "character": 18
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_A_pin1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin1__label",
+          "text": "pin1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 55,
+            "character": 8
+          },
+          "end": {
+            "line": 55,
+            "character": 18
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_A_pin2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin2__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin2__label",
+          "text": "pin2"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 56,
+            "character": 8
+          },
+          "end": {
+            "line": 56,
+            "character": 18
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_A_pin3",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin3__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_A_pin3__label",
+          "text": "pin3"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 57,
+            "character": 8
+          },
+          "end": {
+            "line": 57,
+            "character": 18
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_a1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_a1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_a1__label",
+          "text": "a1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 60,
+            "character": 8
+          },
+          "end": {
+            "line": 60,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_a12",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_a12__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_a12__label",
+          "text": "a12"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 61,
+            "character": 8
+          },
+          "end": {
+            "line": 61,
+            "character": 17
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_b1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_b1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_b1__label",
+          "text": "b1"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 62,
+            "character": 8
+          },
+          "end": {
+            "line": 62,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_b12",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_b12__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_b12__label",
+          "text": "b12"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 63,
+            "character": 8
+          },
+          "end": {
+            "line": 63,
+            "character": 17
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_a4",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_a4__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_a4__label",
+          "text": "a4"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 64,
+            "character": 8
+          },
+          "end": {
+            "line": 64,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_b4",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_b4__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_b4__label",
+          "text": "b4"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 65,
+            "character": 8
+          },
+          "end": {
+            "line": 65,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_a9",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_a9__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_a9__label",
+          "text": "a9"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 66,
+            "character": 8
+          },
+          "end": {
+            "line": 66,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_b9",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_b9__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_b9__label",
+          "text": "b9"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 67,
+            "character": 8
+          },
+          "end": {
+            "line": 67,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_a6",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_a6__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_a6__label",
+          "text": "a6"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 68,
+            "character": 8
+          },
+          "end": {
+            "line": 68,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__USB_C_a7",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 80,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__USB_C_a7__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__USB_C_a7__label",
+          "text": "a7"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "range": {
+          "start": {
+            "line": 69,
+            "character": 8
+          },
+          "end": {
+            "line": 69,
+            "character": 16
+          }
+        }
+      }
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__Interfaces_USB_A",
+      "sourceId": "pkg__Interfaces",
+      "targetId": "def__USB_A",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__Interfaces_USB_C",
+      "sourceId": "pkg__Interfaces",
+      "targetId": "def__USB_C",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "pkg-member__Interfaces_TypeA_to_TypeC",
+      "sourceId": "pkg__Interfaces",
+      "targetId": "def__TypeA_to_TypeC",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__TypeA_to_TypeC_converter",
+      "sourceId": "def__TypeA_to_TypeC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Interfaces_system",
+      "sourceId": "pkg__Interfaces",
+      "targetId": "usage__Interfaces_system",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__system_power_adapter",
+      "sourceId": "usage__Interfaces_system",
+      "targetId": "usage__system_power_adapter",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__system_device",
+      "sourceId": "usage__Interfaces_system",
+      "targetId": "usage__system_device",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__power_adapter_usbA",
+      "sourceId": "usage__system_power_adapter",
+      "targetId": "usage__power_adapter_usbA",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__device_usbC",
+      "sourceId": "usage__system_device",
+      "targetId": "usage__device_usbC",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_a1",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_a1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_a12",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_a12",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_b1",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_b1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_b12",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_b12",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_pin1",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_pin1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_pin3",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_pin3",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_pin2",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_pin2",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_pin4",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_pin4",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_a4",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_a4",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_b4",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_b4",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_a9",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_a9",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_b9",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_b9",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_a6",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_a6",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__converter_a7",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__converter_a7",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_A_pin4",
+      "sourceId": "def__USB_A",
+      "targetId": "usage__USB_A_pin4",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_A_pin1",
+      "sourceId": "def__USB_A",
+      "targetId": "usage__USB_A_pin1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_A_pin2",
+      "sourceId": "def__USB_A",
+      "targetId": "usage__USB_A_pin2",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_A_pin3",
+      "sourceId": "def__USB_A",
+      "targetId": "usage__USB_A_pin3",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_a1",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_a1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_a12",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_a12",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_b1",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_b1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_b12",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_b12",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_a4",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_a4",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_b4",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_b4",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_a9",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_a9",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_b9",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_b9",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_a6",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_a6",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__USB_C_a7",
+      "sourceId": "def__USB_C",
+      "targetId": "usage__USB_C_a7",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__a1_pin4_365",
+      "sourceId": "usage__converter_a1",
+      "targetId": "usage__converter_pin4",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__a1_pin4_365__label",
+          "text": "a1 → pin4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__a12_pin4_407",
+      "sourceId": "usage__converter_a12",
+      "targetId": "usage__converter_pin4",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__a12_pin4_407__label",
+          "text": "a12 → pin4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__b1_pin4_450",
+      "sourceId": "usage__converter_b1",
+      "targetId": "usage__converter_pin4",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__b1_pin4_450__label",
+          "text": "b1 → pin4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__b12_pin4_492",
+      "sourceId": "usage__converter_b12",
+      "targetId": "usage__converter_pin4",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__b12_pin4_492__label",
+          "text": "b12 → pin4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__a4_pin1_535",
+      "sourceId": "usage__converter_a4",
+      "targetId": "usage__converter_pin1",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__a4_pin1_535__label",
+          "text": "a4 → pin1"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__b4_pin1_577",
+      "sourceId": "usage__converter_b4",
+      "targetId": "usage__converter_pin1",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__b4_pin1_577__label",
+          "text": "b4 → pin1"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__a6_pin3_661",
+      "sourceId": "usage__converter_a6",
+      "targetId": "usage__converter_pin3",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__a6_pin3_661__label",
+          "text": "a6 → pin3"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__a7_pin2_703",
+      "sourceId": "usage__converter_a7",
+      "targetId": "usage__converter_pin2",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__a7_pin2_703__label",
+          "text": "a7 → pin2"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__converter_usbA_803",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__power_adapter_usbA",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__converter_usbA_803__label",
+          "text": "converter.pin4 → usbA.pin4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__converter_usbA_858",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__power_adapter_usbA",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__converter_usbA_858__label",
+          "text": "converter.pin1 → usbA.pin1"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__converter_usbA_913",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__power_adapter_usbA",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__converter_usbA_913__label",
+          "text": "converter.pin3 → usbA.pin3"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__converter_usbA_968",
+      "sourceId": "usage__TypeA_to_TypeC_converter",
+      "targetId": "usage__power_adapter_usbA",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__converter_usbA_968__label",
+          "text": "converter.pin2 → usbA.pin2"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1024",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1024__label",
+          "text": "usbC.a1 → converter.a1"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1075",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1075__label",
+          "text": "usbC.a12 → converter.a12"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1128",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1128__label",
+          "text": "usbC.b1 → converter.b1"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1179",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1179__label",
+          "text": "usbC.b12 → converter.b12"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1232",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1232__label",
+          "text": "usbC.a4 → converter.a4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1283",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1283__label",
+          "text": "usbC.b4 → converter.b4"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1334",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1334__label",
+          "text": "usbC.a9 → converter.a9"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1385",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1385__label",
+          "text": "usbC.b9 → converter.b9"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1436",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1436__label",
+          "text": "usbC.a6 → converter.a6"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__usbC_converter_1487",
+      "sourceId": "usage__device_usbC",
+      "targetId": "usage__TypeA_to_TypeC_converter",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__usbC_converter_1487__label",
+          "text": "usbC.a7 → converter.a7"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "connect__power_adapter_device_1712",
+      "sourceId": "usage__system_power_adapter",
+      "targetId": "usage__system_device",
+      "children": [
+        {
+          "type": "label",
+          "id": "connect__power_adapter_device_1712__label",
+          "text": "power_adapter.usbA → device.usbC"
+        }
+      ],
+      "cssClasses": [
+        "association"
+      ]
+    }
+  ]
+}
