@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import ELKModule from 'elkjs/lib/elk.bundled.js';
 import type { SModelRoot, SNode, SEdge, ViewType, ElementLock } from '@systemodel/shared-types';
 import { getViewConfig } from '../../config/view-config.js';
+import { distributePinCoords } from './pin-distribution.js';
 import { useLocalStorage } from '../../hooks/useLocalStorage.js';
 import { useTheme } from '../../store/theme.js';
 import DiagramContextMenu from './DiagramContextMenu.js';
@@ -907,26 +908,15 @@ export default function DiagramViewer({
         }
 
         // Pass 2 — distribute each (parent, side) group, then straddle the edge.
+        // distributePinCoords enforces the min gap, preserves order, re-centres
+        // on the original mean, and is the identity for single/already-spaced
+        // groups (see pin-distribution.ts — regression-safe across views).
         for (const g of groups.values()) {
           const { side, parentPos, parentSz, pins } = g;
-          pins.sort((a, b) => a.along - b.along);
-
-          // Forward-resolve a minimum gap (identity when already spaced), then
-          // shift the whole group back onto its original mean so the fan stays
-          // where ELK intended it.
-          const resolved: number[] = [];
-          let cur = -Infinity;
-          for (const p of pins) {
-            const v = Math.max(p.along, cur + PIN_MIN_GAP);
-            resolved.push(v);
-            cur = v;
-          }
-          const origMean = pins.reduce((s, p) => s + p.along, 0) / pins.length;
-          const resMean = resolved.reduce((s, v) => s + v, 0) / resolved.length;
-          const shift = origMean - resMean;
+          const distributed = distributePinCoords(pins.map(p => p.along), PIN_MIN_GAP);
 
           for (let i = 0; i < pins.length; i++) {
-            const along = resolved[i] + shift;
+            const along = distributed[i];
             if (side === 'left') {
               newPositions.set(pins[i].id, { x: parentPos.x - half, y: along - half });
             } else if (side === 'right') {
@@ -1418,19 +1408,29 @@ export default function DiagramViewer({
     const elkRoute = elkEdgeRoutes.get(edge.id);
     if (elkRoute) return elkRoute;
 
-    // Use orthogonal-routed path if available (nested mode)
-    const routed = routedEdgePaths.get(edge.id);
-    if (routed && routed.length >= 2) {
-      const parts = [`M ${routed[0].x} ${routed[0].y}`];
-      for (let i = 1; i < routed.length; i++) {
-        parts.push(`L ${routed[i].x} ${routed[i].y}`);
+    const offset = edgeCurveOffset.get(edge.id) ?? 0;
+
+    // [Slice 6b W2' — K1 fix] Same-pair parallel edges (offset !== 0) must fan
+    // out. routeOrthogonal keys only on (source, target) node positions, so
+    // every edge of a parallel bundle gets the SAME orthogonal path and they
+    // collapse onto one `d` (K1 — e.g. interfaces' 10 usbC→converter edges,
+    // conjuge's 3 part1→part2 edges). For those, skip the orthogonal route and
+    // fall through to the perpendicular-offset curve below. Unique edges
+    // (offset === 0) keep the orthogonal route unchanged — an identity change
+    // for every non-bundled edge across all views (no cross-view regression).
+    if (offset === 0) {
+      const routed = routedEdgePaths.get(edge.id);
+      if (routed && routed.length >= 2) {
+        const parts = [`M ${routed[0].x} ${routed[0].y}`];
+        for (let i = 1; i < routed.length; i++) {
+          parts.push(`L ${routed[i].x} ${routed[i].y}`);
+        }
+        return parts.join(' ');
       }
-      return parts.join(' ');
     }
 
     const src = nodeCenter(edge.sourceId);
     const tgt = nodeCenter(edge.targetId);
-    const offset = edgeCurveOffset.get(edge.id) ?? 0;
 
     if (offset === 0) {
       // Single edge between this pair — straight line
@@ -1503,16 +1503,21 @@ export default function DiagramViewer({
       if (points.length >= 2) return pointOnPath(points);
     }
 
-    // Use orthogonal-routed path if available (nested mode)
-    const routed = routedEdgePaths.get(edge.id);
-    if (routed && routed.length >= 2) {
-      return pointOnPath(routed);
+    const offset = edgeCurveOffset.get(edge.id) ?? 0;
+
+    // [Slice 6b W2'] Mirror edgePath: bundled edges (offset !== 0) follow the
+    // perpendicular curve, not the collapsed orthogonal route, so their labels
+    // track the fanned-out lines instead of stacking on one path.
+    if (offset === 0) {
+      const routed = routedEdgePaths.get(edge.id);
+      if (routed && routed.length >= 2) {
+        return pointOnPath(routed);
+      }
     }
 
     // Straight or curved edge — interpolate between source and target
     const src = nodeCenter(edge.sourceId);
     const tgt = nodeCenter(edge.targetId);
-    const offset = edgeCurveOffset.get(edge.id) ?? 0;
     if (offset === 0) {
       return { x: src.x + t * (tgt.x - src.x), y: src.y + t * (tgt.y - src.y) };
     }
