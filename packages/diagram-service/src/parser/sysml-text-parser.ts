@@ -2993,6 +2993,89 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     }
   }
 
+  // ── 2b. Interface/Connection def `end` declarations → PortUsage nodes ──
+  //
+  // [Slice 6c Aşama 1 — Bug-A fix]
+  // SysML v2 interface defs (and connection defs) declare their ends via:
+  //   end <name> [: [~]<Type>];   // named, type optional, optional conjugate ~
+  //   end [: [~]<Type>];          // anonymous, type required
+  // Without this pass the parser silently drops `end` declarations, so a later
+  // `interface connect <endName>.x to <part>.y` inside the def cannot find a
+  // local target node and `nodeIndex.get('<endName>')` falls through to a
+  // *system-level* node with the same simple name (the Bug-IV-DEF-USAGE-01
+  // spurious-edge mechanism). We register the new end nodes under the
+  // QUALIFIED key only (`${defName}.${endName}`); the simple-name slot in
+  // nodeIndex stays reserved for the global usage so non-def-scoped lookups
+  // (e.g. the system-level `interface : T connect power_adapter.usbA to
+  // device.usbC`) remain unchanged.
+  const END_NAMED_PATTERN = /\bend\s+(\w+)\s*(?::\s*(~)?([\w':]+))?\s*[;{]/g;
+  const END_ANON_PATTERN = /\bend\s*:\s*(~)?([\w':]+)\s*[;{]/g;
+  const anonEndCounters = new Map<string, number>();
+
+  function emitInterfaceEnd(
+    matchIdx: number,
+    endName: string | undefined,
+    isConj: boolean,
+    typeName: string | undefined,
+  ) {
+    const ownerDef = findOwnerDef(matchIdx);
+    if (!ownerDef) return;
+    if (ownerDef.kind !== 'InterfaceDefinition' && ownerDef.kind !== 'ConnectionDefinition') return;
+    // Anonymous ends get a per-def synthetic name (`end1`, `end2`, …); SysML v2
+    // permits ends without a name (e.g. `interface def 'Fuel Interface'
+    // { end : Outlet; end : ~Outlet; }`), but downstream code needs a stable
+    // identifier. Per-def counter keeps the names predictable per fixture.
+    let name = endName;
+    if (!name) {
+      const next = (anonEndCounters.get(ownerDef.id) ?? 0) + 1;
+      anonEndCounters.set(ownerDef.id, next);
+      name = `end${next}`;
+    }
+    const qualifiedKey = `${ownerDef.name}.${name}`;
+    if (nodeIndex.has(qualifiedKey)) return;
+
+    const id = makeId('usage', `${ownerDef.name}_${name}`);
+    const { line: l, column: c } = lineCol(source, matchIdx);
+    const endNode: SysMLNode = {
+      id, kind: 'PortUsage', name,
+      ...(typeName ? { qualifiedName: (isConj ? '~' : '') + typeName } : {}),
+      children: [], attributes: [], connections: [],
+      range: { start: { line: l - 1, character: c - 1 }, end: { line: l - 1, character: c - 1 } },
+    };
+    nodes.push(endNode);
+    // Qualified key only — do NOT pollute the simple-name slot (would shadow
+    // any global node with the same simple name and re-introduce the bug we
+    // are fixing for non-def-scoped resolution).
+    nodeIndex.set(qualifiedKey, endNode);
+
+    connections.push({
+      id: makeId('owns', `${ownerDef.name}_${name}`),
+      sourceId: ownerDef.id, targetId: id, kind: 'composition', name: '',
+    });
+    if (typeName) {
+      const typeNode = resolveType(typeName);
+      if (typeNode) {
+        connections.push({
+          id: makeId('typeref', `${ownerDef.name}_${name}_${typeName}`),
+          sourceId: id, targetId: typeNode.id, kind: 'typereference', name: '',
+        });
+      }
+    }
+  }
+
+  END_NAMED_PATTERN.lastIndex = 0;
+  while ((match = END_NAMED_PATTERN.exec(clean)) !== null) {
+    const [, name, conjMark, type] = match;
+    emitInterfaceEnd(match.index, name, !!conjMark, type);
+  }
+  // Anonymous ends are syntactically disjoint from named (no `\w+` between
+  // `end` and `:`), so the two passes never double-count.
+  END_ANON_PATTERN.lastIndex = 0;
+  while ((match = END_ANON_PATTERN.exec(clean)) !== null) {
+    const [, conjMark, type] = match;
+    emitInterfaceEnd(match.index, undefined, !!conjMark, type);
+  }
+
   // ── 3. Extract explicit connect statements ──────────────────────────────
 
   CONNECT_PATTERN.lastIndex = 0;
@@ -3004,8 +3087,19 @@ export function parseSysMLText(uri: string, source: string): { model: SysMLModel
     const fromRoot = from.split('.')[0];
     const toRoot = to.split('.')[0];
 
-    const sourceNode = nodeIndex.get(fromRoot);
-    const targetNode = nodeIndex.get(toRoot);
+    // [Slice 6c Aşama 1 — Bug-B fix] Def-local scope. When the connect lies
+    // inside an interface/connection def, prefer the def-qualified key over
+    // the global simple-name slot so `interface connect usbC.a1 to
+    // converter.a1` resolves `usbC` to the def's own `end usbC` rather than a
+    // system-level node with the same simple name. Outside a def context the
+    // scopeName is undefined and resolution stays purely global (identity for
+    // every connect that is not inside a def — no regression).
+    const ownerDef = findOwnerDef(match.index);
+    const scopeName = ownerDef?.name;
+    const sourceNode = (scopeName ? nodeIndex.get(`${scopeName}.${fromRoot}`) : undefined)
+      ?? nodeIndex.get(fromRoot);
+    const targetNode = (scopeName ? nodeIndex.get(`${scopeName}.${toRoot}`) : undefined)
+      ?? nodeIndex.get(toRoot);
     if (!sourceNode || !targetNode) continue;
 
     connections.push({

@@ -560,6 +560,86 @@
       }
     },
     {
+      "type": "node",
+      "id": "usage__Fuel_Interface_end1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 124.66,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Fuel_Interface_end1__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Fuel_Interface_end1__label",
+          "text": "end1 : Outlet"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "Outlet",
+        "range": {
+          "start": {
+            "line": 7,
+            "character": 12
+          },
+          "end": {
+            "line": 7,
+            "character": 12
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__Fuel_Interface_end2",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 131.48000000000002,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__Fuel_Interface_end2__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__Fuel_Interface_end2__label",
+          "text": "end2 : ~Outlet"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "~Outlet",
+        "range": {
+          "start": {
+            "line": 8,
+            "character": 12
+          },
+          "end": {
+            "line": 8,
+            "character": 12
+          }
+        }
+      }
+    },
+    {
       "type": "edge",
       "id": "pkg-member__Flows_Definitions",
       "sourceId": "pkg__Flows",
@@ -703,6 +783,26 @@
       ],
       "cssClasses": [
         "bind"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Fuel_Interface_end1",
+      "sourceId": "def__Fuel_Interface",
+      "targetId": "usage__Fuel_Interface_end1",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__Fuel_Interface_end2",
+      "sourceId": "def__Fuel_Interface",
+      "targetId": "usage__Fuel_Interface_end2",
+      "children": [],
+      "cssClasses": [
+        "composition"
       ]
     },
     {

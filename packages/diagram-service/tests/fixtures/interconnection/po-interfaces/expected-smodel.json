@@ -1490,6 +1490,86 @@
       }
     },
     {
+      "type": "node",
+      "id": "usage__TypeA_to_TypeC_usbA",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 117.84,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__TypeA_to_TypeC_usbA__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__TypeA_to_TypeC_usbA__label",
+          "text": "usbA : USB_A"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "USB_A",
+        "range": {
+          "start": {
+            "line": 26,
+            "character": 8
+          },
+          "end": {
+            "line": 26,
+            "character": 8
+          }
+        }
+      }
+    },
+    {
+      "type": "node",
+      "id": "usage__TypeA_to_TypeC_usbC",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 117.84,
+        "height": 50
+      },
+      "children": [
+        {
+          "type": "label",
+          "id": "usage__TypeA_to_TypeC_usbC__kind",
+          "text": "«port»"
+        },
+        {
+          "type": "label",
+          "id": "usage__TypeA_to_TypeC_usbC__label",
+          "text": "usbC : USB_C"
+        }
+      ],
+      "cssClasses": [
+        "portusage"
+      ],
+      "data": {
+        "qualifiedName": "USB_C",
+        "range": {
+          "start": {
+            "line": 27,
+            "character": 8
+          },
+          "end": {
+            "line": 27,
+            "character": 8
+          }
+        }
+      }
+    },
+    {
       "type": "edge",
       "id": "pkg-member__Interfaces_USB_A",
       "sourceId": "pkg__Interfaces",
@@ -1861,6 +1941,26 @@
     },
     {
       "type": "edge",
+      "id": "owns__TypeA_to_TypeC_usbA",
+      "sourceId": "def__TypeA_to_TypeC",
+      "targetId": "usage__TypeA_to_TypeC_usbA",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
+      "id": "owns__TypeA_to_TypeC_usbC",
+      "sourceId": "def__TypeA_to_TypeC",
+      "targetId": "usage__TypeA_to_TypeC_usbC",
+      "children": [],
+      "cssClasses": [
+        "composition"
+      ]
+    },
+    {
+      "type": "edge",
       "id": "connect__a1_pin4_365",
       "sourceId": "usage__converter_a1",
       "targetId": "usage__converter_pin4",
@@ -1991,7 +2091,7 @@
       "type": "edge",
       "id": "connect__converter_usbA_803",
       "sourceId": "usage__TypeA_to_TypeC_converter",
-      "targetId": "usage__power_adapter_usbA",
+      "targetId": "usage__TypeA_to_TypeC_usbA",
       "children": [
         {
           "type": "label",
@@ -2007,7 +2107,7 @@
       "type": "edge",
       "id": "connect__converter_usbA_858",
       "sourceId": "usage__TypeA_to_TypeC_converter",
-      "targetId": "usage__power_adapter_usbA",
+      "targetId": "usage__TypeA_to_TypeC_usbA",
       "children": [
         {
           "type": "label",
@@ -2023,7 +2123,7 @@
       "type": "edge",
       "id": "connect__converter_usbA_913",
       "sourceId": "usage__TypeA_to_TypeC_converter",
-      "targetId": "usage__power_adapter_usbA",
+      "targetId": "usage__TypeA_to_TypeC_usbA",
       "children": [
         {
           "type": "label",
@@ -2039,7 +2139,7 @@
       "type": "edge",
       "id": "connect__converter_usbA_968",
       "sourceId": "usage__TypeA_to_TypeC_converter",
-      "targetId": "usage__power_adapter_usbA",
+      "targetId": "usage__TypeA_to_TypeC_usbA",
       "children": [
         {
           "type": "label",
@@ -2054,7 +2154,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1024",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2070,7 +2170,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1075",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2086,7 +2186,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1128",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2102,7 +2202,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1179",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2118,7 +2218,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1232",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2134,7 +2234,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1283",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2150,7 +2250,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1334",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2166,7 +2266,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1385",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2182,7 +2282,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1436",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
@@ -2198,7 +2298,7 @@
     {
       "type": "edge",
       "id": "connect__usbC_converter_1487",
-      "sourceId": "usage__device_usbC",
+      "sourceId": "usage__TypeA_to_TypeC_usbC",
       "targetId": "usage__TypeA_to_TypeC_converter",
       "children": [
         {
