@@ -1,0 +1,165 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout
+  title="Ücretsiz Tanışma Görüşmesi — Payanda Lab"
+  description="Her Cumartesi 11:00-15:00 arası, online, 20 dakikalık ücretsiz tanışma görüşmesi ayarlayın."
+>
+  <Nav active="randevu" />
+  <main>
+    <div class="wrap">
+      <div class="step-eyebrow"><span class="accent">●</span> Son Adım</div>
+      <h2 class="step-title">Ücretsiz <em>tanışma görüşmesi</em></h2>
+      <p class="step-lede">Her Cumartesi 11:00-15:00 arası, online, 20 dakikalık seanslar. Size uygun bir saat seçin.</p>
+
+      <div
+        id="calEmbedContainer"
+        style="min-height: 620px; border: 1px solid var(--line); background: var(--bg-alt); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-family: var(--mono); font-size: 13px;"
+      >
+        Takvim yükleniyor…
+      </div>
+
+      <div style="margin-bottom: 32px; text-align: center;">
+        <a
+          href="#"
+          id="calFallbackLink"
+          target="_blank"
+          rel="noopener"
+          style="font-family: var(--mono); font-size: 12px; color: var(--ink-faint); text-decoration: underline; text-underline-offset: 3px;"
+        >
+          Takvim burada görünmüyorsa, Cal.com'da doğrudan açmak için tıklayın →
+        </a>
+      </div>
+
+      <button class="none-match" type="button" id="altSlotToggle">
+        Bu saatler bana uygun değil — başka bir zaman önerelim
+      </button>
+
+      <form
+        class="toggle-form"
+        id="altSlotForm"
+        action="mailto:info@payandalab.com"
+        method="post"
+        enctype="text/plain"
+      >
+        <input type="hidden" name="subject" value="Payanda Lab — Alternatif Randevu Talebi" />
+        <span class="cf-label">Size uygun bir zaman ayarlayalım</span>
+        <input type="text" class="text-input" name="name" placeholder="Adınız Soyadınız" required />
+        <input type="email" class="text-input" name="email" placeholder="eposta@firmaniz.com" required />
+        <input type="text" class="text-input" name="role" placeholder="Göreviniz / Unvanınız (opsiyonel)" />
+        <input
+          type="text"
+          class="text-input"
+          name="preferredTime"
+          placeholder="Size uygun gün/saat (opsiyonel) — örn: Salı akşamları"
+        />
+        <button class="btn btn-ghost" type="submit">Gönder</button>
+        <p class="form-note">
+          Gönderdiğinizde mail uygulamanız açılacak. Açılmazsa doğrudan
+          <a href="mailto:info@payandalab.com">info@payandalab.com</a> adresine yazabilirsiniz.
+        </p>
+      </form>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  const CAL_LINK = 'muhlis-cevik-sy1nce/payanda-lab-tanışma-gorusmesi';
+
+  (function (C: any, A: string, L: string) {
+    const p = function (a: any, ar: any) {
+      a.q.push(ar);
+    };
+    const d = C.document;
+    C.Cal =
+      C.Cal ||
+      function (...ar: any[]) {
+        const cal = C.Cal;
+        if (!cal.loaded) {
+          cal.ns = {};
+          cal.q = cal.q || [];
+          d.head.appendChild(d.createElement('script')).src = A;
+          cal.loaded = true;
+        }
+        if (ar[0] === L) {
+          const api = function (...apiAr: any[]) {
+            p(api, apiAr);
+          };
+          const namespace = ar[1];
+          (api as any).q = (api as any).q || [];
+          if (typeof namespace === 'string') {
+            cal.ns[namespace] = cal.ns[namespace] || api;
+            p(cal.ns[namespace], ar);
+            p(cal, ['initNamespace', namespace]);
+          } else p(cal, ar);
+          return;
+        }
+        p(cal, ar);
+      };
+  })(window, 'https://app.cal.com/embed/embed.js', 'init');
+
+  declare const Cal: any;
+  Cal('init', { origin: 'https://cal.com' });
+
+  function buildBookingNotes(): string {
+    const notes = new URLSearchParams(window.location.search).get('notes');
+    if (notes) return notes;
+    return 'Payanda Lab sitesinden "Randevu Al" ile doğrudan geldi — vaka/teşhis bağlamı yok.';
+  }
+
+  function initCalEmbed() {
+    const container = document.getElementById('calEmbedContainer');
+    if (!container) return;
+
+    const fallback = document.getElementById('calFallbackLink') as HTMLAnchorElement | null;
+    if (fallback) fallback.href = 'https://cal.com/' + CAL_LINK;
+
+    container.innerHTML = 'Takvim yükleniyor…';
+
+    try {
+      Cal('inline', {
+        elementOrSelector: '#calEmbedContainer',
+        calLink: CAL_LINK,
+        config: {
+          name: '',
+          email: '',
+          notes: buildBookingNotes(),
+          theme: 'dark',
+          layout: 'month_view',
+        },
+      });
+      Cal('ui', {
+        theme: 'dark',
+        styles: { branding: { brandColor: '#f59e0b' } },
+        cssVarsPerTheme: {
+          dark: {
+            'cal-brand': '#f59e0b',
+            'cal-border-booker': '#2a2e33',
+            'cal-text-emphasis': '#e8e6e1',
+            'cal-bg-emphasis': '#1a1d20',
+          },
+        },
+        hideEventTypeDetails: false,
+      });
+    } catch (err) {
+      container.innerHTML = 'Takvim yüklenemedi. Aşağıdaki bağlantıyı kullanın.';
+      console.error('Cal.com embed hatası:', err);
+    }
+
+    setTimeout(() => {
+      if (container.textContent?.trim() === 'Takvim yükleniyor…') {
+        container.innerHTML = 'Takvim yüklenemedi — reklam engelleyici veya bağlantı sorunu olabilir. Aşağıdaki bağlantıyı kullanın.';
+      }
+    }, 4000);
+  }
+
+  initCalEmbed();
+
+  document.getElementById('altSlotToggle')?.addEventListener('click', () => {
+    document.getElementById('altSlotForm')?.classList.toggle('visible');
+  });
+</script>

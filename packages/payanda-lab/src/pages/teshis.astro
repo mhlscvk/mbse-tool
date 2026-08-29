@@ -1,0 +1,125 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout
+  title="Birkaç Soru — Payanda Lab"
+  description="Üç kısa soru ile durumunuzu anlamaya çalışalım."
+>
+  <Nav />
+  <main>
+    <div class="wrap">
+      <div class="step-eyebrow"><span class="accent">●</span> Adım 2 / 2 — Birkaç Soru</div>
+
+      <!-- STEP 1 -->
+      <div class="q-step active" id="q-step-1">
+        <div class="q-progress">
+          <div class="q-dot current"></div>
+          <div class="q-dot"></div>
+          <div class="q-dot"></div>
+        </div>
+        <div class="q-block">
+          <h2>Bu problem size ne zamandır rahatsızlık veriyor?</h2>
+          <div class="opt-list" data-q="1">
+            <button class="opt-btn" type="button">Yeni fark ettim, henüz taze</button>
+            <button class="opt-btn" type="button">Uzun zamandır var ama önceliklendiremedim</button>
+            <button class="opt-btn" type="button">Bir kriz anında ortaya çıktı</button>
+            <button class="opt-btn" type="button">Aslında emin değilim, sadece bir huzursuzluk var</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="q1-next" disabled type="button"> Devam <span class="arrow">→</span></button>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="q-step" id="q-step-2">
+        <div class="q-progress">
+          <div class="q-dot done"></div>
+          <div class="q-dot current"></div>
+          <div class="q-dot"></div>
+        </div>
+        <div class="q-block">
+          <h2>Bu konuda daha önce bir şeyler denediniz mi?</h2>
+          <div class="opt-list" data-q="2">
+            <button class="opt-btn" type="button">Hiç denemedim</button>
+            <button class="opt-btn" type="button">Denedim ama işe yaramadı</button>
+            <button class="opt-btn" type="button">Şu an bir şeyler deniyorum</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="q2-next" disabled type="button"> Devam <span class="arrow">→</span></button>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="q-step" id="q-step-3">
+        <div class="q-progress">
+          <div class="q-dot done"></div>
+          <div class="q-dot done"></div>
+          <div class="q-dot current"></div>
+        </div>
+        <div class="q-block">
+          <h2>Kendi cümlelerinizle, en çok neyin sizi zorladığını yazar mısınız?</h2>
+          <p style="color: var(--ink-faint); font-size: 13px; margin-bottom: 20px; font-family: var(--mono);">
+            1-2 cümle yeterli. Bu bilgiyi biz okuyacağız.
+          </p>
+          <textarea
+            class="free-text"
+            id="freeTextInput"
+            placeholder="Örneğin: Ekibimiz büyüyor ama kimin ne yaptığını takip edemiyorum, aynı işi iki kişi yapıyor bazen..."
+          ></textarea>
+          <div class="char-count" id="charCount">0 karakter</div>
+        </div>
+        <button class="btn btn-primary" id="q3-submit" disabled type="button"> Gönder <span class="arrow">→</span></button>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  const answers: { q1: string | null; q2: string | null; q3: string } = { q1: null, q2: null, q3: '' };
+
+  function goToStep(n: number) {
+    document.querySelectorAll('.q-step').forEach((el) => el.classList.remove('active'));
+    document.getElementById(`q-step-${n}`)?.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.querySelectorAll('.opt-list').forEach((list) => {
+    const qNum = list.getAttribute('data-q');
+    list.querySelectorAll('.opt-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        list.querySelectorAll('.opt-btn').forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        if (qNum === '1') {
+          answers.q1 = btn.textContent;
+          (document.getElementById('q1-next') as HTMLButtonElement).disabled = false;
+        } else if (qNum === '2') {
+          answers.q2 = btn.textContent;
+          (document.getElementById('q2-next') as HTMLButtonElement).disabled = false;
+        }
+      });
+    });
+  });
+
+  document.getElementById('q1-next')?.addEventListener('click', () => goToStep(2));
+  document.getElementById('q2-next')?.addEventListener('click', () => goToStep(3));
+
+  const freeText = document.getElementById('freeTextInput') as HTMLTextAreaElement;
+  const charCount = document.getElementById('charCount') as HTMLElement;
+  const q3Submit = document.getElementById('q3-submit') as HTMLButtonElement;
+
+  freeText?.addEventListener('input', () => {
+    const val = freeText.value;
+    answers.q3 = val;
+    charCount.textContent = `${val.length} karakter`;
+    q3Submit.disabled = val.trim().length < 15;
+  });
+
+  q3Submit?.addEventListener('click', () => {
+    const notes =
+      `Payanda Lab sitesinden geldi — Teşhis cevapları — ` +
+      `Soru 1: ${answers.q1 || '—'} | Soru 2: ${answers.q2 || '—'} | Kendi açıklaması: ${answers.q3 || '—'}`;
+    window.location.href = `/tesekkur?notes=${encodeURIComponent(notes)}`;
+  });
+</script>

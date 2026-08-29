@@ -1,0 +1,21 @@
+:root {
+  --bg: #0d0e0f;
+  --bg-alt: #131517;
+  --bg-elevated: #1a1d20;
+  --line: #2a2e33;
+  --line-bright: #3d4248;
+  --ink: #e8e6e1;
+  --ink-dim: #9a958c;
+  --ink-faint: #5d5a55;
+  --accent: #d97706;
+  --accent-bright: #f59e0b;
+  --accent-dim: #92400e;
+  --green: #65a30d;
+  --red: #b91c1c;
+
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'Inter Tight', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  --max-width: 900px;
+}

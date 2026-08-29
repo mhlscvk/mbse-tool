@@ -1,0 +1,19 @@
+---
+interface Props {
+  slug: string;
+  tip: string;
+  num: string;
+  title: string;
+  hook: string;
+}
+const { slug, tip, num, title, hook } = Astro.props;
+---
+
+<a class="vaka-card" href={`/vakalar/${slug}`}>
+  <div class="vc-top">
+    <span class="vc-tip">{tip}</span>
+    <span class="vc-num">VAKA {num}</span>
+  </div>
+  <h3>{title}</h3>
+  <p>{hook}</p>
+</a>

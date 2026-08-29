@@ -1,0 +1,40 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import VakaCard from '../../components/VakaCard.astro';
+
+const vakalar = (await getCollection('vakalar')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<BaseLayout
+  title="Hangisi Size En Yakın? — Payanda Lab"
+  description="Altı gerçek saha vakası. Birini okuyup kendinizi tanıdığınızı hissederseniz üzerine tıklayın."
+>
+  <Nav />
+  <main>
+    <div class="wrap">
+      <div class="step-eyebrow"><span class="accent">●</span> Adım 1 / 2 — Vaka Seçimi</div>
+      <h2 class="step-title">Hangisi size <em>en yakın</em>?</h2>
+      <p class="step-lede">Altı gerçek saha vakası. Birini okuyup kendinizi tanıdığınızı hissederseniz üzerine tıklayın.</p>
+
+      <div class="vaka-grid">
+        {
+          vakalar.map((v) => (
+            <VakaCard
+              slug={v.slug}
+              tip={v.data.tip}
+              num={String(v.data.order).padStart(2, '0')}
+              title={v.data.title}
+              hook={v.data.hook}
+            />
+          ))
+        }
+      </div>
+
+      <a class="none-match" href="/teshis"> Hiçbiri tam uymuyor — birkaç soru sorun </a>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>

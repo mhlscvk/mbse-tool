@@ -1,0 +1,43 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import CtaBox from '../../components/CtaBox.astro';
+
+export async function getStaticPaths() {
+  const vakalar = await getCollection('vakalar');
+  return vakalar.map((v) => ({
+    params: { slug: v.slug },
+    props: { entry: v },
+  }));
+}
+
+const { entry } = Astro.props;
+const { title, tip, subtitle, ctaType, ctaText } = entry.data;
+const { Content } = await entry.render();
+const num = String(entry.data.order).padStart(2, '0');
+const notes = `Payanda Lab sitesinden geldi — Seçilen vaka: ${tip} — "${title}"`;
+---
+
+<BaseLayout title={`${title} — Payanda Lab`} description={entry.data.hook}>
+  <Nav />
+  <main>
+    <div class="wrap">
+      <span class="vaka-detail-tip">{tip} · VAKA {num}</span>
+      <div class="vaka-detail">
+        <h1>{title}</h1>
+        <div class="italic-sub">{subtitle}</div>
+        <div class="vaka-body">
+          <Content />
+        </div>
+        <CtaBox ctaType={ctaType} ctaText={ctaText} notes={notes} />
+        <div class="detail-nav">
+          <a class="btn btn-ghost" href="/vakalar">← Diğer vakalara dön</a>
+          <a class="btn btn-ghost" href="/teshis">Hiçbiri tam uymuyor →</a>
+        </div>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>

@@ -185,7 +185,8 @@ ssh "$SERVER" "cd $SERVER_DIR && \
   cd $SERVER_DIR && \
   pnpm --filter @systemodel/diagram-service build && \
   pnpm --filter @systemodel/web-client build && \
-  pnpm --filter @systemodel/landing build"
+  pnpm --filter @systemodel/landing build && \
+  pnpm --filter @systemodel/payanda-lab build"
 info "Built."
 
 # ═══════════════════════════════════════════════════════════════════════════════

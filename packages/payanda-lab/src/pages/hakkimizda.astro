@@ -1,0 +1,124 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout
+  title="Hakkımızda — Payanda Lab"
+  description="Payanda Lab, savunma sanayii sektöründe fiilen çalışmış mühendislerin kurduğu bir ekip. Ne yapıyoruz, nasıl çalışıyoruz, yaklaşımımız."
+>
+  <Nav active="hakkimizda" />
+  <main>
+    <div class="wrap">
+      <div class="hero-eyebrow">Payanda Lab · Kim Olduğumuz</div>
+      <h2 class="section-h2">Sahadan gelen bir ekip, <em>sahaya çözüm götürüyor</em>.</h2>
+      <p class="step-lede" style="max-width: 680px;">
+        Payanda Lab, savunma sanayii sektöründe fiilen çalışmış mühendislerin kurduğu bir ekip. Vakaları uzaktan
+        okuyup analiz eden bir danışmanlık değiliz — sahada aynı sorunları yaşamış, aynı baskı altında çalışmış
+        insanlarız. Firmanızın gerçek problemini anlayıp, ona uygun çözümü birlikte kuruyoruz.
+      </p>
+
+      <h2 class="section-h">Ne yapıyoruz</h2>
+      <div class="info-grid">
+        <div class="info-card">
+          <span class="ic-num">01</span>
+          <h3>Teknik Destek</h3>
+          <p>
+            Üretim, tasarım ve mühendislik süreçlerinizdeki somut sorunlara doğrudan müdahale — saha tecrübesiyle,
+            jargon değil pratik çözüm.
+          </p>
+        </div>
+        <div class="info-card">
+          <span class="ic-num">02</span>
+          <h3>Eğitim &amp; Danışmanlık</h3>
+          <p>
+            Ekibinizin ihtiyaç duyduğu metodolojiyi (sistem mühendisliği, süreç disiplini) gerçek projeleriniz
+            üzerinden, adım adım kazandırıyoruz.
+          </p>
+        </div>
+        <div class="info-card">
+          <span class="ic-num">03</span>
+          <h3>Araç &amp; Süreç Geliştirme</h3>
+          <p>
+            İhtiyaç analiz edildikten sonra, firmanıza özel araçları ve süreçleri birlikte tasarlıyor, geliştiriyor ve
+            kullanıma açıyoruz.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="section-h">Nasıl çalışıyoruz</h2>
+      <div class="process-list">
+        <div class="process-step">
+          <span class="ps-num">01</span>
+          <div>
+            <h4>Yöneticilerle ilk görüşme</h4>
+            <p>Kısa bir tanışma görüşmesiyle başlıyoruz — durumunuzu dinliyor, nereden başlanacağını birlikte belirliyoruz.</p>
+          </div>
+        </div>
+        <div class="process-step">
+          <span class="ps-num">02</span>
+          <div>
+            <h4>Yetkili ekiple derinleşme</h4>
+            <p>Sizin yönlendirdiğiniz ilgili kişilerle görüşüyoruz — onlar da kendi problemlerini bizim arayüzümüz üzerinden anlatıyor.</p>
+          </div>
+        </div>
+        <div class="process-step">
+          <span class="ps-num">03</span>
+          <div>
+            <h4>Yerinde inceleme</h4>
+            <p>Sahaya geliyoruz. Süreçlerinizi, ekibinizi, üretim/tasarım akışınızı yerinde görüyoruz — uzaktan tahmin yürütmüyoruz.</p>
+          </div>
+        </div>
+        <div class="process-step">
+          <span class="ps-num">04</span>
+          <div>
+            <h4>Gerekirse tekrar</h4>
+            <p>Bir görüşme ve bir inceleme çoğu zaman yeterli olmuyor. Gerektiğinde tekrar konuşuyor, tekrar sahaya geliyoruz.</p>
+          </div>
+        </div>
+        <div class="process-step">
+          <span class="ps-num">05</span>
+          <div>
+            <h4>Rapor ve çözüm önerisi</h4>
+            <p>Gördüklerimizi ve önerdiğimiz çözüm yollarını net bir raporla sunuyoruz — sonraki adım tamamen sizin kararınız.</p>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="section-h">Yaklaşımımız</h2>
+      <div class="approach-row">
+        <div class="approach-card">
+          <h3>Firmaya özel</h3>
+          <p>Hazır bir paket satmıyoruz. Her firma farklı büyüklükte, farklı alışkanlıkta — çözüm de ona göre şekilleniyor.</p>
+        </div>
+        <div class="approach-card">
+          <h3>Maliyet etkin</h3>
+          <p>KOBİ bütçesini biliyoruz. Gereksiz karmaşıklık eklemiyoruz — en az yatırımla en somut faydayı hedefliyoruz.</p>
+        </div>
+      </div>
+
+      <h2 class="section-h">Sektördeki diğer çalışmalarımız</h2>
+      <div class="sibling-grid">
+        <div class="sibling-card">
+          <span class="sc-status">Aktif</span>
+          <h3>Systemodel</h3>
+          <p>SysML v2 ile sistem mühendisliği modellemesini tarayıcıya taşıyan, AI destekli bir platform. Kurulum gerektirmez.</p>
+          <span class="sc-url">systemodel.com</span>
+        </div>
+        <div class="sibling-card">
+          <span class="sc-status dev">Geliştiriliyor</span>
+          <h3>System2Product</h3>
+          <p>Modelden üretime giden yolu AI destekli olarak kuran, mekanik/yazılım/donanım disiplinlerini birbirine bağlayan köprü platform.</p>
+          <span class="sc-url">system2product.com</span>
+        </div>
+      </div>
+
+      <div class="cta-box">
+        <p class="cta-line">"Sizinle de tanışmak isteriz."</p>
+        <a class="btn btn-primary" href="/randevu">Ücretsiz görüşme ayarla <span class="arrow">→</span></a>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>

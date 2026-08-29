@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout
+  title="Payanda Lab — Sizin Hikayeniz Hangisi?"
+  description="Ankara'daki savunma sanayii KOBİ'lerine yönelik organizasyonel dönüşüm hizmeti. Sahadan derlenen gerçek vakalardan birini okuyun, size tanıdık geliyorsa ücretsiz bir tanışma görüşmesi ayarlayın."
+>
+  <Nav />
+  <main>
+    <div class="wrap">
+      <section class="hero">
+        <div class="hero-eyebrow">Ankara · Savunma KOBİ · 3 dakika</div>
+        <h1>Bu sizin <em>hikayeniz</em> mi?</h1>
+        <p class="sub">
+          Sahadan derlenen gerçek vakalardan birini okuyacaksınız. Eğer size tanıdık geliyorsa, ne yapılabileceğini
+          birlikte konuşalım. Tanıdık gelmiyorsa, birkaç kısa soruyla durumunuzu anlamaya çalışırız.
+        </p>
+        <a class="btn btn-primary" href="/vakalar"> Başlayalım <span class="arrow">→</span></a>
+      </section>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>

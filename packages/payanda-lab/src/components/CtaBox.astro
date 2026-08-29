@@ -1,0 +1,41 @@
+---
+interface Props {
+  ctaType: 'full' | 'soft' | 'none';
+  ctaText?: string;
+  notes: string;
+}
+const { ctaType, ctaText, notes } = Astro.props;
+const bookingHref = `/randevu?notes=${encodeURIComponent(notes)}`;
+---
+
+{
+  ctaType === 'full' && (
+    <div class="cta-box">
+      <p class="cta-line">"Bu size tanıdık geldiyse, konuşalım."</p>
+      <a class="btn btn-primary" href={bookingHref}>
+        Ücretsiz görüşme ayarla <span class="arrow">→</span>
+      </a>
+      <div class="schedule-note">Her Cumartesi 11:00-15:00 arası, online, 20 dakikalık seanslar.</div>
+    </div>
+  )
+}
+{
+  ctaType === 'soft' && (
+    <div class="cta-box soft">
+      <p class="cta-line">"{ctaText}"</p>
+      <a class="btn btn-ghost" href={bookingHref}>
+        Görüşme ayarla <span class="arrow">→</span>
+      </a>
+    </div>
+  )
+}
+{
+  ctaType === 'none' && (
+    <div class="cta-box none">
+      <p class="cta-none-note">
+        Bu vaka için bir "ücretsiz görüşme" daveti bilerek yapmıyoruz — çünkü bu bizim çözdüğümüz bir sorun
+        olmayabilir.
+      </p>
+    </div>
+  )
+}

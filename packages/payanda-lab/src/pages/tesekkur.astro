@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout title="Teşekkürler — Payanda Lab" description="Cevaplarınızı aldık.">
+  <Nav />
+  <main>
+    <div class="wrap">
+      <div class="confirm-mark">✓</div>
+      <h2 class="step-title">Teşekkürler, <em>aldık</em>.</h2>
+      <p class="step-lede">
+        Cevaplarınızı kaydettik. Ekibimiz durumunuzu inceleyip size en uygun yaklaşımı düşünecek. Ama beklemenize
+        gerek yok — isterseniz şimdi ücretsiz bir tanışma görüşmesi ayarlayabilirsiniz.
+      </p>
+      <a class="btn btn-primary" href="/randevu" id="bookingCta"> Ücretsiz görüşme ayarla <span class="arrow">→</span></a>
+
+      <div class="mini-optin">
+        <button class="mini-optin-trigger" type="button" id="miniOptinTrigger">
+          Şimdi uygun değilim, sadece e-postamı bırakayım
+        </button>
+        <form
+          class="mini-optin-form toggle-form"
+          id="miniOptinForm"
+          action="mailto:info@payandalab.com"
+          method="post"
+          enctype="text/plain"
+        >
+          <input type="hidden" name="subject" value="Payanda Lab — e-posta bırakma" />
+          <div class="mini-optin-row">
+            <input type="email" class="text-input" name="email" placeholder="eposta@firmaniz.com" required />
+            <button class="btn btn-ghost" type="submit" style="flex-shrink:0;">Bırak</button>
+          </div>
+          <p class="form-note">
+            Gönderdiğinizde mail uygulamanız açılacak. Açılmazsa doğrudan
+            <a href="mailto:info@payandalab.com">info@payandalab.com</a> adresine yazabilirsiniz.
+          </p>
+        </form>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  // Forward the ?notes= context (from the diagnostic wizard) through to the booking page.
+  const notes = new URLSearchParams(window.location.search).get('notes');
+  if (notes) {
+    const cta = document.getElementById('bookingCta') as HTMLAnchorElement;
+    cta.href = `/randevu?notes=${encodeURIComponent(notes)}`;
+  }
+
+  document.getElementById('miniOptinTrigger')?.addEventListener('click', () => {
+    document.getElementById('miniOptinForm')?.classList.toggle('visible');
+  });
+</script>

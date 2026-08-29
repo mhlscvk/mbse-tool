@@ -5,3 +5,4 @@ packages:
   - 'packages/api-server'
   - 'packages/web-client'
   - 'packages/landing'
+  - 'packages/payanda-lab'
