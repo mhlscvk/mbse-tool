@@ -253,7 +253,8 @@ textarea.free-text::placeholder { color: var(--ink-faint); }
 
 .sibling-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 48px; }
 @media (min-width: 700px) { .sibling-grid { grid-template-columns: 1fr 1fr; } }
-.sibling-card { border: 1px solid var(--line-bright); background: var(--bg-elevated); padding: 26px; }
+.sibling-card { display: block; border: 1px solid var(--line-bright); background: var(--bg-elevated); padding: 26px; transition: border-color 0.15s ease; }
+.sibling-card:hover { border-color: var(--accent-bright); }
 .sibling-card .sc-status {
   font-family: var(--mono); font-size: 10px; color: var(--green); letter-spacing: 0.08em;
   text-transform: uppercase; margin-bottom: 14px; display: inline-block; border: 1px solid var(--green); padding: 3px 9px;
