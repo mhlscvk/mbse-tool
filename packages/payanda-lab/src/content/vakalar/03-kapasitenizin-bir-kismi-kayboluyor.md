@@ -9,7 +9,7 @@ ctaType: full
 
 ## Bu sizin hikayeniz mi?
 
-- 1. müşteriniz kapasitenizin büyük bir kısmını mı dolduruyor, geri kalan pay diğer müşterilere düzensiz şekilde mi dağılıyor?
+- 1\. müşteriniz kapasitenizin büyük bir kısmını mı dolduruyor, geri kalan pay diğer müşterilere düzensiz şekilde mi dağılıyor?
 - "İşler iyi gidiyor" diyorsunuz, ama yeni bir müşteri teklifini "kapasitemiz zaten dolu" diye geri çeviriyor musunuz — bundan tam emin değilsiniz aslında?
 - Ekibiniz sürekli yoğun görünüyor, ama üretim çıktınız beklediğinizin gerisinde mi kalıyor?
 - Rakip firmaların aynı ekiple daha fazla müşteriye hizmet verdiğini duyduğunuzda içinizde bir soru işareti oluşuyor mu?
