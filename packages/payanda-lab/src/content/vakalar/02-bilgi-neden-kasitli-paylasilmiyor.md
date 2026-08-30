@@ -2,7 +2,7 @@
 order: 2
 tip: "TİP B"
 title: "Bilgi Neden Kasıtlı Paylaşılmıyor?"
-hook: "Tasarım ekibiniz güncel kararlardan haberdar olmuyor mu? \"Biz bunu istemedik\" diyen bir müşteri yaşadınız mı?"
+hook: "Tasarım ekibiniz güncel kararlardan haberdar olmuyor mu? \"Biz bunu istememiştik\" diyen bir müşteri ile karşılaştınız mı?"
 subtitle: "Ankara'daki bir yan sanayi firmasında gözlemlenen, sektörde sık konuşulmayan bir durum."
 ctaType: soft
 ctaText: "Bu durumu yapısal bir kopukluk olarak yaşıyorsanız, konuşalım."
