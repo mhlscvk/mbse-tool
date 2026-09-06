@@ -1,0 +1,54 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout
+  title="Bize Ulaşın — Payanda Lab"
+  description="Vakalardan hiçbiri tam size uymadıysa, ya da farklı bir konuda yazmak isterseniz, bize doğrudan ulaşabilirsiniz."
+>
+  <Nav />
+  <main>
+    <div class="wrap">
+      <div class="hero-eyebrow">Payanda Lab · Bize Ulaşın</div>
+      <h2 class="section-h2">Doğrudan <em>bize yazın</em>.</h2>
+      <p class="step-lede" style="max-width: 620px;">
+        Vakalardan hiçbiri tam size uymadıysa, ya da farklı bir konuda yazmak isterseniz, bize doğrudan
+        ulaşabilirsiniz.
+      </p>
+
+      <div class="info-grid">
+        <div class="approach-card">
+          <h3>E-posta</h3>
+          <p>
+            Sorunuzu doğrudan yazın, size dönüş yapalım.<br />
+            <a
+              href="mailto:info@payandalab.com"
+              style="color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px;"
+              >info@payandalab.com</a
+            >
+          </p>
+        </div>
+        <div class="approach-card">
+          <h3>Ücretsiz Görüşme</h3>
+          <p>Ya da doğrudan ücretsiz bir tanışma görüşmesi ayarlayın — yazışmayı beklemeden konuşalım.</p>
+          <a class="btn btn-ghost" href="/randevu" style="margin-top: 16px;">Randevu al <span class="arrow">→</span></a>
+        </div>
+        <div class="approach-card">
+          <h3>LinkedIn</h3>
+          <p>Kampanyamız zaten LinkedIn üzerinden yürüyor — dilerseniz oradan devam edin.</p>
+          <a
+            class="btn btn-ghost"
+            href="https://www.linkedin.com/in/muhlis-%C3%A7evik-84043666/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="margin-top: 16px;"
+            >Profili görüntüle <span class="arrow">→</span></a
+          >
+        </div>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>

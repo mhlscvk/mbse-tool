@@ -276,4 +276,6 @@ h2.section-h {
 
 footer.site-footer { border-top: 1px solid var(--line); padding: 32px 0; position: relative; z-index: 2; }
 .foot-inner { max-width: var(--max-width); margin: 0 auto; padding: 0 32px; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase; text-align: center; }
+.foot-link { color: var(--ink-faint); transition: color 0.2s ease; }
+.foot-link:hover { color: var(--accent-bright); }
 @media (max-width: 700px) { .foot-inner { padding: 0 20px; } }
